@@ -1,3 +1,5 @@
+*.h5ad
+*.h5Seurat
 .Rproj.user
 .Rhistory
 .RData

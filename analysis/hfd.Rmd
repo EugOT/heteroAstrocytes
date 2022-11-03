@@ -1,0 +1,885 @@
+---
+title: "hfd"
+author: "Evgenii O. Tretiakov"
+date: "2022-06-24"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Introduction
+
+Here we use dataset of adult mice hypothalami Arcuate nuclei single
+nucleus RNA-seq from paper @dengSingleNucleusRNASequencing2020 We're
+going to use both parts of data: first, we will use only astrocytes from
+control mice for data integration against whole hypothalamus matrix; in
+second, part we're going to add another variable - normal chow vs high
+fat diet.
+
+First we need to load packages that we need for processing, setup
+environment and load data.
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+    autodep        = TRUE,
+    cache          = FALSE,
+    cache.lazy     = FALSE,
+    dev            = c("png", "pdf"),
+    echo           = FALSE,
+    error          = FALSE,
+    fig.align      = "center",
+    fig.width      = 14,
+    fig.height     = 12,
+    message        = FALSE,
+    warning        = FALSE
+)
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+    library(here)
+    library(tidyverse)
+    library(magrittr)
+    library(stringr)
+    library(skimr)
+    library(future)
+    library(kableExtra)
+})
+
+# Load packages for scRNA-seq analysis and visualisation
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install(c("scuttle", "miQC", "glmGamPoi", "Nebulosa"))
+}
+
+suppressPackageStartupMessages({
+    library(SingleCellExperiment)
+    library(scuttle)
+    library(scater)
+    library(flexmix)
+    library(splines)
+    library(miQC)
+    library(Seurat)
+    library(SeuratWrappers)
+    library(SeuratDisk)
+    library(sctransform)
+    library(glmGamPoi)
+    library(UpSetR)
+    library(patchwork)
+    library(swne)
+    library(Nebulosa)
+})
+
+# Set paths
+src_dir    <- here('code')
+data_dir   <- here('data')
+output_dir <- here('output')
+plots_dir  <- here(output_dir, 'figures')
+tables_dir <- here(output_dir, 'tables')
+source(here(src_dir, 'genes.R'))
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+## Load datasets
+
+```{r load}
+runs <- c(
+  "536-1_chow-diet",
+  "536-3_chow-diet",
+  "536-5_chow-diet",
+  "536-2_537-4_high-fat-diet",
+  "537-1_537-3_high-fat-diet",
+  "537-5_538-2_high-fat-diet"
+)
+
+prepRun <- function(prj) {
+  mtx <- Read10X(data.dir = sprintf("~/data/HFD/%s/filtered_feature_bc_matrix/", prj))
+  srt <- CreateSeuratObject(
+    counts = mtx,
+    project = prj,
+    min.cells = 0,
+    min.features = 200
+  )
+  srt$age      <- "adult"
+  srt$sex      <- "male"
+  srt$study_id <- "deng_2020"
+  srt$tech     <- "10xv3"
+  srt$hfd      <- str_detect(string = prj, 
+                             pattern = "high-fat-diet")
+  return(srt)
+}
+
+srt_list <- runs |> purrr::map(prepRun)
+names(srt_list) <- runs
+
+genes.embed <- c("Ndrg2", "Slc1a3", "Gfap", 
+                         "Gh", "Agt", "Slc6a11",
+                         "Mfn2", "Lxn", "Pomc", 
+                         "Lep", "Lepr", "Ghsr")
+
+```
+
+## Add QC metrics and filter
+
+### Chow-diet samples
+
+#### 1. 536-1
+
+```{r get-mt-536-1_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[['536-1_chow-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-1_chow-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls)
+
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-1_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-536-1_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-1_chow-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-536-1_chow-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[['536-1_chow-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 2. 536-3
+
+```{r get-mt-536-3_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[['536-3_chow-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-3_chow-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls,
+                    BPPARAM = BiocParallel::MulticoreParam())
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-3_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-536-3_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-3_chow-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-536-3_chow-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[['536-3_chow-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 3. 536-5
+
+```{r get-mt-536-5_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[['536-5_chow-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-5_chow-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls,
+                    BPPARAM = BiocParallel::MulticoreParam())
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-5_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+# plotFiltering(sce, model)
+
+```
+
+the model above gives error
+
+```{r pl-mixsplinemodel-536-5_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-5_chow-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.7)
+```
+
+use strong criteria due to strength data
+
+```{r fix-mtfilter-536-5_chow-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.7)
+srt_list[['536-5_chow-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+### HFD samples
+
+#### 1. 536-2_537-4
+
+```{r get-mt-536-2_537-4_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[['536-2_537-4_high-fat-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-2_537-4_high-fat-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls,
+                    BPPARAM = BiocParallel::MulticoreParam())
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-2_537-4_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+# plotFiltering(sce, model)
+
+```
+
+accept all?
+
+```{r pl-mixsplinemodel-536-2_537-4_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-2_537-4_high-fat-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.999999)
+```
+
+```{r fix-mtfilter-536-2_537-4_high-fat-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.999999)
+srt_list[['536-2_537-4_high-fat-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 2. 537-1_537-3
+
+```{r get-mt-537-1_537-3_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[['537-1_537-3_high-fat-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-537-1_537-3_high-fat-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls,
+                    BPPARAM = BiocParallel::MulticoreParam())
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-537-1_537-3_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-537-1_537-3_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-537-1_537-3_high-fat-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-537-1_537-3_high-fat-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.95)
+srt_list[['537-1_537-3_high-fat-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 3. 537-5_538-2
+
+```{r get-mt-537-5_538-2_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[['537-5_538-2_high-fat-diet']])
+mt_genes <- grepl("^mt-",  rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-537-5_538-2_high-fat-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls,
+                    BPPARAM = BiocParallel::MulticoreParam())
+qcstats <- perCellQCMetrics(sce,
+                            subsets = feature_ctrls)
+qcfilter <- quickPerCellQC(qcstats,
+                           sub.fields = "subsets_mito_percent")
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-537-5_538-2_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-537-5_538-2_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-537-5_538-2_high-fat-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-537-5_538-2_high-fat-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[['537-5_538-2_high-fat-diet']] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+### Save initial data
+
+```{r save-init_deng_2020_chow}
+deng_2020_combined_arc_chow <- 
+    merge(srt_list[["536-1_chow-diet"]],
+          y = c(srt_list[["536-3_chow-diet"]],
+                srt_list[["536-5_chow-diet"]]),
+          add.cell.ids = c("P60_ARC_ND1",
+                           "P60_ARC_ND3",
+                           "P60_ARC_ND5"), 
+                      project = "Arc")
+glimpse(deng_2020_combined_arc_chow@meta.data)
+table(deng_2020_combined_arc_chow$orig.ident)
+SaveH5Seurat(deng_2020_combined_arc_chow, 
+             filename = here(data_dir,
+                             "deng_2020_arc_chow.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_chow.h5Seurat"), 
+        dest = "h5ad")
+```
+
+```{r save-init_deng_2020_hfd}
+deng_2020_combined_arc_hfd <- 
+    merge(srt_list[["536-2_537-4_high-fat-diet"]],
+          y = c(srt_list[["537-1_537-3_high-fat-diet"]],
+                srt_list[["537-5_538-2_high-fat-diet"]]),
+          add.cell.ids = c("P60_ARC_HFD74",
+                           "P60_ARC_HFD73",
+                           "P60_ARC_HFD82"), 
+                      project = "Arc")
+glimpse(deng_2020_combined_arc_hfd@meta.data)
+table(deng_2020_combined_arc_hfd$orig.ident)
+SaveH5Seurat(deng_2020_combined_arc_hfd,
+             filename = here(data_dir,
+                             "deng_2020_arc_hfd.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_hfd.h5Seurat"),
+        dest = "h5ad")
+```
+
+## Perform normalization and dimensionality reduction
+
+### Chow-diet
+
+```{r pl-unsupervised-chow}
+# normalize and run dimensionality reduction on control dataset
+chow.list <- SplitObject(deng_2020_combined_arc_chow,
+                         split.by = "orig.ident")
+chow.list <- lapply(X = chow.list, FUN = function(x) {
+    SCTransform(x, vst.flavor = "v2", verbose = FALSE) |> 
+    RunPCA(npcs = 30, verbose = FALSE)
+})
+
+features <- SelectIntegrationFeatures(object.list = chow.list, nfeatures = 5000)
+chow.list <- PrepSCTIntegration(object.list = chow.list, anchor.features = features)
+
+chow.anchors <- FindIntegrationAnchors(object.list = chow.list, normalization.method = "SCT",
+    anchor.features = features)
+chow.combined.sct <- IntegrateData(anchorset = chow.anchors, normalization.method = "SCT")
+
+chow.combined.sct <- RunPCA(chow.combined.sct, verbose = FALSE)
+chow.combined.sct <- RunUMAP(chow.combined.sct, reduction = "pca", dims = 1:30, densmap = TRUE, verbose = FALSE)
+chow.combined.sct <- FindNeighbors(chow.combined.sct, reduction = "pca", dims = 1:30)
+chow.combined.sct <- FindClusters(chow.combined.sct, resolution = 0.7)
+
+DimPlot(chow.combined.sct, reduction = "umap", split.by = "orig.ident")
+```
+
+### HFD
+
+```{r pl-unsupervised-hfd}
+# normalize and run dimensionality reduction on control dataset
+hfd.list <- SplitObject(deng_2020_combined_arc_hfd,
+                         split.by = "orig.ident")
+hfd.list <- lapply(X = hfd.list, FUN = function(x) {
+    SCTransform(x, vst.flavor = "v2", verbose = FALSE) |> 
+    RunPCA(npcs = 30, verbose = FALSE)
+})
+
+features <- SelectIntegrationFeatures(object.list = hfd.list, nfeatures = 5000)
+hfd.list <- PrepSCTIntegration(object.list = hfd.list, anchor.features = features)
+
+hfd.anchors <- FindIntegrationAnchors(object.list = hfd.list, normalization.method = "SCT",
+    anchor.features = features)
+hfd.combined.sct <- IntegrateData(anchorset = hfd.anchors, normalization.method = "SCT")
+
+hfd.combined.sct <- RunPCA(hfd.combined.sct, verbose = FALSE)
+hfd.combined.sct <- RunUMAP(hfd.combined.sct, reduction = "pca", dims = 1:30, verbose = FALSE)
+hfd.combined.sct <- FindNeighbors(hfd.combined.sct, reduction = "pca", dims = 1:30)
+hfd.combined.sct <- FindClusters(hfd.combined.sct, resolution = 0.7)
+
+DimPlot(hfd.combined.sct, reduction = "umap", split.by = "orig.ident")
+```
+
+## Identify Clusters
+
+### Chow-diet
+
+```{r pl-features-chow-init-clust}
+FeaturePlot(chow.combined.sct, 
+            features = genes.embed[genes.embed %in%
+                                     rownames(chow.combined.sct@assays$SCT@scale.data)], 
+            min.cutoff = "q9", ncol = 3)
+DimPlot(chow.combined.sct, label = T)
+```
+
+```{r pl-swne-chow-init-clust}
+VariableFeatures(chow.combined.sct) <- rownames(chow.combined.sct@assays$SCT@scale.data)
+swne.chow.embedding <- RunSWNE(chow.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(chow.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.chow.embedding,
+         alpha.plot = 0.4,
+         sample.groups = Idents(chow.combined.sct),
+         do.label = T, 
+         label.size = 3.5,
+         pt.size = 1.25,
+         show.legend = F,
+         seed = 42)
+gc()
+```
+
+```{r subset-astro-chow}
+astro.chow.sct <- subset(chow.combined.sct, idents = c(3))
+gc()
+```
+
+### HFD
+
+```{r pl-features-hfd-init-clust}
+FeaturePlot(hfd.combined.sct, 
+            features = genes.embed[
+              genes.embed %in% rownames(hfd.combined.sct@assays$SCT@scale.data)
+              ], 
+            min.cutoff = "q9", ncol = 3)
+DimPlot(hfd.combined.sct, label = T)
+```
+
+```{r pl-swne-hfd-init-clust}
+VariableFeatures(hfd.combined.sct) <- rownames(hfd.combined.sct@assays$SCT@scale.data)
+swne.hfd.embedding <- RunSWNE(hfd.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(hfd.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.hfd.embedding,
+         alpha.plot = 0.4,
+         sample.groups = Idents(hfd.combined.sct),
+         do.label = T, 
+         label.size = 3.5,
+         pt.size = 1.25,
+         show.legend = F,
+         seed = 42)
+gc()
+```
+
+```{r subset-astro-hfd}
+astro.hfd.sct <- subset(hfd.combined.sct, idents = c(3))
+gc()
+```
+
+## Save initial clusters and subset astrocytes
+
+```{r save-clust_deng_2020_chow}
+glimpse(chow.combined.sct@meta.data)
+table(chow.combined.sct$seurat_clusters)
+SaveH5Seurat(chow.combined.sct, 
+             filename = here(data_dir,
+                             "deng_2020_arc_chow_clusters.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_chow_clusters.h5Seurat"), 
+        dest = "h5ad")
+
+SaveH5Seurat(astro.chow.sct, 
+             filename = here(data_dir,
+                             "deng_2020_arc_chow_astrocytes.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_chow_astrocytes.h5Seurat"), 
+        dest = "h5ad")
+```
+
+```{r save-clust_deng_2020_hfd}
+glimpse(hfd.combined.sct@meta.data)
+table(hfd.combined.sct$seurat_clusters)
+SaveH5Seurat(hfd.combined.sct,
+             filename = here(data_dir,
+                             "deng_2020_arc_hfd_clusters.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_hfd_clusters.h5Seurat"),
+        dest = "h5ad")
+
+SaveH5Seurat(astro.hfd.sct,
+             filename = here(data_dir,
+                             "deng_2020_arc_hfd_astrocytes.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_hfd_astrocytes.h5Seurat"),
+        dest = "h5ad")
+```
+
+## Test astrocytes difference
+
+```{r pl-unsup-astro}
+DefaultAssay(astro.chow.sct) <- "SCT"
+DefaultAssay(astro.hfd.sct) <- "SCT"
+# a.list <- list(chow = DietSeurat(astro.chow.sct, 
+#                                  assays = c("RNA", "SCT")),
+#                hfd  = DietSeurat(astro.hfd.sct, 
+#                                  assays = c("RNA", "SCT")))
+a1.list <- SplitObject(astro.chow.sct,
+                         split.by = "orig.ident")
+a2.list <- SplitObject(astro.hfd.sct,
+                         split.by = "orig.ident")
+a.list <- c(unlist(a1.list), unlist(a2.list))
+a.list <- lapply(X = a.list, FUN = function(x) {
+    SCTransform(x, vst.flavor = "v2", verbose = FALSE) |> 
+    RunPCA(npcs = 30, verbose = FALSE)
+})
+
+features <- SelectIntegrationFeatures(object.list = a.list, nfeatures = 3000)
+a.list <- PrepSCTIntegration(object.list = a.list, anchor.features = features)
+
+a.anchors <- FindIntegrationAnchors(object.list = a.list, normalization.method = "SCT",
+    anchor.features = features)
+a.combined.sct <- IntegrateData(anchorset = a.anchors, normalization.method = "SCT")
+
+a.combined.sct <- RunPCA(a.combined.sct, verbose = FALSE)
+a.combined.sct <- RunUMAP(a.combined.sct, reduction = "pca", dims = 1:30, verbose = FALSE)
+a.combined.sct <- FindNeighbors(a.combined.sct, reduction = "pca", dims = 1:30)
+a.combined.sct <- FindClusters(a.combined.sct, resolution = 0.5)
+a.combined.sct$reclust_comb <-
+  Idents(a.combined.sct)
+
+(DimPlot(a.combined.sct, reduction = "umap", split.by = "hfd")) / (DimPlot(a.combined.sct, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+```
+
+```{r pl-usup-astro-genes}
+a.combined.sct <- PrepSCTFindMarkers(a.combined.sct)
+a.inmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.inmark %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+
+a.combined.sct$clust.hfd <- paste(a.combined.sct$reclust_comb, as.numeric(a.combined.sct$hfd),
+    sep = "_")
+Idents(a.combined.sct) <- "clust.hfd"
+a.splmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.splmark %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+
+DefaultAssay(a.combined.sct) <- "SCT"
+a.splmark %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+DoHeatmap(a.combined.sct, features = top10$gene) + NoLegend()
+FeaturePlot(a.combined.sct, 
+            features = genes.embed[
+              genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+              ], 
+            min.cutoff = "q9", ncol = 3, order = T)
+
+# refine subset of astrocytes
+astro.sct <- subset(a.combined.sct, idents = c("0_1", "0_0", "3_0", "3_1"))
+SaveH5Seurat(astro.sct,
+             filename = here(data_dir,
+                             "deng_2020_arc_refi_astrocytes.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_refi_astrocytes.h5Seurat"),
+        dest = "h5ad")
+
+```
+
+```{r pl-check-refined-astro}
+DefaultAssay(astro.sct) <- "RNA"
+ast <- DietSeurat(astro.sct, assays = "RNA")
+ast <- SCTransform(ast, vst.flavor = "v2", verbose = FALSE) %>%
+    RunPCA(npcs = 30, verbose = FALSE) %>%
+    RunUMAP(reduction = "pca", dims = 1:30, densmap = TRUE, verbose = FALSE) %>%
+    FindNeighbors(reduction = "pca", dims = 1:30, verbose = FALSE) %>%
+    FindClusters(resolution = 0.7, verbose = FALSE)
+
+(DimPlot(ast, reduction = "umap", split.by = "hfd")) / (DimPlot(ast, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+
+Idents(ast) <- "clust.hfd"
+(DimPlot(ast, reduction = "umap", split.by = "hfd")) / (DimPlot(ast, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+
+DefaultAssay(ast) <- "SCT"
+ast <- PrepSCTFindMarkers(ast)
+ast.inmark <- FindAllMarkers(ast, assay = "SCT", verbose = F)
+ast.inmark %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+write_csv(x = ast.inmark, file = here(tables_dir, "arc_ast.csv"))
+
+
+ast.inmark %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top20
+DoHeatmap(ast, features = top20$gene) + NoLegend()
+```
+
+```{r refine-chow}
+DefaultAssay(chow.combined.sct) <- "RNA"
+astro.chow <- subset(chow.combined.sct, subset = Slc1a3 > 1 & Gfap > 1 & Ndrg2 > 1)
+DefaultAssay(chow.combined.sct) <- "RNA"
+DefaultAssay(astro.chow) <- "SCT"
+
+SaveH5Seurat(astro.chow, 
+             filename = here(data_dir,
+                             "deng_2020_arc_chow_astrocytes_fin.h5Seurat"))
+Convert(here(data_dir,
+             "deng_2020_arc_chow_astrocytes_fin.h5Seurat"), 
+        dest = "h5ad")
+```
+
+```{r refine-hfd}
+DefaultAssay(hfd.combined.sct) <- "RNA"
+astro.hfd <- subset(hfd.combined.sct, subset = Slc1a3 > 1 & Gfap > 1 & Ndrg2 > 1)
+DefaultAssay(hfd.combined.sct) <- "SCT"
+DefaultAssay(astro.hfd) <- "SCT"
+astro.hfd <- subset(astro.hfd, subset = Slc1a3 > 1 & Slc6a11 > 1 & Ndrg2 > 1)
+
+SaveH5Seurat(astro.hfd,
+             filename = here(data_dir,
+                             "deng_2020_arc_hfd_astrocytes_fin.h5Seurat"),
+             overwrite = T)
+Convert(here(data_dir,
+             "deng_2020_arc_hfd_astrocytes_fin.h5Seurat"),
+        dest = "h5ad",
+        overwrite = T)
+```
+
+```{r pl-features-hfd-astro-clust}
+FeaturePlot(astro.hfd, 
+            features = genes.embed[
+              genes.embed %in% rownames(astro.hfd@assays$SCT@scale.data)
+              ], 
+            min.cutoff = "q9", ncol = 3)
+DimPlot(astro.hfd, label = T)
+```
+
+```{r corr-astro}
+DefaultAssay(astro.chow) <- "SCT"
+DefaultAssay(astro.hfd) <- "SCT"
+
+a.combined.sct <- merge(astro.chow, astro.hfd)
+
+a.combined.sct  <- SCTransform(a.combined.sct, 
+                               vst.flavor = "v2", verbose = FALSE) %>%
+    RunPCA(npcs = 30, verbose = FALSE) %>%
+    RunUMAP(reduction = "pca", dims = 1:30, densmap = TRUE, verbose = FALSE) %>%
+    FindNeighbors(reduction = "pca", dims = 1:30, verbose = FALSE) %>%
+    FindClusters(resolution = 0.3, verbose = FALSE)
+
+(DimPlot(a.combined.sct, reduction = "umap", split.by = "hfd")) / (DimPlot(a.combined.sct, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+```
+
+```{r pl-features-corr-astro}
+a.combined.sct <- PrepSCTFindMarkers(a.combined.sct)
+DefaultAssay(a.combined.sct) <- "SCT"
+a.inmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.inmark %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+a.inmark %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top20
+DoHeatmap(a.combined.sct, features = top20$gene) + NoLegend()
+
+a.combined.sct$clust.hfd <- paste(a.combined.sct$seurat_clusters, as.numeric(a.combined.sct$hfd),
+    sep = "_")
+Idents(a.combined.sct) <- "clust.hfd"
+a.splmark <- FindAllMarkers(a.combined.sct, test.use = "roc", assay = "SCT", verbose = T)
+a.splmark %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = power)
+
+a.splmark %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = power) -> top10
+DoHeatmap(a.combined.sct, features = top10$gene, slot = "data") + NoLegend()
+FeaturePlot(a.combined.sct, 
+            features = genes.embed[
+              genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+              ], 
+            min.cutoff = "q75", ncol = 3, order = T)
+
+VlnPlot(a.combined.sct, 
+            features = genes.embed[
+              genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+              ])
+
+```
+
+### SWNE
+
+```{r pl-swne-corr-astro}
+VariableFeatures(a.combined.sct) <- rownames(a.combined.sct@assays$SCT@scale.data)
+swne.a.embedding <- RunSWNE(a.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(a.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.a.embedding,
+         alpha.plot = 0.4,
+         sample.groups = Idents(a.combined.sct),
+         do.label = T, 
+         label.size = 3.5,
+         pt.size = 1.25,
+         show.legend = F,
+         seed = 42)
+```
+
+```{r pl-lxn-swne-corr-astro}
+norm.counts <- GetAssayData(a.combined.sct, assay = "SCT", slot = "data")
+gene.use <- "Lxn"
+gene.expr <- norm.counts[gene.use,]
+FeaturePlotSWNE(swne.a.embedding, gene.expr, gene.use, alpha.plot = 0.4, label.size = 3.5, pt.size = 1.25)
+```
+
+```{r pl-mfn2-swne-corr-astro}
+gene.use <- "Mfn2"
+gene.expr <- norm.counts[gene.use,]
+FeaturePlotSWNE(swne.a.embedding, gene.expr, gene.use, alpha.plot = 0.4, label.size = 3.5, pt.size = 1.25)
+```

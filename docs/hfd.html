@@ -1,0 +1,4196 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Evgenii O. Tretiakov" />
+
+<meta name="date" content="2022-06-24" />
+
+<title>hfd</title>
+
+<script src="site_libs/header-attrs-2.17/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">heteroAstrocytes</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">hfd</h1>
+<h4 class="author">Evgenii O. Tretiakov</h4>
+<h4 class="date">2022-06-24</h4>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span>
+workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span
+class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2022-11-04
+</p>
+<p>
+<strong>Checks:</strong> <span
+class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>1_heteroAstrocytes/</code> <span
+class="glyphicon glyphicon-question-sign" aria-hidden="true"
+title="This is the local directory in which the code in this file was executed.">
+</span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a>
+analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version
+1.7.0). The <em>Checks</em> tab describes the reproducibility checks
+that were applied when the results were created. The <em>Past
+versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges">
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted
+changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown file has unstaged changes. To know which version of
+the R Markdown file created these results, you’ll want to first commit
+it to the Git repo. If you’re still working on the analysis, you can
+ignore this warning. When you’re finished, you can run
+<code>wflow_publish</code> to commit the R Markdown file and build the
+HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the
+global environment can affect the analysis in your R Markdown file in
+unknown ways. For reproduciblity it’s best to always run the code in an
+empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20220624code">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Seed:</strong>
+<code>set.seed(20220624)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20220624code"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20220624)</code> was run prior to running
+the code in the R Markdown file. Setting a seed ensures that any results
+that rely on randomness, e.g. subsampling or permutations, are
+reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Session information:</strong>
+recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package
+versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be
+confident that you successfully produced the results during this
+run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr
+project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrong9cf756d">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Repository version:</strong> 9cf756d
+</a>
+</p>
+</div>
+<div id="strongRepositoryversionstrong9cf756d"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development
+and connecting the code version to the results is critical for
+reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version 9cf756d.
+See the <em>Past versions</em> tab to see a history of the changes made
+to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for
+the analysis have been committed to Git prior to generating the results
+(you can use <code>wflow_publish</code> or
+<code>wflow_git_commit</code>). workflowr only checks the R Markdown
+file, but you know if there are other scripts or data files that it
+depends on. Below is the status of the Git repository when the results
+were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+    Ignored:    .Rproj.user/
+    Ignored:    analysis/figure/
+    Ignored:    data/deng2019_arc_chow.h5Seurat
+    Ignored:    data/deng2019_arc_chow.h5ad
+    Ignored:    data/deng2019_arc_chow_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_chow_astrocytes.h5ad
+    Ignored:    data/deng2019_arc_chow_astrocytes_fin.h5Seurat
+    Ignored:    data/deng2019_arc_chow_astrocytes_fin.h5ad
+    Ignored:    data/deng2019_arc_chow_clusters.h5Seurat
+    Ignored:    data/deng2019_arc_chow_clusters.h5ad
+    Ignored:    data/deng2019_arc_hfd.h5Seurat
+    Ignored:    data/deng2019_arc_hfd.h5ad
+    Ignored:    data/deng2019_arc_hfd_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_astrocytes.h5ad
+    Ignored:    data/deng2019_arc_hfd_astrocytes_fin.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_astrocytes_fin.h5ad
+    Ignored:    data/deng2019_arc_hfd_clusters.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_clusters.h5ad
+    Ignored:    data/deng2019_arc_refi_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_refi_astrocytes.h5ad
+    Ignored:    output/figures/
+
+Unstaged changes:
+    Modified:   analysis/hfd.Rmd
+    Modified:   output/tables/arc_ast.csv
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not
+included in this status report because it is ok for generated content to
+have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+
+<p>
+These are the previous versions of the repository in which changes were
+made to the R Markdown (<code>analysis/hfd.Rmd</code>) and HTML
+(<code>docs/hfd.html</code>) files. If you’ve configured a remote Git
+repository (see <code>?wflow_git_remote</code>), click on the hyperlinks
+in the table below to view the files as they were in that past version.
+</p>
+<div class="table-responsive">
+<table class="table table-condensed table-hover">
+<thead>
+<tr>
+<th>
+File
+</th>
+<th>
+Version
+</th>
+<th>
+Author
+</th>
+<th>
+Date
+</th>
+<th>
+Message
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+9cf756d
+</td>
+<td>
+Evgenii O. Tretiakov
+</td>
+<td>
+2022-11-03
+</td>
+<td>
+v2022-06-26 + small fixes
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>Here we use dataset of adult mice hypothalami Arcuate nuclei single
+nucleus RNA-seq from paper <span
+class="citation">@dengSingleNucleusRNASequencing2020</span> We’re going
+to use both parts of data: first, we will use only astrocytes from
+control mice for data integration against whole hypothalamus matrix; in
+second, part we’re going to add another variable - normal chow vs high
+fat diet.</p>
+<p>First we need to load packages that we need for processing, setup
+environment and load data.</p>
+</div>
+<div id="load-datasets" class="section level2">
+<h2>Load datasets</h2>
+</div>
+<div id="add-qc-metrics-and-filter" class="section level2">
+<h2>Add QC metrics and filter</h2>
+<div id="chow-diet-samples" class="section level3">
+<h3>Chow-diet samples</h3>
+<div id="section" class="section level4">
+<h4>1. 536-1</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-1_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                        orig.ident nCount_RNA nFeature_RNA         age
+                          &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt; &lt;character&gt;
+AAACCCACAAGTCATC-1 536-1_chow-diet       5887         2916       adult
+AAACCCACATACTTTC-1 536-1_chow-diet       1636         1102       adult
+AAACCCAGTAAGAACT-1 536-1_chow-diet       1095          790       adult
+AAACCCAGTGGTAATA-1 536-1_chow-diet       1737         1233       adult
+AAACCCATCCGATGTA-1 536-1_chow-diet       4808         2598       adult
+AAACCCATCGTCAAAC-1 536-1_chow-diet       7046         3498       adult
+                           sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCACAAGTCATC-1        male   deng_2020       10xv3     FALSE
+AAACCCACATACTTTC-1        male   deng_2020       10xv3     FALSE
+AAACCCAGTAAGAACT-1        male   deng_2020       10xv3     FALSE
+AAACCCAGTGGTAATA-1        male   deng_2020       10xv3     FALSE
+AAACCCATCCGATGTA-1        male   deng_2020       10xv3     FALSE
+AAACCCATCGTCAAAC-1        male   deng_2020       10xv3     FALSE
+                             ident       sum  detected subsets_mito_sum
+                          &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;        &lt;numeric&gt;
+AAACCCACAAGTCATC-1 536-1_chow-diet      5887      2916              879
+AAACCCACATACTTTC-1 536-1_chow-diet      1636      1102              128
+AAACCCAGTAAGAACT-1 536-1_chow-diet      1095       790              123
+AAACCCAGTGGTAATA-1 536-1_chow-diet      1737      1233              108
+AAACCCATCCGATGTA-1 536-1_chow-diet      4808      2598              496
+AAACCCATCGTCAAAC-1 536-1_chow-diet      7046      3498              298
+                   subsets_mito_detected subsets_mito_percent     total
+                               &lt;integer&gt;            &lt;numeric&gt; &lt;numeric&gt;
+AAACCCACAAGTCATC-1                    13             14.93120      5887
+AAACCCACATACTTTC-1                    12              7.82396      1636
+AAACCCAGTAAGAACT-1                    11             11.23288      1095
+AAACCCAGTGGTAATA-1                    11              6.21762      1737
+AAACCCATCCGATGTA-1                    11             10.31614      4808
+AAACCCATCGTCAAAC-1                    12              4.22935      7046
+                       low_lib_size   low_n_features high_subsets_mito_percent
+                   &lt;outlier.filter&gt; &lt;outlier.filter&gt;          &lt;outlier.filter&gt;
+AAACCCACAAGTCATC-1            FALSE            FALSE                     FALSE
+AAACCCACATACTTTC-1            FALSE            FALSE                     FALSE
+AAACCCAGTAAGAACT-1            FALSE            FALSE                     FALSE
+AAACCCAGTGGTAATA-1            FALSE            FALSE                     FALSE
+AAACCCATCCGATGTA-1            FALSE            FALSE                     FALSE
+AAACCCATCGTCAAAC-1            FALSE            FALSE                     FALSE
+                     discard
+                   &lt;logical&gt;
+AAACCCACAAGTCATC-1     FALSE
+AAACCCACATACTTTC-1     FALSE
+AAACCCAGTAAGAACT-1     FALSE
+AAACCCAGTGGTAATA-1     FALSE
+AAACCCATCCGATGTA-1     FALSE
+AAACCCATCGTCAAAC-1     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+5436
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6986.62
+</td>
+<td style="text-align:right;">
+9170.88
+</td>
+<td style="text-align:right;">
+500
+</td>
+<td style="text-align:right;">
+1481
+</td>
+<td style="text-align:right;">
+4455
+</td>
+<td style="text-align:right;">
+8354.25
+</td>
+<td style="text-align:right;">
+139282
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+5436
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+2855.79
+</td>
+<td style="text-align:right;">
+2043.79
+</td>
+<td style="text-align:right;">
+378
+</td>
+<td style="text-align:right;">
+1015.5
+</td>
+<td style="text-align:right;">
+2617
+</td>
+<td style="text-align:right;">
+3956
+</td>
+<td style="text-align:right;">
+11754
+</td>
+<td style="text-align:left;">
+▇▆▂▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+5436
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6.68
+</td>
+<td style="text-align:right;">
+3.91
+</td>
+<td style="text-align:right;">
+1.2
+</td>
+<td style="text-align:right;">
+3.84
+</td>
+<td style="text-align:right;">
+5.64
+</td>
+<td style="text-align:right;">
+8.53
+</td>
+<td style="text-align:right;">
+31.45
+</td>
+<td style="text-align:left;">
+▇▃▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-1_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-1_chow-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-1_chow-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-1_chow-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-536-1_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixmodel-536-1_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-1_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-1_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-536-1_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>Removing 1053 out of 5436 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9220665  492.5   13872300  740.9  13872300  740.9
+Vcells 178820996 1364.3  298101996 2274.4 248350937 1894.8</code></pre>
+</div>
+<div id="section-1" class="section level4">
+<h4>2. 536-3</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-3_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                        orig.ident nCount_RNA nFeature_RNA         age
+                          &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt; &lt;character&gt;
+AAACCCAAGACAACAT-1 536-3_chow-diet      13504         5296       adult
+AAACCCACATATAGCC-1 536-3_chow-diet      10733         4354       adult
+AAACCCATCACTGGTA-1 536-3_chow-diet       1248          907       adult
+AAACCCATCTAATTCC-1 536-3_chow-diet       1996         1139       adult
+AAACGAAAGTTTCGAC-1 536-3_chow-diet       2378         1497       adult
+AAACGAACATTCGATG-1 536-3_chow-diet       2332         1603       adult
+                           sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCAAGACAACAT-1        male   deng_2020       10xv3     FALSE
+AAACCCACATATAGCC-1        male   deng_2020       10xv3     FALSE
+AAACCCATCACTGGTA-1        male   deng_2020       10xv3     FALSE
+AAACCCATCTAATTCC-1        male   deng_2020       10xv3     FALSE
+AAACGAAAGTTTCGAC-1        male   deng_2020       10xv3     FALSE
+AAACGAACATTCGATG-1        male   deng_2020       10xv3     FALSE
+                             ident       sum  detected subsets_mito_sum
+                          &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;        &lt;numeric&gt;
+AAACCCAAGACAACAT-1 536-3_chow-diet     13504      5296              602
+AAACCCACATATAGCC-1 536-3_chow-diet     10733      4354              903
+AAACCCATCACTGGTA-1 536-3_chow-diet      1248       907              108
+AAACCCATCTAATTCC-1 536-3_chow-diet      1996      1139               82
+AAACGAAAGTTTCGAC-1 536-3_chow-diet      2378      1497              269
+AAACGAACATTCGATG-1 536-3_chow-diet      2332      1603              158
+                   subsets_mito_detected subsets_mito_percent     total
+                               &lt;integer&gt;            &lt;numeric&gt; &lt;numeric&gt;
+AAACCCAAGACAACAT-1                    12              4.45794     13504
+AAACCCACATATAGCC-1                    13              8.41330     10733
+AAACCCATCACTGGTA-1                    11              8.65385      1248
+AAACCCATCTAATTCC-1                    11              4.10822      1996
+AAACGAAAGTTTCGAC-1                    12             11.31203      2378
+AAACGAACATTCGATG-1                    10              6.77530      2332
+                       low_lib_size   low_n_features high_subsets_mito_percent
+                   &lt;outlier.filter&gt; &lt;outlier.filter&gt;          &lt;outlier.filter&gt;
+AAACCCAAGACAACAT-1            FALSE            FALSE                     FALSE
+AAACCCACATATAGCC-1            FALSE            FALSE                     FALSE
+AAACCCATCACTGGTA-1            FALSE            FALSE                     FALSE
+AAACCCATCTAATTCC-1            FALSE            FALSE                     FALSE
+AAACGAAAGTTTCGAC-1            FALSE            FALSE                     FALSE
+AAACGAACATTCGATG-1            FALSE            FALSE                     FALSE
+                     discard
+                   &lt;logical&gt;
+AAACCCAAGACAACAT-1     FALSE
+AAACCCACATATAGCC-1     FALSE
+AAACCCATCACTGGTA-1     FALSE
+AAACCCATCTAATTCC-1     FALSE
+AAACGAAAGTTTCGAC-1     FALSE
+AAACGAACATTCGATG-1     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+4083
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+9370.84
+</td>
+<td style="text-align:right;">
+15380.62
+</td>
+<td style="text-align:right;">
+500
+</td>
+<td style="text-align:right;">
+1273.5
+</td>
+<td style="text-align:right;">
+3964
+</td>
+<td style="text-align:right;">
+10163
+</td>
+<td style="text-align:right;">
+216216
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+4083
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+3007.93
+</td>
+<td style="text-align:right;">
+2536.25
+</td>
+<td style="text-align:right;">
+274
+</td>
+<td style="text-align:right;">
+888.5
+</td>
+<td style="text-align:right;">
+2227
+</td>
+<td style="text-align:right;">
+4403
+</td>
+<td style="text-align:right;">
+12242
+</td>
+<td style="text-align:left;">
+▇▃▂▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+4083
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6.4
+</td>
+<td style="text-align:right;">
+3.39
+</td>
+<td style="text-align:right;">
+0.53
+</td>
+<td style="text-align:right;">
+3.96
+</td>
+<td style="text-align:right;">
+5.8
+</td>
+<td style="text-align:right;">
+8.06
+</td>
+<td style="text-align:right;">
+35.79
+</td>
+<td style="text-align:left;">
+▇▃▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-3_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-3_chow-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-3_chow-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-3_chow-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-536-3_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixmodel-536-3_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-3_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-3_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-536-3_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>Removing 205 out of 4083 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9234509  493.2   13872300  740.9  13872300  740.9
+Vcells 191279147 1459.4  298101996 2274.4 273421233 2086.1</code></pre>
+</div>
+<div id="section-2" class="section level4">
+<h4>3. 536-5</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-5_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                        orig.ident nCount_RNA nFeature_RNA         age
+                          &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt; &lt;character&gt;
+AAACCCAAGCTACTAC-1 536-5_chow-diet       6654         3164       adult
+AAACCCACACATTCTT-1 536-5_chow-diet      11880         4671       adult
+AAACCCAGTGAATAAC-1 536-5_chow-diet       4700         2485       adult
+AAACCCATCGCCAATA-1 536-5_chow-diet       5104         2590       adult
+AAACGAAGTTCCTAGA-1 536-5_chow-diet       1807         1268       adult
+AAACGCTGTTCTCAGA-1 536-5_chow-diet      49217         8927       adult
+                           sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCAAGCTACTAC-1        male   deng_2020       10xv3     FALSE
+AAACCCACACATTCTT-1        male   deng_2020       10xv3     FALSE
+AAACCCAGTGAATAAC-1        male   deng_2020       10xv3     FALSE
+AAACCCATCGCCAATA-1        male   deng_2020       10xv3     FALSE
+AAACGAAGTTCCTAGA-1        male   deng_2020       10xv3     FALSE
+AAACGCTGTTCTCAGA-1        male   deng_2020       10xv3     FALSE
+                             ident       sum  detected subsets_mito_sum
+                          &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;        &lt;numeric&gt;
+AAACCCAAGCTACTAC-1 536-5_chow-diet      6654      3164              690
+AAACCCACACATTCTT-1 536-5_chow-diet     11880      4671              621
+AAACCCAGTGAATAAC-1 536-5_chow-diet      4700      2485              363
+AAACCCATCGCCAATA-1 536-5_chow-diet      5104      2590              494
+AAACGAAGTTCCTAGA-1 536-5_chow-diet      1807      1268               84
+AAACGCTGTTCTCAGA-1 536-5_chow-diet     49217      8927             2666
+                   subsets_mito_detected subsets_mito_percent     total
+                               &lt;integer&gt;            &lt;numeric&gt; &lt;numeric&gt;
+AAACCCAAGCTACTAC-1                    13             10.36970      6654
+AAACCCACACATTCTT-1                    13              5.22727     11880
+AAACCCAGTGAATAAC-1                    12              7.72340      4700
+AAACCCATCGCCAATA-1                    12              9.67868      5104
+AAACGAAGTTCCTAGA-1                    12              4.64859      1807
+AAACGCTGTTCTCAGA-1                    13              5.41683     49217
+                       low_lib_size   low_n_features high_subsets_mito_percent
+                   &lt;outlier.filter&gt; &lt;outlier.filter&gt;          &lt;outlier.filter&gt;
+AAACCCAAGCTACTAC-1            FALSE            FALSE                     FALSE
+AAACCCACACATTCTT-1            FALSE            FALSE                     FALSE
+AAACCCAGTGAATAAC-1            FALSE            FALSE                     FALSE
+AAACCCATCGCCAATA-1            FALSE            FALSE                     FALSE
+AAACGAAGTTCCTAGA-1            FALSE            FALSE                     FALSE
+AAACGCTGTTCTCAGA-1            FALSE            FALSE                     FALSE
+                     discard
+                   &lt;logical&gt;
+AAACCCAAGCTACTAC-1     FALSE
+AAACCCACACATTCTT-1     FALSE
+AAACCCAGTGAATAAC-1     FALSE
+AAACCCATCGCCAATA-1     FALSE
+AAACGAAGTTCCTAGA-1     FALSE
+AAACGCTGTTCTCAGA-1     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+1871
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+12991.02
+</td>
+<td style="text-align:right;">
+22423.98
+</td>
+<td style="text-align:right;">
+511
+</td>
+<td style="text-align:right;">
+2335
+</td>
+<td style="text-align:right;">
+4332
+</td>
+<td style="text-align:right;">
+12648.5
+</td>
+<td style="text-align:right;">
+209773
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+1871
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+3503.85
+</td>
+<td style="text-align:right;">
+2741.39
+</td>
+<td style="text-align:right;">
+392
+</td>
+<td style="text-align:right;">
+1491
+</td>
+<td style="text-align:right;">
+2357
+</td>
+<td style="text-align:right;">
+4985.5
+</td>
+<td style="text-align:right;">
+12383
+</td>
+<td style="text-align:left;">
+▇▃▂▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+1871
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6.99
+</td>
+<td style="text-align:right;">
+2.76
+</td>
+<td style="text-align:right;">
+0.18
+</td>
+<td style="text-align:right;">
+4.66
+</td>
+<td style="text-align:right;">
+7.24
+</td>
+<td style="text-align:right;">
+9.19
+</td>
+<td style="text-align:right;">
+20.48
+</td>
+<td style="text-align:left;">
+▅▇▇▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-5_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-5_chow-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-5_chow-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-5_chow-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-536-5_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<p>the model above gives error</p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-5_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-5_chow-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-536-5_chow-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<p>use strong criteria due to strength data</p>
+<pre><code>Removing 833 out of 1871 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9235040  493.3   13872300  740.9  13872300  740.9
+Vcells 187236121 1428.5  298101996 2274.4 273421233 2086.1</code></pre>
+</div>
+</div>
+<div id="hfd-samples" class="section level3">
+<h3>HFD samples</h3>
+<div id="section-3" class="section level4">
+<h4>1. 536-2_537-4</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-2_537-4_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                                  orig.ident nCount_RNA nFeature_RNA
+                                    &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt;
+AAACCCAAGAGTGACC-1 536-2_537-4_high-fat-diet       2405         1565
+AAACCCAAGTCACTGT-1 536-2_537-4_high-fat-diet       3172         2100
+AAACCCACAACGGGTA-1 536-2_537-4_high-fat-diet      21420         6324
+AAACCCAGTCGTACTA-1 536-2_537-4_high-fat-diet       4907         2767
+AAACCCAGTTCTGACA-1 536-2_537-4_high-fat-diet       5381         3058
+AAACCCATCACCTACC-1 536-2_537-4_high-fat-diet       4366         2644
+                           age         sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCAAGAGTGACC-1       adult        male   deng_2020       10xv3      TRUE
+AAACCCAAGTCACTGT-1       adult        male   deng_2020       10xv3      TRUE
+AAACCCACAACGGGTA-1       adult        male   deng_2020       10xv3      TRUE
+AAACCCAGTCGTACTA-1       adult        male   deng_2020       10xv3      TRUE
+AAACCCAGTTCTGACA-1       adult        male   deng_2020       10xv3      TRUE
+AAACCCATCACCTACC-1       adult        male   deng_2020       10xv3      TRUE
+                                       ident       sum  detected
+                                    &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;
+AAACCCAAGAGTGACC-1 536-2_537-4_high-fat-diet      2405      1565
+AAACCCAAGTCACTGT-1 536-2_537-4_high-fat-diet      3172      2100
+AAACCCACAACGGGTA-1 536-2_537-4_high-fat-diet     21420      6324
+AAACCCAGTCGTACTA-1 536-2_537-4_high-fat-diet      4907      2767
+AAACCCAGTTCTGACA-1 536-2_537-4_high-fat-diet      5381      3058
+AAACCCATCACCTACC-1 536-2_537-4_high-fat-diet      4366      2644
+                   subsets_mito_sum subsets_mito_detected subsets_mito_percent
+                          &lt;numeric&gt;             &lt;integer&gt;            &lt;numeric&gt;
+AAACCCAAGAGTGACC-1              137                    11              5.69647
+AAACCCAAGTCACTGT-1              140                    12              4.41362
+AAACCCACAACGGGTA-1             1352                    13              6.31186
+AAACCCAGTCGTACTA-1              300                    12              6.11372
+AAACCCAGTTCTGACA-1              213                    12              3.95837
+AAACCCATCACCTACC-1              259                    13              5.93220
+                       total     low_lib_size   low_n_features
+                   &lt;numeric&gt; &lt;outlier.filter&gt; &lt;outlier.filter&gt;
+AAACCCAAGAGTGACC-1      2405            FALSE            FALSE
+AAACCCAAGTCACTGT-1      3172            FALSE            FALSE
+AAACCCACAACGGGTA-1     21420            FALSE            FALSE
+AAACCCAGTCGTACTA-1      4907            FALSE            FALSE
+AAACCCAGTTCTGACA-1      5381            FALSE            FALSE
+AAACCCATCACCTACC-1      4366            FALSE            FALSE
+                   high_subsets_mito_percent   discard
+                            &lt;outlier.filter&gt; &lt;logical&gt;
+AAACCCAAGAGTGACC-1                     FALSE     FALSE
+AAACCCAAGTCACTGT-1                     FALSE     FALSE
+AAACCCACAACGGGTA-1                     FALSE     FALSE
+AAACCCAGTCGTACTA-1                     FALSE     FALSE
+AAACCCAGTTCTGACA-1                     FALSE     FALSE
+AAACCCATCACCTACC-1                     FALSE     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+7087
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6958.85
+</td>
+<td style="text-align:right;">
+9730.65
+</td>
+<td style="text-align:right;">
+500
+</td>
+<td style="text-align:right;">
+1554
+</td>
+<td style="text-align:right;">
+3756
+</td>
+<td style="text-align:right;">
+7573
+</td>
+<td style="text-align:right;">
+96629
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+7087
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+2795.17
+</td>
+<td style="text-align:right;">
+2122.27
+</td>
+<td style="text-align:right;">
+368
+</td>
+<td style="text-align:right;">
+1076
+</td>
+<td style="text-align:right;">
+2309
+</td>
+<td style="text-align:right;">
+3737
+</td>
+<td style="text-align:right;">
+11326
+</td>
+<td style="text-align:left;">
+▇▃▂▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+7087
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6.42
+</td>
+<td style="text-align:right;">
+3.43
+</td>
+<td style="text-align:right;">
+0.82
+</td>
+<td style="text-align:right;">
+3.82
+</td>
+<td style="text-align:right;">
+5.47
+</td>
+<td style="text-align:right;">
+8.3
+</td>
+<td style="text-align:right;">
+29.05
+</td>
+<td style="text-align:left;">
+▇▅▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-536-2_537-4_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-2_537-4_high-fat-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-2_537-4_high-fat-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-536-2_537-4_high-fat-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-536-2_537-4_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<p>accept all?</p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-2_537-4_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-536-2_537-4_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-536-2_537-4_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>Removing 336 out of 7087 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9234750  493.2   13872300  740.9  13872300  740.9
+Vcells 235846119 1799.4  357802395 2729.9 323639064 2469.2</code></pre>
+</div>
+<div id="section-4" class="section level4">
+<h4>2. 537-1_537-3</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-537-1_537-3_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                                  orig.ident nCount_RNA nFeature_RNA
+                                    &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt;
+AAACCCAAGGGAGTTC-1 537-1_537-3_high-fat-diet      16200         5741
+AAACGAAAGCACTCAT-1 537-1_537-3_high-fat-diet       1009          749
+AAACGAACATCCCGTT-1 537-1_537-3_high-fat-diet       2222         1595
+AAACGAATCAATCTCT-1 537-1_537-3_high-fat-diet      15833         5450
+AAACGAATCACGAGGA-1 537-1_537-3_high-fat-diet       2396         1556
+AAACGAATCTTGATTC-1 537-1_537-3_high-fat-diet      30315         7033
+                           age         sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCAAGGGAGTTC-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAAAGCACTCAT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAACATCCCGTT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAATCAATCTCT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAATCACGAGGA-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAATCTTGATTC-1       adult        male   deng_2020       10xv3      TRUE
+                                       ident       sum  detected
+                                    &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;
+AAACCCAAGGGAGTTC-1 537-1_537-3_high-fat-diet     16200      5741
+AAACGAAAGCACTCAT-1 537-1_537-3_high-fat-diet      1009       749
+AAACGAACATCCCGTT-1 537-1_537-3_high-fat-diet      2222      1595
+AAACGAATCAATCTCT-1 537-1_537-3_high-fat-diet     15833      5450
+AAACGAATCACGAGGA-1 537-1_537-3_high-fat-diet      2396      1556
+AAACGAATCTTGATTC-1 537-1_537-3_high-fat-diet     30315      7033
+                   subsets_mito_sum subsets_mito_detected subsets_mito_percent
+                          &lt;numeric&gt;             &lt;integer&gt;            &lt;numeric&gt;
+AAACCCAAGGGAGTTC-1              887                    12              5.47531
+AAACGAAAGCACTCAT-1               80                    12              7.92864
+AAACGAACATCCCGTT-1              110                    12              4.95050
+AAACGAATCAATCTCT-1              739                    12              4.66747
+AAACGAATCACGAGGA-1              112                    12              4.67446
+AAACGAATCTTGATTC-1             2406                    12              7.93667
+                       total     low_lib_size   low_n_features
+                   &lt;numeric&gt; &lt;outlier.filter&gt; &lt;outlier.filter&gt;
+AAACCCAAGGGAGTTC-1     16200            FALSE            FALSE
+AAACGAAAGCACTCAT-1      1009            FALSE            FALSE
+AAACGAACATCCCGTT-1      2222            FALSE            FALSE
+AAACGAATCAATCTCT-1     15833            FALSE            FALSE
+AAACGAATCACGAGGA-1      2396            FALSE            FALSE
+AAACGAATCTTGATTC-1     30315            FALSE            FALSE
+                   high_subsets_mito_percent   discard
+                            &lt;outlier.filter&gt; &lt;logical&gt;
+AAACCCAAGGGAGTTC-1                     FALSE     FALSE
+AAACGAAAGCACTCAT-1                     FALSE     FALSE
+AAACGAACATCCCGTT-1                     FALSE     FALSE
+AAACGAATCAATCTCT-1                     FALSE     FALSE
+AAACGAATCACGAGGA-1                     FALSE     FALSE
+AAACGAATCTTGATTC-1                     FALSE     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+2842
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+12191.45
+</td>
+<td style="text-align:right;">
+15744.52
+</td>
+<td style="text-align:right;">
+512
+</td>
+<td style="text-align:right;">
+3088
+</td>
+<td style="text-align:right;">
+6722
+</td>
+<td style="text-align:right;">
+14008.75
+</td>
+<td style="text-align:right;">
+180047
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+2842
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+3856.69
+</td>
+<td style="text-align:right;">
+2427.68
+</td>
+<td style="text-align:right;">
+243
+</td>
+<td style="text-align:right;">
+1862.25
+</td>
+<td style="text-align:right;">
+3391
+</td>
+<td style="text-align:right;">
+5264.25
+</td>
+<td style="text-align:right;">
+12240
+</td>
+<td style="text-align:left;">
+▇▇▃▂▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+2842
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6.78
+</td>
+<td style="text-align:right;">
+3.38
+</td>
+<td style="text-align:right;">
+1.08
+</td>
+<td style="text-align:right;">
+4.22
+</td>
+<td style="text-align:right;">
+6.2
+</td>
+<td style="text-align:right;">
+8.63
+</td>
+<td style="text-align:right;">
+26.36
+</td>
+<td style="text-align:left;">
+▇▆▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-537-1_537-3_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-1_537-3_high-fat-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-1_537-3_high-fat-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-1_537-3_high-fat-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-537-1_537-3_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixmodel-537-1_537-3_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-537-1_537-3_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-537-1_537-3_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-537-1_537-3_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>Removing 453 out of 2842 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9235080  493.3   13872300  740.9  13872300  740.9
+Vcells 235395270 1796.0  357802395 2729.9 323639064 2469.2</code></pre>
+</div>
+<div id="section-5" class="section level4">
+<h4>3. 537-5_538-2</h4>
+<pre><code>$mito
+ [1] &quot;mt-Nd1&quot;  &quot;mt-Nd2&quot;  &quot;mt-Co1&quot;  &quot;mt-Co2&quot;  &quot;mt-Atp8&quot; &quot;mt-Atp6&quot; &quot;mt-Co3&quot; 
+ [8] &quot;mt-Nd3&quot;  &quot;mt-Nd4l&quot; &quot;mt-Nd4&quot;  &quot;mt-Nd5&quot;  &quot;mt-Nd6&quot;  &quot;mt-Cytb&quot;</code></pre>
+<p><img src="figure/hfd.Rmd/add-percellqc-537-5_538-2_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>DataFrame with 6 rows and 19 columns
+                                  orig.ident nCount_RNA nFeature_RNA
+                                    &lt;factor&gt;  &lt;numeric&gt;    &lt;integer&gt;
+AAACCCACACACGTGC-1 537-5_538-2_high-fat-diet       6371         3407
+AAACGAAAGCGTGCCT-1 537-5_538-2_high-fat-diet       4798         2587
+AAACGCTAGACCATAA-1 537-5_538-2_high-fat-diet        750          588
+AAACGCTAGCAGGCAT-1 537-5_538-2_high-fat-diet        553          426
+AAACGCTAGCCTTGAT-1 537-5_538-2_high-fat-diet       1052          739
+AAACGCTAGGTATCTC-1 537-5_538-2_high-fat-diet        709          561
+                           age         sex    study_id        tech       hfd
+                   &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;character&gt; &lt;logical&gt;
+AAACCCACACACGTGC-1       adult        male   deng_2020       10xv3      TRUE
+AAACGAAAGCGTGCCT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGCTAGACCATAA-1       adult        male   deng_2020       10xv3      TRUE
+AAACGCTAGCAGGCAT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGCTAGCCTTGAT-1       adult        male   deng_2020       10xv3      TRUE
+AAACGCTAGGTATCTC-1       adult        male   deng_2020       10xv3      TRUE
+                                       ident       sum  detected
+                                    &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;
+AAACCCACACACGTGC-1 537-5_538-2_high-fat-diet      6371      3407
+AAACGAAAGCGTGCCT-1 537-5_538-2_high-fat-diet      4798      2587
+AAACGCTAGACCATAA-1 537-5_538-2_high-fat-diet       750       588
+AAACGCTAGCAGGCAT-1 537-5_538-2_high-fat-diet       553       426
+AAACGCTAGCCTTGAT-1 537-5_538-2_high-fat-diet      1052       739
+AAACGCTAGGTATCTC-1 537-5_538-2_high-fat-diet       709       561
+                   subsets_mito_sum subsets_mito_detected subsets_mito_percent
+                          &lt;numeric&gt;             &lt;integer&gt;            &lt;numeric&gt;
+AAACCCACACACGTGC-1              149                    12              2.33872
+AAACGAAAGCGTGCCT-1              397                    12              8.27428
+AAACGCTAGACCATAA-1               52                    10              6.93333
+AAACGCTAGCAGGCAT-1               73                    12             13.20072
+AAACGCTAGCCTTGAT-1              126                    10             11.97719
+AAACGCTAGGTATCTC-1               44                    10              6.20592
+                       total     low_lib_size   low_n_features
+                   &lt;numeric&gt; &lt;outlier.filter&gt; &lt;outlier.filter&gt;
+AAACCCACACACGTGC-1      6371            FALSE            FALSE
+AAACGAAAGCGTGCCT-1      4798            FALSE            FALSE
+AAACGCTAGACCATAA-1       750            FALSE            FALSE
+AAACGCTAGCAGGCAT-1       553            FALSE            FALSE
+AAACGCTAGCCTTGAT-1      1052            FALSE            FALSE
+AAACGCTAGGTATCTC-1       709            FALSE            FALSE
+                   high_subsets_mito_percent   discard
+                            &lt;outlier.filter&gt; &lt;logical&gt;
+AAACCCACACACGTGC-1                     FALSE     FALSE
+AAACGAAAGCGTGCCT-1                     FALSE     FALSE
+AAACGCTAGACCATAA-1                     FALSE     FALSE
+AAACGCTAGCAGGCAT-1                     FALSE     FALSE
+AAACGCTAGCCTTGAT-1                     FALSE     FALSE
+AAACGCTAGGTATCTC-1                     FALSE     FALSE</code></pre>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$sum
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+6238
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6846.18
+</td>
+<td style="text-align:right;">
+12830.54
+</td>
+<td style="text-align:right;">
+500
+</td>
+<td style="text-align:right;">
+836
+</td>
+<td style="text-align:right;">
+1838
+</td>
+<td style="text-align:right;">
+7668.75
+</td>
+<td style="text-align:right;">
+175743
+</td>
+<td style="text-align:left;">
+▇▁▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$detected
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+6238
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+2385.75
+</td>
+<td style="text-align:right;">
+2348.67
+</td>
+<td style="text-align:right;">
+379
+</td>
+<td style="text-align:right;">
+636
+</td>
+<td style="text-align:right;">
+1225.5
+</td>
+<td style="text-align:right;">
+3736
+</td>
+<td style="text-align:right;">
+12094
+</td>
+<td style="text-align:left;">
+▇▂▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<table style="width: auto;" class="table table-condensed">
+<caption>
+Data summary
+</caption>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Name
+</td>
+<td style="text-align:left;">
+sce$subsets_mito_percent
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of rows
+</td>
+<td style="text-align:left;">
+6238
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of columns
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+_______________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Column type frequency:
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+numeric
+</td>
+<td style="text-align:left;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+________________________
+</td>
+<td style="text-align:left;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Group variables
+</td>
+<td style="text-align:left;">
+None
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: numeric</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+skim_variable
+</th>
+<th style="text-align:right;">
+n_missing
+</th>
+<th style="text-align:right;">
+complete_rate
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+p0
+</th>
+<th style="text-align:right;">
+p25
+</th>
+<th style="text-align:right;">
+p50
+</th>
+<th style="text-align:right;">
+p75
+</th>
+<th style="text-align:right;">
+p100
+</th>
+<th style="text-align:left;">
+hist
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+data
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+7.91
+</td>
+<td style="text-align:right;">
+3.85
+</td>
+<td style="text-align:right;">
+1.07
+</td>
+<td style="text-align:right;">
+5.04
+</td>
+<td style="text-align:right;">
+7.62
+</td>
+<td style="text-align:right;">
+10.18
+</td>
+<td style="text-align:right;">
+36.59
+</td>
+<td style="text-align:left;">
+▇▆▁▁▁
+</td>
+</tr>
+</tbody>
+</table>
+<p><img src="figure/hfd.Rmd/add-percellqc-537-5_538-2_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-5_538-2_high-fat-diet-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-5_538-2_high-fat-diet-4.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/add-percellqc-537-5_538-2_high-fat-diet-5.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixmodel-537-5_538-2_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixmodel-537-5_538-2_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mixsplinemodel-537-5_538-2_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-mixsplinemodel-537-5_538-2_high-fat-diet-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-selectedmodel-537-5_538-2_high-fat-diet-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>Removing 337 out of 6238 cells.</code></pre>
+<pre><code>            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells   9235275  493.3   13872300  740.9  13872300  740.9
+Vcells 262073048 1999.5  429442874 3276.4 353580218 2697.7</code></pre>
+</div>
+</div>
+<div id="save-initial-data" class="section level3">
+<h3>Save initial data</h3>
+<pre><code>Rows: 9,299
+Columns: 20
+$ orig.ident                &lt;chr&gt; &quot;536-1_chow-diet&quot;, &quot;536-1_chow-diet&quot;, &quot;536-1…
+$ nCount_RNA                &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ nFeature_RNA              &lt;int&gt; 1102, 1233, 3498, 10129, 7050, 2832, 6144, 7…
+$ age                       &lt;chr&gt; &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;,…
+$ sex                       &lt;chr&gt; &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;mal…
+$ study_id                  &lt;chr&gt; &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng…
+$ tech                      &lt;chr&gt; &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;,…
+$ hfd                       &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ ident                     &lt;chr&gt; &quot;536-1_chow-diet&quot;, &quot;536-1_chow-diet&quot;, &quot;536-1…
+$ sum                       &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ detected                  &lt;int&gt; 1102, 1233, 3498, 10129, 7050, 2832, 6144, 7…
+$ subsets_mito_sum          &lt;dbl&gt; 128, 108, 298, 3726, 1254, 169, 806, 998, 25…
+$ subsets_mito_detected     &lt;int&gt; 12, 11, 12, 13, 13, 12, 12, 12, 13, 12, 9, 1…
+$ subsets_mito_percent      &lt;dbl&gt; 7.823961, 6.217617, 4.229350, 5.303613, 5.11…
+$ total                     &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ low_lib_size              &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ low_n_features            &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ high_subsets_mito_percent &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ discard                   &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ prob_compromised          &lt;dbl&gt; 0.24285756, 0.11109518, 0.11795886, 0.309056…</code></pre>
+<pre><code>
+536-1_chow-diet 536-3_chow-diet 536-5_chow-diet 
+           4383            3878            1038 </code></pre>
+<pre><code>Rows: 15,041
+Columns: 20
+$ orig.ident                &lt;chr&gt; &quot;536-2_537-4_high-fat-diet&quot;, &quot;536-2_537-4_hi…
+$ nCount_RNA                &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ nFeature_RNA              &lt;int&gt; 1565, 2100, 6324, 2767, 3058, 2644, 2560, 34…
+$ age                       &lt;chr&gt; &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;,…
+$ sex                       &lt;chr&gt; &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;mal…
+$ study_id                  &lt;chr&gt; &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng…
+$ tech                      &lt;chr&gt; &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;,…
+$ hfd                       &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TR…
+$ ident                     &lt;chr&gt; &quot;536-2_537-4_high-fat-diet&quot;, &quot;536-2_537-4_hi…
+$ sum                       &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ detected                  &lt;int&gt; 1565, 2100, 6324, 2767, 3058, 2644, 2560, 34…
+$ subsets_mito_sum          &lt;dbl&gt; 137, 140, 1352, 300, 213, 259, 279, 195, 634…
+$ subsets_mito_detected     &lt;int&gt; 11, 12, 13, 12, 12, 13, 11, 11, 12, 8, 11, 1…
+$ subsets_mito_percent      &lt;dbl&gt; 5.696466, 4.413619, 6.311858, 6.113715, 3.95…
+$ total                     &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ low_lib_size              &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ low_n_features            &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ high_subsets_mito_percent &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ discard                   &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ prob_compromised          &lt;dbl&gt; 0.08177799, 0.06766935, 0.21001466, 0.309050…</code></pre>
+<pre><code>
+536-2_537-4_high-fat-diet 537-1_537-3_high-fat-diet 537-5_538-2_high-fat-diet 
+                     6751                      2389                      5901 </code></pre>
+</div>
+</div>
+<div id="perform-normalization-and-dimensionality-reduction"
+class="section level2">
+<h2>Perform normalization and dimensionality reduction</h2>
+<div id="chow-diet" class="section level3">
+<h3>Chow-diet</h3>
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 9299
+Number of edges: 380090
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8927
+Number of communities: 21
+Elapsed time: 0 seconds</code></pre>
+<p><img src="figure/hfd.Rmd/pl-unsupervised-chow-1.png" width="1344" style="display: block; margin: auto;" /></p>
+</div>
+<div id="hfd" class="section level3">
+<h3>HFD</h3>
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 15041
+Number of edges: 603608
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8914
+Number of communities: 22
+Elapsed time: 2 seconds</code></pre>
+<p><img src="figure/hfd.Rmd/pl-unsupervised-hfd-1.png" width="1344" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="identify-clusters" class="section level2">
+<h2>Identify Clusters</h2>
+<div id="chow-diet-1" class="section level3">
+<h3>Chow-diet</h3>
+<p><img src="figure/hfd.Rmd/pl-features-chow-init-clust-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-features-chow-init-clust-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>[1] &quot;4602 variable genes to use&quot;
+Initial stress        : 0.23396
+stress after  10 iters: 0.09707, magic = 0.092
+stress after  20 iters: 0.06484, magic = 0.500
+stress after  30 iters: 0.06054, magic = 0.500
+stress after  40 iters: 0.06004, magic = 0.500
+stress after  50 iters: 0.05999, magic = 0.500</code></pre>
+<p><img src="figure/hfd.Rmd/pl-swne-chow-init-clust-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>             used    (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells    9553530   510.3   13872301   740.9   13872301   740.9
+Vcells 1757632913 13409.7 3889224212 29672.5 3880321403 29604.6</code></pre>
+<pre><code>             used    (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells    9550562   510.1   13872301   740.9   13872301   740.9
+Vcells 1787823922 13640.1 3889224212 29672.5 3880321403 29604.6</code></pre>
+</div>
+<div id="hfd-1" class="section level3">
+<h3>HFD</h3>
+<p><img src="figure/hfd.Rmd/pl-features-hfd-init-clust-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-features-hfd-init-clust-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>[1] &quot;4783 variable genes to use&quot;
+Initial stress        : 0.27148
+stress after  10 iters: 0.07338, magic = 0.461
+stress after  20 iters: 0.06400, magic = 0.500
+stress after  30 iters: 0.06383, magic = 0.500
+stress after  40 iters: 0.06378, magic = 0.500</code></pre>
+<p><img src="figure/hfd.Rmd/pl-swne-hfd-init-clust-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code>             used    (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells    9555390   510.4   13872301   740.9   13872301   740.9
+Vcells 1788123593 13642.4 3889224212 29672.5 3880321403 29604.6</code></pre>
+<pre><code>             used    (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells    9551548   510.2   13872301   740.9   13872301   740.9
+Vcells 1834251550 13994.3 3889224212 29672.5 3880321403 29604.6</code></pre>
+</div>
+</div>
+<div id="save-initial-clusters-and-subset-astrocytes"
+class="section level2">
+<h2>Save initial clusters and subset astrocytes</h2>
+<pre><code>Rows: 9,299
+Columns: 24
+$ orig.ident                &lt;chr&gt; &quot;536-1_chow-diet&quot;, &quot;536-1_chow-diet&quot;, &quot;536-1…
+$ nCount_RNA                &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ nFeature_RNA              &lt;int&gt; 1102, 1233, 3498, 10129, 7050, 2832, 6144, 7…
+$ age                       &lt;chr&gt; &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;,…
+$ sex                       &lt;chr&gt; &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;mal…
+$ study_id                  &lt;chr&gt; &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng…
+$ tech                      &lt;chr&gt; &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;,…
+$ hfd                       &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ ident                     &lt;chr&gt; &quot;536-1_chow-diet&quot;, &quot;536-1_chow-diet&quot;, &quot;536-1…
+$ sum                       &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ detected                  &lt;int&gt; 1102, 1233, 3498, 10129, 7050, 2832, 6144, 7…
+$ subsets_mito_sum          &lt;dbl&gt; 128, 108, 298, 3726, 1254, 169, 806, 998, 25…
+$ subsets_mito_detected     &lt;int&gt; 12, 11, 12, 13, 13, 12, 12, 12, 13, 12, 9, 1…
+$ subsets_mito_percent      &lt;dbl&gt; 7.823961, 6.217617, 4.229350, 5.303613, 5.11…
+$ total                     &lt;dbl&gt; 1636, 1737, 7046, 70254, 24516, 5240, 17145,…
+$ low_lib_size              &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ low_n_features            &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ high_subsets_mito_percent &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ discard                   &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ prob_compromised          &lt;dbl&gt; 0.24285756, 0.11109518, 0.11795886, 0.309056…
+$ nCount_SCT                &lt;dbl&gt; 4112, 4165, 6189, 5708, 5779, 5233, 5496, 59…
+$ nFeature_SCT              &lt;int&gt; 1531, 1553, 3476, 3178, 3302, 2822, 3129, 35…
+$ integrated_snn_res.0.7    &lt;fct&gt; 5, 4, 0, 6, 5, 11, 11, 7, 0, 3, 5, 0, 1, 9, …
+$ seurat_clusters           &lt;fct&gt; 5, 4, 0, 6, 5, 11, 11, 7, 0, 3, 5, 0, 1, 9, …</code></pre>
+<pre><code>
+   0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15 
+1337 1106  975  826  662  600  577  457  430  322  321  292  233  192  170  167 
+  16   17   18   19   20 
+ 144  136  132  131   89 </code></pre>
+<pre><code>Rows: 15,041
+Columns: 24
+$ orig.ident                &lt;chr&gt; &quot;536-2_537-4_high-fat-diet&quot;, &quot;536-2_537-4_hi…
+$ nCount_RNA                &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ nFeature_RNA              &lt;int&gt; 1565, 2100, 6324, 2767, 3058, 2644, 2560, 34…
+$ age                       &lt;chr&gt; &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;, &quot;adult&quot;,…
+$ sex                       &lt;chr&gt; &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;male&quot;, &quot;mal…
+$ study_id                  &lt;chr&gt; &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng_2020&quot;, &quot;deng…
+$ tech                      &lt;chr&gt; &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;, &quot;10xv3&quot;,…
+$ hfd                       &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TR…
+$ ident                     &lt;chr&gt; &quot;536-2_537-4_high-fat-diet&quot;, &quot;536-2_537-4_hi…
+$ sum                       &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ detected                  &lt;int&gt; 1565, 2100, 6324, 2767, 3058, 2644, 2560, 34…
+$ subsets_mito_sum          &lt;dbl&gt; 137, 140, 1352, 300, 213, 259, 279, 195, 634…
+$ subsets_mito_detected     &lt;int&gt; 11, 12, 13, 12, 12, 13, 11, 11, 12, 8, 11, 1…
+$ subsets_mito_percent      &lt;dbl&gt; 5.696466, 4.413619, 6.311858, 6.113715, 3.95…
+$ total                     &lt;dbl&gt; 2405, 3172, 21420, 4907, 5381, 4366, 4434, 6…
+$ low_lib_size              &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ low_n_features            &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ high_subsets_mito_percent &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ discard                   &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
+$ prob_compromised          &lt;dbl&gt; 0.08177799, 0.06766935, 0.21001466, 0.309050…
+$ nCount_SCT                &lt;dbl&gt; 3101, 3351, 4517, 4506, 4715, 4282, 4295, 47…
+$ nFeature_SCT              &lt;int&gt; 1566, 2094, 2695, 2744, 3035, 2635, 2542, 33…
+$ integrated_snn_res.0.7    &lt;fct&gt; 14, 10, 4, 0, 0, 0, 9, 14, 5, 17, 10, 20, 1,…
+$ seurat_clusters           &lt;fct&gt; 14, 10, 4, 0, 0, 0, 9, 14, 5, 17, 10, 20, 1,…</code></pre>
+<pre><code>
+   0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15 
+2204 1843 1749 1317 1069  838  799  626  531  485  463  426  379  351  346  320 
+  16   17   18   19   20   21 
+ 301  256  230  205  153  150 </code></pre>
+</div>
+<div id="test-astrocytes-difference" class="section level2">
+<h2>Test astrocytes difference</h2>
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 2143
+Number of edges: 134788
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.7628
+Number of communities: 4
+Elapsed time: 0 seconds</code></pre>
+<p><img src="figure/hfd.Rmd/pl-unsup-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code># A tibble: 7 × 7
+# Groups:   cluster [4]
+      p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene  
+      &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt; 
+1 1.62e-218      0.502 0.996 0.978 2.54e-214 0       Snhg11
+2 2.42e-164      0.494 0.999 0.988 3.81e-160 0       Meg3  
+3 1.82e-225      0.788 1     0.634 2.86e-221 1       Gm3764
+4 3.39e-193      0.700 0.994 0.618 5.33e-189 1       Ntsr2 
+5 5.19e- 12      0.262 0.838 0.646 8.16e-  8 2       Mbp   
+6 6.21e- 62      0.802 0.898 0.529 9.76e- 58 3       Plp1  
+7 8.83e- 91      0.791 0.801 0.196 1.39e- 86 3       Ptgds </code></pre>
+<pre><code># A tibble: 16 × 7
+# Groups:   cluster [8]
+       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene  
+       &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt; 
+ 1 5.99e- 31      0.467 0.294 0.082 9.42e- 27 0_0     Gh    
+ 2 9.19e- 16      0.328 0.504 0.289 1.45e- 11 0_0     Pomc  
+ 3 8.23e- 25      0.635 0.303 0.097 1.29e- 20 1_0     Gh    
+ 4 1.39e- 65      0.552 1     0.723 2.19e- 61 1_0     Gm3764
+ 5 1.13e- 22      0.732 0.904 0.551 1.78e- 18 3_0     Plp1  
+ 6 2.24e- 24      0.700 0.877 0.406 3.52e- 20 3_0     Nrgn  
+ 7 8.02e- 12      0.636 0.388 0.114 1.26e-  7 2_0     Gh    
+ 8 7.15e-  7      0.536 0.582 0.323 1.13e-  2 2_0     Pomc  
+ 9 7.32e- 43      0.390 0.74  0.482 1.15e- 38 0_1     Gad2  
+10 2.15e-107      0.364 0.998 0.982 3.37e-103 0_1     Snhg11
+11 4.68e-119      0.629 1     0.693 7.36e-115 1_1     Gm3764
+12 6.75e-123      0.559 1     0.777 1.06e-118 1_1     Slc1a3
+13 4.47e- 69      0.844 0.854 0.215 7.02e- 65 3_1     Ptgds 
+14 2.71e- 38      0.769 0.894 0.543 4.26e- 34 3_1     Plp1  
+15 2.73e-  9      0.262 0.844 0.652 4.29e-  5 2_1     Mbp   
+16 1.62e- 10     -0.254 0.365 0.598 2.55e-  6 2_1     Ewsr1 </code></pre>
+<p><img src="figure/hfd.Rmd/pl-usup-astro-genes-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-usup-astro-genes-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-check-refined-astro-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-check-refined-astro-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code># A tibble: 8 × 7
+# Groups:   cluster [4]
+     p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene   
+     &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;  
+1 2.64e-36      0.862 0.325 0.06   4.51e-32 0_0     Gh     
+2 3.40e-34      0.465 0.275 0.035  5.82e-30 0_0     Prl    
+3 1.45e-23      0.642 0.753 0.246  2.49e-19 3_0     Fezf1  
+4 1.21e-23      0.631 0.877 0.359  2.06e-19 3_0     Adcyap1
+5 3.81e-12      0.285 0.243 0.1    6.52e- 8 0_1     Zic1   
+6 5.31e-23      0.282 0.955 0.843  9.09e-19 0_1     Gad2   
+7 1.20e-48      0.900 0.902 0.399  2.05e-44 3_1     Ptgds  
+8 5.04e-41      0.692 0.724 0.197  8.63e-37 3_1     Mal    </code></pre>
+<p><img src="figure/hfd.Rmd/pl-check-refined-astro-3.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-features-hfd-astro-clust-1.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-features-hfd-astro-clust-2.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/corr-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code># A tibble: 8 × 7
+# Groups:   cluster [4]
+     p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene   
+     &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;  
+1 1.67e-25      0.766 0.948 0.632  2.83e-21 0       Pomc   
+2 2.40e-16      0.728 0.561 0.177  4.06e-12 0       Gh     
+3 2.48e-19      1.22  0.616 0.246  4.20e-15 1       Avp    
+4 3.28e-44      1.13  0.821 0.206  5.56e-40 1       Zic1   
+5 4.80e-48      1.01  0.946 0.242  8.12e-44 2       Fezf1  
+6 3.65e-34      0.748 0.978 0.603  6.18e-30 2       Lbhd2  
+7 4.61e-28      1.48  1     0.209  7.79e-24 3       Spef2  
+8 8.96e-30      1.42  1     0.191  1.51e-25 3       Cfap100</code></pre>
+<p><img src="figure/hfd.Rmd/pl-features-corr-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre><code># A tibble: 17 × 8
+# Groups:   cluster [8]
+   myAUC avg_diff power avg_log2FC pct.1 pct.2 cluster gene    
+   &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;   
+ 1 0.788    2.02  0.576      0.802 0.953 0.728 0_0     Pomc    
+ 2 0.775    2.68  0.55       1.24  0.701 0.243 0_0     Gh      
+ 3 0.928    0.967 0.856      0.412 1     0.99  2_0     Cacna2d1
+ 4 0.913    0.796 0.826      0.352 1     0.995 2_0     Ncdn    
+ 5 0.98     1.96  0.96       1.36  1     0.207 3_0     Cfap100 
+ 6 0.978    1.61  0.956      1.26  1     0.095 3_0     Ak7     
+ 7 0.978    1.78  0.956      1.33  1     0.171 3_0     Cfap65  
+ 8 0.818    0.568 0.636      0.285 1     0.979 1_0     mt-Atp8 
+ 9 0.8      0.496 0.6        0.275 1     0.984 1_0     Pcsk2   
+10 0.759    0.617 0.518      0.369 0.961 0.872 0_1     Fgfr3   
+11 0.754    0.594 0.508      0.279 0.99  0.98  0_1     Ntsr2   
+12 0.901    0.970 0.802      0.857 1     0.36  2_1     Fezf1   
+13 0.889    0.624 0.778      0.293 1     0.995 2_1     Rasgrf2 
+14 0.988    2.21  0.976      1.54  1     0.239 3_1     Spef2   
+15 0.988    1.67  0.976      1.27  1     0.166 3_1     Crb2    
+16 0.936    1.71  0.872      1.23  0.938 0.232 1_1     Zic1    
+17 0.915    0.852 0.83       0.400 1     0.984 1_1     Zfhx3   </code></pre>
+<p><img src="figure/hfd.Rmd/pl-features-corr-astro-2.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-features-corr-astro-3.png" width="1344" style="display: block; margin: auto;" /><img src="figure/hfd.Rmd/pl-features-corr-astro-4.png" width="1344" style="display: block; margin: auto;" /></p>
+<div id="swne" class="section level3">
+<h3>SWNE</h3>
+<pre><code>calculating variance fit ... using gam [1] &quot;3000 variable genes to use&quot;
+Initial stress        : 0.14646
+stress after  10 iters: 0.03191, magic = 0.500
+stress after  20 iters: 0.02948, magic = 0.500
+stress after  30 iters: 0.02881, magic = 0.500
+stress after  40 iters: 0.02867, magic = 0.500
+stress after  50 iters: 0.02863, magic = 0.500</code></pre>
+<p><img src="figure/hfd.Rmd/pl-swne-corr-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-lxn-swne-corr-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<p><img src="figure/hfd.Rmd/pl-mfn2-swne-corr-astro-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span>
+Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre><code>R version 4.2.2 (2022-10-31)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 22.04.1 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.20.so
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] splines   stats4    stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] Nebulosa_1.6.0              swne_0.6.20                
+ [3] patchwork_1.1.2             UpSetR_1.4.0               
+ [5] glmGamPoi_1.8.0             sctransform_0.3.5          
+ [7] SeuratDisk_0.0.0.9020       SeuratWrappers_0.3.0       
+ [9] sp_1.5-0                    SeuratObject_4.1.2         
+[11] Seurat_4.2.0                miQC_1.5.1                 
+[13] flexmix_2.3-18              lattice_0.20-45            
+[15] scater_1.24.0               scuttle_1.6.3              
+[17] SingleCellExperiment_1.18.1 SummarizedExperiment_1.26.1
+[19] Biobase_2.56.0              GenomicRanges_1.48.0       
+[21] GenomeInfoDb_1.32.4         IRanges_2.30.1             
+[23] S4Vectors_0.34.0            BiocGenerics_0.42.0        
+[25] MatrixGenerics_1.8.1        matrixStats_0.62.0         
+[27] kableExtra_1.3.4            future_1.28.0              
+[29] skimr_2.1.4                 magrittr_2.0.3             
+[31] forcats_0.5.2               stringr_1.4.1              
+[33] dplyr_1.0.10                purrr_0.3.5                
+[35] readr_2.1.3                 tidyr_1.2.1                
+[37] tibble_3.1.8                ggplot2_3.3.6              
+[39] tidyverse_1.3.2             here_1.0.1                 
+[41] workflowr_1.7.0            
+
+loaded via a namespace (and not attached):
+  [1] scattermore_0.8           R.methodsS3_1.8.2        
+  [3] bit64_4.0.5               knitr_1.40               
+  [5] irlba_2.3.5.1             DelayedArray_0.22.0      
+  [7] R.utils_2.12.0            data.table_1.14.4        
+  [9] rpart_4.1.19              RCurl_1.98-1.9           
+ [11] generics_0.1.3            snow_0.4-4               
+ [13] ScaledMatrix_1.4.1        callr_3.7.2              
+ [15] cowplot_1.1.1             RANN_2.6.1               
+ [17] proxy_0.4-27              bit_4.0.4                
+ [19] tzdb_0.3.0                spatstat.data_3.0-0      
+ [21] webshot_0.5.4             xml2_1.3.3               
+ [23] lubridate_1.8.0           httpuv_1.6.6             
+ [25] assertthat_0.2.1          viridis_0.6.2            
+ [27] gargle_1.2.1              xfun_0.34                
+ [29] hms_1.1.2                 jquerylib_0.1.4          
+ [31] evaluate_0.17             promises_1.2.0.1         
+ [33] fansi_1.0.3               dbplyr_2.2.1             
+ [35] readxl_1.4.1              igraph_1.3.5             
+ [37] DBI_1.1.3                 htmlwidgets_1.5.4        
+ [39] spatstat.geom_3.0-3       googledrive_2.0.0        
+ [41] ellipsis_0.3.2            ks_1.13.5                
+ [43] RSpectra_0.16-1           backports_1.4.1          
+ [45] deldir_1.0-6              sparseMatrixStats_1.8.0  
+ [47] vctrs_0.5.0               remotes_2.4.2            
+ [49] ROCR_1.0-11               abind_1.4-5              
+ [51] cachem_1.0.6              withr_2.5.0              
+ [53] progressr_0.11.0          vroom_1.6.0              
+ [55] rgdal_1.5-32              mclust_5.4.10            
+ [57] goftest_1.2-3             svglite_2.1.0            
+ [59] cluster_2.1.4             lazyeval_0.2.2           
+ [61] crayon_1.5.2              NNLM_0.4.4               
+ [63] hdf5r_1.3.7               labeling_0.4.2           
+ [65] pkgconfig_2.0.3           nlme_3.1-160             
+ [67] vipor_0.4.5               nnet_7.3-18              
+ [69] rlang_1.0.6               globals_0.16.1           
+ [71] lifecycle_1.0.3           miniUI_0.1.1.1           
+ [73] modelr_0.1.9              rsvd_1.0.5               
+ [75] ggrastr_1.0.1             cellranger_1.1.0         
+ [77] rprojroot_2.0.3           polyclip_1.10-4          
+ [79] lmtest_0.9-40             Matrix_1.5-1             
+ [81] zoo_1.8-11                reprex_2.0.2             
+ [83] base64enc_0.1-3           beeswarm_0.4.0           
+ [85] whisker_0.4               ggridges_0.5.4           
+ [87] processx_3.8.0            googlesheets4_1.0.1      
+ [89] png_0.1-7                 viridisLite_0.4.1        
+ [91] bitops_1.0-7              getPass_0.2-2            
+ [93] R.oo_1.25.0               KernSmooth_2.23-20       
+ [95] DelayedMatrixStats_1.18.1 parallelly_1.32.1        
+ [97] spatstat.random_2.2-0     beachmat_2.12.0          
+ [99] scales_1.2.1              usedist_0.4.0            
+[101] plyr_1.8.7                ica_1.0-3                
+[103] zlibbioc_1.42.0           compiler_4.2.2           
+[105] RColorBrewer_1.1-3        fitdistrplus_1.1-8       
+[107] cli_3.4.1                 XVector_0.36.0           
+[109] listenv_0.8.0             pbapply_1.5-0            
+[111] ps_1.7.1                  MASS_7.3-58.1            
+[113] mgcv_1.8-41               tidyselect_1.2.0         
+[115] stringi_1.7.8             highr_0.9                
+[117] yaml_2.3.6                askpass_1.1              
+[119] BiocSingular_1.12.0       ggrepel_0.9.1.9999       
+[121] grid_4.2.2                sass_0.4.2               
+[123] tools_4.2.2               future.apply_1.9.1       
+[125] parallel_4.2.2            rstudioapi_0.14          
+[127] git2r_0.30.1              liger_2.0.1              
+[129] gridExtra_2.3             farver_2.1.1             
+[131] Rtsne_0.16                digest_0.6.30            
+[133] BiocManager_1.30.18       rgeos_0.5-9              
+[135] pracma_2.4.2              FNN_1.1.3.1              
+[137] shiny_1.7.3               Rcpp_1.0.9               
+[139] broom_1.0.1               later_1.3.0              
+[141] RcppAnnoy_0.0.19          httr_1.4.4               
+[143] colorspace_2.0-3          rvest_1.0.3              
+[145] fs_1.5.2                  tensor_1.5               
+[147] reticulate_1.26           umap_0.2.9.0             
+[149] uwot_0.1.14               spatstat.utils_3.0-1     
+[151] plotly_4.10.0             systemfonts_1.0.4        
+[153] xtable_1.8-4              jsonlite_1.8.3           
+[155] modeltools_0.2-23         R6_2.5.1                 
+[157] pillar_1.8.1              htmltools_0.5.3          
+[159] mime_0.12                 glue_1.6.2               
+[161] fastmap_1.1.0             BiocParallel_1.30.3      
+[163] BiocNeighbors_1.14.0      ggmin_0.0.0.9000         
+[165] codetools_0.2-18          mvtnorm_1.1-3            
+[167] utf8_1.2.2                bslib_0.4.0              
+[169] spatstat.sparse_3.0-0     ggbeeswarm_0.6.0         
+[171] leiden_0.4.3              openssl_2.0.4            
+[173] limma_3.52.4              survival_3.4-0           
+[175] rmarkdown_2.17            repr_1.1.4               
+[177] munsell_0.5.0             GenomeInfoDbData_1.2.8   
+[179] haven_2.5.1               reshape2_1.4.4           
+[181] gtable_0.3.1              spatstat.core_2.4-4      </code></pre>
+</div>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
