@@ -1,0 +1,340 @@
+---
+title: "Regional and functional heterogeneity of hypothalamic astrocytes"
+author: "Evgenii Tretiakov"
+output: workflowr::wflow_html
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+    autodep        = TRUE,
+    cache          = FALSE,
+    cache.lazy     = FALSE,
+    dev            = c("png", "pdf"),
+    echo           = TRUE,
+    error          = FALSE,
+    fig.align      = "center",
+    fig.width      = 8,
+    fig.asp        = 0.618,
+    message        = FALSE,
+    warning        = FALSE
+)
+
+# Load packages for scRNA-seq analysis and visualisation
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install(c("Seurat", "R.utils", "satijalab/seurat-wrappers", "mojaveazure/seurat-disk", "workflowr", "linxihui/NNLM", "yanwu2014/swne", "YuLab-SMU/ggtree", "pengminshi/mrtree", "glmpca", "scry", "scater", "scuttle", "miQC", "sjessa/ggmin", "glmGamPoi", "Nebulosa"))
+}
+
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(SeuratWrappers)
+    library(SeuratDisk)
+    library(sctransform)
+    library(glmGamPoi)
+    library(UpSetR)
+    library(patchwork)
+    library(swne)
+    library(Nebulosa)
+    library(mrtree)
+    library(biomaRt)
+})
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+    library(here)
+    library(tidyverse)
+    library(magrittr)
+    library(stringr)
+    library(skimr)
+    library(future)
+    library(kableExtra)
+})
+# Set paths
+raw_dir    <- here('../../data/Steuernagel10x')
+ext1_dir   <- here('../../data/Ohlig2021')
+ext2_dir   <- here('../../data/Lutomska2022')
+src_dir    <- here('code')
+data_dir   <- here('data')
+output_dir <- here('output')
+plots_dir  <- here(output_dir, 'figures')
+tables_dir <- here(output_dir, 'tables')
+# source(here(src_dir, 'genes.R'))
+
+# parallelisation
+n_cores <- 20
+plan("multisession", workers = n_cores)
+options(future.globals.maxSize = 25000 * 1024^2) # 25Gb
+plan()
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+```{r load-data}
+combined_sct <- LoadH5Seurat(file = here(data_dir, "comb_astrocytes.bak.h5Seurat"))
+combined_sct
+
+Deng2020_arc_all   <- LoadH5Seurat(here(data_dir, "deng_2020_arc_chow_clusters.h5Seurat"))
+DefaultAssay(object = Deng2020_arc_all) <- "RNA"
+Deng2020_arc_all@meta.data <-
+  Deng2020_arc_all@meta.data |>
+  dplyr::select(nCount_RNA:nFeature_SCT, study_id, sex, tech, subsets_mito_percent, ident, seurat_clusters) |> 
+  rename(Technology = tech,
+         percent_mt = subsets_mito_percent,
+         Sex = sex,
+         Dataset = study_id,
+         Batch_ID = ident) |> 
+  mutate(Author_Region = "Arcuate Nucleus/Median Eminence",
+         Batch_ID = str_c("Deng10xv3", Batch_ID, sep = "_"),
+         Sex = if_else(Sex == "male", "M", "F"),
+         Dataset = "Deng10x")
+Deng2020_arc <- 
+  subset(Deng2020_arc_all, 
+         subset = seurat_clusters %in% c(3,6,7)) |>
+  DietSeurat(assays = "RNA")
+if (!file.exists(here(raw_dir, "deng_2020_arc_chow_astro-npy-pomc.h5Seurat"))) {
+  SaveH5Seurat(Deng2020_arc, 
+               filename = here(data_dir,
+                               "deng_2020_arc_chow_astro-npy-pomc.h5Seurat"))
+  Convert(here(data_dir, "deng_2020_arc_chow_astro-npy-pomc.h5Seurat"), 
+          dest = "h5ad")
+}
+Deng2020_arc
+```
+
+```{r}
+reg.woint.markers.lr <- FindAllMarkers(combined_sct, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, test.use = "LR")
+```
+
+
+```{r}
+DotPlot(combined_sct, features = c("Lxn", "Ndrg2", "Slc1a3", "Gfap", 
+                 "S100b", "Agt", "Slc6a11",
+                 "Aqp4", "Nfia", "Aldoc", 
+                 "Apoe", "Aldh1l1", "Sox9", 
+                 "Fgfr3", "Ntrk2"), assay = "SCT") + RotatedAxis()
+
+```
+
+
+```{python}
+import os
+import pickle
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import scanpy.external as sce
+import decoupler as dc
+import squidpy as sp
+
+# Only needed for visualization:
+# import matplotlib
+# matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+```
+
+```{python}
+sc.settings.verbosity = 2
+sc.logging.print_header()
+sc.settings.set_figure_params(dpi=200, facecolor='white', figsize=(8,8))
+```
+
+```{python}
+dts = "deng2020_norm_ligrec"
+results_file = f'{dts}.h5ad'
+pickle_file = f'{dts}.pickle'
+
+# marker genes for astrocytes
+markers_astrocytes = ["Ndrg2", "Slc1a3", "Gfap", "S100b", "Agt", "Slc6a11", "Aqp4", "Nfia", "Aldoc", "Apoe", "Aldh1l1", "Sox9", "Fgfr3", "Egfr", "Ntrk2", "Lxn"]
+```
+
+```{python}
+print(os.getcwd())
+```
+
+```{python}
+adata = sc.read_h5ad("../data/deng_2020_arc_chow_astro-npy-pomc.h5ad")
+adata.var_names_make_unique()
+adata.obs_names_make_unique()
+adata.obs['seurat_clusters'] = adata.obs.seurat_clusters.astype('category')
+adata.obs['seurat_clusters'] = adata.obs.seurat_clusters.cat.rename_categories({3: 'astrocytes', 6: 'Pomc neurons', 7: 'Agrp neurons'})
+adata.obs
+adata
+```
+
+```{python}
+# Basic filtering
+sc.pp.filter_cells(adata, min_genes=200)
+sc.pp.filter_genes(adata, min_cells=3)
+
+```
+
+```{python}
+sc.pl.violin(
+  adata,
+  ["nFeature_RNA", "nCount_RNA", "percent_mt"],
+  jitter=0.4,
+  multi_panel=True,
+)
+```
+
+```{python}
+# define outliers and do the filtering for the Arc dataset
+adata.obs['outlier_mt'] = adata.obs.percent_mt > 12
+adata.obs['outlier_total'] = adata.obs.nCount_RNA > 25000
+adata.obs['outlier_ngenes'] = adata.obs.nFeature_RNA > 8000
+
+print('%u cells with high %% of mitochondrial genes' % (sum(adata.obs['outlier_mt'])))
+print('%u cells with large total counts' % (sum(adata.obs['outlier_total'])))
+print('%u cells with large number of genes' % (sum(adata.obs['outlier_ngenes'])))
+
+adata = adata[~adata.obs['outlier_mt'], :].copy()
+adata = adata[~adata.obs['outlier_total'], :].copy()
+adata = adata[~adata.obs['outlier_ngenes'], :].copy()
+sc.pp.filter_genes(adata.copy(), min_cells=1)
+```
+
+```{python}
+sc.experimental.pp.highly_variable_genes(
+  adata.copy(), flavor="pearson_residuals", n_top_genes=5000, batch_key = 'Batch_ID'
+)
+```
+
+```{python}
+# to easy change back to multiple
+# fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+fig, ax = plt.subplots(1, 1, figsize=(7, 6))
+
+hvgs = adata.var["highly_variable"]
+
+ax.scatter(
+    adata.var["mean_counts"], adata.var["residual_variances"], s=3, edgecolor="none"
+)
+ax.scatter(
+    adata.var["mean_counts"][hvgs],
+    adata.var["residual_variances"][hvgs],
+    c="tab:red",
+    label="selected genes",
+    s=3,
+    edgecolor="none",
+)
+ax.scatter(
+    adata.var["mean_counts"][np.isin(adata.var_names, markers_astrocytes)],
+    adata.var["residual_variances"][np.isin(adata.var_names, markers_astrocytes)],
+    c="k",
+    label="known marker genes",
+    s=10,
+    edgecolor="none",
+)
+ax.set_xscale("log")
+ax.set_xlabel("mean expression")
+ax.set_yscale("log")
+ax.set_ylabel("residual variance")
+ax.set_title(adata.uns["name"])
+
+ax.spines["right"].set_visible(False)
+ax.spines["top"].set_visible(False)
+ax.yaxis.set_ticks_position("left")
+ax.xaxis.set_ticks_position("bottom")
+plt.legend()
+```
+
+```{python}
+adata.raw = adata.copy()
+adata = adata[:, adata.var["highly_variable"]].copy()
+adata
+```
+
+```{python}
+#keep raw and depth-normalized counts for later
+adata.layers["raw"] = adata.X.copy()
+adata.layers["sqrt_norm"] = np.sqrt(
+    sc.pp.normalize_total(adata, inplace=False)["X"]
+)
+```
+
+```{python}
+# Performs normalization by Pearson residuals, and PCA on top
+sc.experimental.pp.normalize_pearson_residuals_pca(adata)
+n_cells = len(adata)
+sc.tl.tsne(adata, use_rep="X_pca")
+
+```
+
+```{python}
+# Compute distances in the PCA space, and find cell neighbors
+sc.pp.neighbors(adata, n_neighbors=10, n_pcs=50)
+
+# Generate UMAP features
+sc.tl.umap(adata)
+
+# Generate TriMap
+sce.tl.trimap(adata)
+
+# Run leiden clustering algorithm
+sc.tl.leiden(adata)
+```
+
+```{python}
+# Visualize
+sce.pl.trimap(adata, color=['leiden'], s=10, title='RNA TriMap',
+           frameon=False, legend_fontweight='normal', legend_fontsize=15)
+sce.pl.trimap(adata, color=['seurat_clusters'], s=10, title='RNA TriMap',
+           frameon=False, legend_fontweight='normal', legend_fontsize=15)
+sce.pl.trimap(adata, color=['Batch_ID'], s=10, title='RNA TriMap',
+           frameon=False, legend_fontweight='normal', legend_fontsize=15)
+```
+
+```{python}
+# UMAP
+sc.pl.umap(adata, color='leiden', title='RNA UMAP',
+           frameon=False, legend_fontweight='normal', legend_fontsize=15)
+```
+
+```{python}
+# t-SNE
+sc.pl.tsne(adata, color=["leiden"], cmap="tab20")
+sc.pl.tsne(adata, color=["Batch_ID"], cmap="tab20")
+sc.pl.tsne(adata, color=["seurat_clusters"], cmap="tab20")
+sc.pl.tsne(adata, color=markers_astrocytes, layer="sqrt_norm")
+```
+
+```{python}
+res = sp.gr.ligrec(adata, "seurat_clusters",
+                   fdr_method=None, copy=True,
+                   threshold=0.1, seed=42, n_perms=10000, n_jobs=20)
+```
+
+```{python}
+res
+```
+
+```{python}
+df = res['pvalues']
+print("Number of OmniPath interactions (mouse data):", len(df))
+
+df.head()
+```
+
+```{python}
+pickle.dump(res, open(pickle_file, "wb"), protocol=4)
+```
+
+```{python}
+df
+```
+
+
+```{python}
+sp.pl.ligrec(res, source_groups=["Agrp neurons", "Pomc neurons"], target_groups=["astrocytes"], remove_nonsig_interactions=True, pvalue_threshold=0.0005, save=f"/nfs/home/etretiakov/src/1_heteroAstrocytes/output/figures/{dts}_astro_agrp-pomc.pdf")
+```
+
+```{python}
+sp.pl.ligrec(res, source_groups=["astrocytes"], target_groups=["Agrp neurons", "Pomc neurons"], remove_nonsig_interactions=True, pvalue_threshold=0.0005, save=f"/nfs/home/etretiakov/src/1_heteroAstrocytes/output/figures/{dts}_astro.pdf")
+```
+
+

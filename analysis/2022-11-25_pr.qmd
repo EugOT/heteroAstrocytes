@@ -1,0 +1,1001 @@
+---
+title: "General astrocyte markers metadata"
+author: "Evgenii O. Tretiakov"
+format: html
+editor: visual
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+    autodep        = TRUE,
+    cache          = FALSE,
+    cache.lazy     = FALSE,
+    dev            = c("png", "pdf"),
+    echo           = TRUE,
+    error          = FALSE,
+    fig.align      = "center",
+    fig.width      = 8,
+    fig.asp        = 0.618,
+    message        = FALSE,
+    warning        = FALSE
+)
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(here)
+  library(readr)
+  library(purrr)
+  library(dplyr)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(future)
+  library(kableExtra)
+  library(reticulate)
+})
+
+reticulate::use_condaenv("/opt/python/3.8.8/bin/python")
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(SeuratWrappers)
+  library(SeuratDisk)
+  library(UpSetR)
+  library(patchwork)
+  library(swne)
+  library(Nebulosa)
+  library(Scillus)
+  library(scCustomize)
+  library(biomaRt)
+})
+
+# Set paths
+raw_dir    <- here('../../data/PRJNA779749')
+src_dir    <- here('code')
+data_dir   <- here('data')
+output_dir <- here('output')
+plots_dir  <- here(output_dir, 'figures')
+tables_dir <- here(output_dir, 'tables')
+# source(here(src_dir, 'genes.R'))
+
+# parallelisation
+n_cores <- 40
+plan("multisession", workers = n_cores)
+options(future.globals.maxSize = 10000 * 1024^2) # 10Gb
+plan()
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+
+#' Save plot
+save_my_plot <- function(name,
+                         plt,
+                         type,
+                         h = 12,
+                         asp = 1.618,
+                         path = plots_dir,
+                         format = ".pdf") {
+  cowplot::save_plot(
+    filename = here::here(
+      path,
+      stringr::str_glue(type,
+        as.character(name),
+        format,
+        .sep = "_"
+      )
+    ),
+    plot = plt,
+    base_height = h,
+    base_asp = asp,
+    limitsize = FALSE
+  )
+}
+```
+
+```{r load-data}
+genes.embed <- c("Ndrg2", "Slc1a3", "Gfap", 
+                 "S100b", "Agt", "Slc6a11",
+                 "Aqp4", "Nfia", "Aldoc", 
+                 "Apoe", "Aldh1l1", "Sox9", 
+                 "Fgfr3", "Egfr", "Ntrk2", "Gja1")
+genes.nature <- c("Ndrg2", "Aqp4", "Gja1", 
+                  "Slc17a9", "Slc17a7", "Slc17a6", 
+                  "Slc16a1", "Slc16a7", "Slc16a3", 
+                  "Panx1", "P2rx7", "Srr", 
+                  "Dao", "Vamp2", "Gab1", 
+                  "Slc18a1", "Slc18a2", "Slc18a3", 
+                  "Slc17a5", "Osmr", "S100a6", 
+                  "Ogn", "Itih5", "Rdh10", 
+                  "Fst", "1500015O10Rik", "Rnf13", 
+                  "A2m", "Rsph9", "Galnt16", 
+                  "Rad23b", "Tgfbr2", "Ppp1r15a",
+                  "Mlc1", "Slc6a11", "Slc1a3", "S100b",
+                  "S100b", "Fabp7", "Gab1", "Igfbp5",
+                  "Hopx", "Igsf1", "Tgfb2", "2810459M11Rik",
+                  "Rnf13", "Itih5", "Slc1a2", "Cd59a",
+                  "Vim", "Slc7a10", "Fos")
+
+genes.jj <- c(
+  "Acsbg1", "Acsl3", "Actb", "Agt", "Aldh1l1", "Aldoc", "Apoe",
+  "Aqp4", "Atp1a2", "Bmpr1b", "Cbs", "Ckb", "Clu", "Cnx43",
+  "Cpe", "Cst3", "Cth", "Cyp4f14", "Dbi", "Dbx2", "Dctd",
+  "Dio2", "Ednrb", "Fgfr3", "Gabbr1", "Gabbr2", "Gjb6", "Gli3",
+  "Gm266", "Gpr37l1", "Grhl1", "Grm3", "Gs", "Gucy2c", "Hapln1",
+  "Hes5", "Heyl", "Hgf", "Id2", "Itih3", "Lars2", "Lcat",
+  "Ldhb", "Malat1", "Mc3r", "Mfge8", "Mlc1", "Mmd2", "Mt1",
+  "Mt2", "Ndrg2", "Nfia", "Npas3", "Nrxn1", "Ntrk2", "Ntsr2",
+  "Olx1", "Otx2", "Pax6", "Pbxip1", "Phkg1", "Pla2g3", "Pla2g7",
+  "Plcd4", "Plce1", "Plp1", "Ppap2b", "Ppia", "Prodh", "Ptprz1",
+  "Rfx4", "Rpl41", "S1pr1", "Scd2", "Serpinb1c", "Slc19a3", "Slc1a2",
+  "Slc1a3", "Slc39a12", "Slc4a4", "Slc6a11", "Son", "Sox2", "Sox9",
+  "Sparc", "Sparcl1", "Tlr3"
+)
+
+genes.anatomy.jj <- c("Gfap", "Meg3", "Snhg11", "Ttc3", "Cst3", "Sparcl1",
+                      "Ndrg2", "Cnx43", "Agt", "S100b", "Aldh1l1", "Lxn",
+                      "Aqp4", "Slc1a2", "Fabp7", "Glul", "Olig2")
+
+# public resources:
+housekeeping_mouse <-
+  read_lines(file = here(data_dir, 'housekeeping_mouse.tsv'))
+astroenriched_mouse <-
+  read_lines(file = here(data_dir, 'astrocyte_enriched_genes_shared_by_mice.tsv'))
+
+astroprogenitor_humans <- 
+  read_lines(file = here(data_dir, 'top_astrocytes_progenitor_cells_genes_by_humans.tsv')) |>
+  str_to_sentence()
+astromature_humans <-
+  read_lines(file = here(data_dir, 'top_mature_astrocyte_genes_by_humans.tsv')) |>
+  str_to_sentence()
+
+# aggregate:
+genes.manual <- unique(c(genes.embed, genes.nature,
+                         genes.jj, genes.anatomy.jj,
+                         astroenriched_mouse,
+                         astromature_humans,
+                         astroprogenitor_humans))
+
+# ROC-test markers
+srt.markers.roc <- read_csv(file = here(tables_dir,
+                      'ageing_astr_recon-mrk_roc-sct.csv'))
+srt.markers.roc %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+gene_list_plot <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.roc,
+                      num_genes = 3,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+
+
+# LR-test markers
+srt.markers.lr <- read_csv(file = here(tables_dir,
+                      'ageing_astr_recon-mrk_logreg-sct.csv'))
+srt.markers.lr %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+gene_list_plot2 <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.lr,
+                      num_genes = 5,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+
+all_integrated <- LoadH5Seurat(here(raw_dir, "GSE188646-reintegrated.h5Seurat"))
+astro <- LoadH5Seurat(here(raw_dir, "astro-wo-outliers.h5Seurat"))
+```
+
+```{r pl-all-integrated-whole-astrocytes-markers, fig.width=12, fig.asp=0.868}
+DefaultAssay(object = all_integrated) <- "RNA"
+plEmbCombWMrkR <- FeaturePlot(
+  all_integrated,
+  features = c("Fos", "Glul", "Gja1", "Ndrg2", 
+               "S100b", "Tafa1", "Aldh1a1", "Plcb1", 
+               "Sgcd", "Slit2", "Apoe", "Gfap", 
+               "Slc38a1", "Cst3", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Astro-Marker choice (RNA)",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombWMrkR
+
+DefaultAssay(object = all_integrated) <- "integrated"
+plEmbCombWMrkI <- FeaturePlot(
+  all_integrated,
+  features = c("Fos", "Glul", "Gja1", "Ndrg2", 
+               "S100b", "Tafa1", "Aldh1a1", "Plcb1", 
+               "Sgcd", "Slit2", "Apoe", "Gfap", 
+               "Slc38a1", "Cst3", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Astro-Marker choice (integrated)",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombWMrkI
+save_my_plot(name = "pick-mrks-whole", 
+             plt = plEmbCombWMrkI, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.152)
+```
+
+```{r integration-features-astrocytes2}
+DefaultAssay(object = astro) <- "RNA"
+subset_genes <- 
+  astro@assays$RNA@counts |>
+  rowSums(na.rm = TRUE) %>%
+  .[. > 50 | . %in% genes.manual] %>% names() %>%
+  .[!. %in% housekeeping_mouse]
+astro <- DietSeurat(astro,
+                    assays = "RNA",
+                    features = subset_genes)
+astro@meta.data <- 
+  astro@meta.data |> 
+  dplyr::select(nCount_RNA, nFeature_RNA, stim, percent.mt, sample)
+srt_list <- Seurat::SplitObject(astro, split.by = "sample")
+srt_list <- lapply(X = srt_list,
+                   vst.flavor = "v2",
+                   FUN = SCTransform,
+                   vars.to.regress = "percent.mt",
+                   method = "glmGamPoi",
+                   variable.features.n = 8000,
+                   return.only.var.genes = FALSE,
+                   seed.use = reseed,
+                   verbose = FALSE)
+
+features <- 
+  SelectIntegrationFeatures(object.list = srt_list, 
+                            nfeatures = 4000,
+                            verbose = FALSE)
+all_sct_features <- 
+  srt_list |> 
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |> 
+  unique()
+keep_genes <- 
+  c(genes.manual,
+    features) |> 
+  unique() %>%
+  .[. %in% all_sct_features]
+glimpse(keep_genes)
+
+outOfAnchors <- keep_genes[!keep_genes %in% features]
+cat(c("\n", outOfAnchors, "\n"))
+
+CheckGenesInSCT <- function(gene) {
+  srt_list |> 
+    map(pluck, "assays", "SCT", "var.features") |> 
+    map(~gene %in% .x) |> 
+    simplify()
+}
+chkSamples <-
+  outOfAnchors |>
+  map(CheckGenesInSCT) |>
+  base::simplify2array() |> 
+  as_tibble()
+colnames(chkSamples) <- outOfAnchors
+chkSamples
+
+selected_genes <-
+  c(outOfAnchors[
+    chkSamples |>
+      map(all) |>
+      simplify()],
+    features)
+glimpse(selected_genes)
+```
+
+```{r integration-object-astrocytes}
+npcs <- 50
+srt_list <-
+  PrepSCTIntegration(object.list = srt_list,
+                     anchor.features = selected_genes)
+
+anchors <- FindIntegrationAnchors(
+  object.list = srt_list,
+  normalization.method = "SCT",
+  anchor.features = selected_genes,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 10,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+
+combined_sct <- IntegrateData(
+  anchorset = anchors,
+  normalization.method = "SCT",
+  features.to.integrate = selected_genes,
+  dims = 1:npcs,
+  k.weight = 200,
+  verbose = FALSE
+)
+
+combined_sct <-
+  RunPCA(combined_sct, npcs = npcs, 
+         seed.use = reseed, verbose = FALSE)
+combined_sct
+```
+
+```{r}
+combined_sct <- combined_sct |> 
+  RunUMAP(reduction = "pca", return.model = TRUE,
+          densmap = TRUE, dims = 1:npcs, 
+          seed.use = reseed, verbose = FALSE) |> 
+  FindNeighbors(reduction = "pca", dims = 1:npcs, verbose = FALSE)
+```
+
+Plot by source
+
+```{r pl-all-integrated-astrocytes-sample, fig.width=12, fig.asp=0.309}
+plEmbCombBatch <- DimPlot(combined_sct, reduction = "umap",
+                          group.by = "sample",
+                          label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombReg <- DimPlot(combined_sct, reduction = "umap",
+                        group.by = "stim",
+                        label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombBatch + plEmbCombReg
+```
+
+```{r select-cells1, fig.width=6}
+plot <- DimPlot(combined_sct, reduction = "umap")
+select.cells <- CellSelector(plot = plot)
+Idents(combined_sct, cells = select.cells) <- "deleteme"
+```
+
+```{r}
+# Now, we find markers that are specific to the selected cells, and find clear duplets markers
+newcells.markers <-
+  FindMarkers(
+    combined_sct,
+    ident.1 = "deleteme",
+    ident.2 = NULL,
+    min.diff.pct = 0.3,
+    only.pos = TRUE
+  )
+head(newcells.markers)
+
+```
+
+```{r}
+combined_sct2 <- subset(combined_sct, idents = c("deleteme"), invert = TRUE)
+DimPlot(combined_sct2, label = T, repel = T, group.by = "sample")
+combined_sct <- combined_sct2
+rm(combined_sct2)
+```
+
+```{r}
+npcs <- 30
+combined_sct <- combined_sct |> 
+  RunPCA(seed.use = reseed, verbose = FALSE) |> 
+  RunUMAP(reduction = "pca", return.model = FALSE,
+          densmap = FALSE, dims = 1:npcs, 
+          seed.use = reseed, verbose = FALSE) |> 
+  FindNeighbors(reduction = "pca", dims = 1:npcs, verbose = FALSE)
+```
+
+Plot by source after clean up
+
+```{r pl-all-integrated-astrocytes-sample-clean, fig.width=12, fig.asp=0.309}
+plEmbCombBatch <- DimPlot(combined_sct, reduction = "umap",
+                          group.by = "sample",
+                          label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombReg <- DimPlot(combined_sct, reduction = "umap",
+                        group.by = "stim",
+                        label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombBatch + plEmbCombReg
+```
+
+```{r}
+## Run SWNE
+combined_sct <- RunSWNE(combined_sct, k = 8,
+                         genes.embed = genes.manual[genes.manual %in% selected_genes],
+                         return.format = "seurat")
+DimPlot(combined_sct, reduction = "swne")
+```
+
+```{r pl-clustree, fig.width=10, fig.asp=1.618}
+metadata <- combined_sct@meta.data
+rownames(metadata) <- colnames(combined_sct)
+ref.labels <- metadata$stim
+library(mrtree)
+resolutions <-
+  modularity_event_sampling(
+    A = combined_sct@graphs$integrated_snn,
+    n.res = 15,
+    gamma.min = 0.1,
+    gamma.max = 2
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+combined_sct <- combined_sct |> 
+  FindClusters(algorithm = 4, method = "igraph",
+               resolution = resolutions, random.seed = reseed,
+               verbose = FALSE)
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = combined_sct@meta.data,
+  prefix = 'integrated_snn_res.',
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree, fig.height=6, fig.width=11, echo=TRUE, include=FALSE}
+out <-  mrtree(
+  combined_sct,
+  prefix = 'integrated_snn_res.',
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <-  apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+ks.mrtree <-  apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+amri.flat <-  sapply(1:ncol(out$labelmat.flat), function(i)
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri)
+amri.flat <-  aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <-  sapply(1:ncol(out$labelmat.mrtree), function(i)
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri)
+
+df <-  rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = 'Seurat flat'
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = 'MRtree')
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) + geom_line() + theme_bw()
+```
+
+```{r pl-clustering-resolution, fig.width=5}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r}
+stab.out$df
+resK <-
+  stab.out$df |>
+  as_tibble() |>
+  top_n(n = 1, wt = ari) |> 
+  purrr::pluck(resolution)
+resK
+table(as.factor(out$labelmat.mrtree[, "K6"]))
+```
+
+```{r pl-clustering, fig.height=5, fig.width=8}
+combined_sct$k_tree <- as.factor(out$labelmat.mrtree[, "K6"])
+p1 <- DimPlot(combined_sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(combined_sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+
+p1 | p2
+```
+
+```{r pl-schex}
+library(schex)
+combined_sct <- make_hexbin(combined_sct, nbins = 60, dimension_reduction = "UMAP")
+plot_hexbin_density(combined_sct)
+plot_hexbin_meta(combined_sct, col = "nCount_RNA", action = "median")
+plot_hexbin_meta(combined_sct, col = "k_tree", action = "majority")
+```
+
+```{r pl-schex-k-tree}
+label_df <- make_hexbin_label(combined_sct, col = "k_tree")
+pp <- plot_hexbin_meta(combined_sct, col = "k_tree", action = "majority")
+pp + ggrepel::geom_label_repel(data = label_df, aes(x = x, y = y, label = label), colour = "black", 
+    label.size = NA, fill = NA)
+```
+
+```{r pl-schex-regions}
+reg_df <- make_hexbin_label(combined_sct, 
+                            col = "sample")
+pp2 <- plot_hexbin_meta(combined_sct,
+                        col = "sample",
+                        action = "majority")
+pp2 + ggrepel::geom_label_repel(data = reg_df, 
+                                aes(x = x, y = y,
+                                    label = label), 
+                                colour = "black",
+                                label.size = NA, fill = NA)
+```
+
+```{r markers-tables}
+Idents(combined_sct) <- "k_tree"
+combined_sct <- PrepSCTFindMarkers(combined_sct)
+
+srt.markers.roc <- FindAllMarkers(combined_sct, only.pos = TRUE, min.diff.pct = 0.1, logfc.threshold = 0.25, test.use = "roc")
+readr::write_csv(srt.markers.roc, 
+                 here(tables_dir,
+                      'ageing_astr_recon-fix-mrk_roc-sct.csv'))
+
+srt.markers.roc %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+
+srt.markers.lr <- FindAllMarkers(combined_sct, only.pos = TRUE, min.diff.pct = 0.15, logfc.threshold = 0.25, test.use = "LR")
+readr::write_csv(srt.markers.lr, 
+                 here(tables_dir,
+                      'ageing_astr_recon-fix-mrk_logreg-sct.csv'))
+srt.markers.lr %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+```
+
+```{r pl-vln-meta, fig.width = 14, fig.asp = 0.868}
+library(scCustomize)
+
+gene_list_plot <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.roc,
+                      num_genes = 3,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+
+sample_colors <- c("darkorchid3", "gold")
+
+# Create Plots
+Stacked_VlnPlot(seurat_object = combined_sct, features = gene_list_plot, x_lab_rotate = TRUE,
+    colors_use = sample_colors, split.by = "stim")
+```
+
+```{r pl-all-integrated-astrocytes-init-canon-markers, fig.width=12}
+#' Save plot
+save_my_plot <- function(name,
+                         plt,
+                         type,
+                         h = 12,
+                         asp = 1.618,
+                         path = plots_dir,
+                         format = ".pdf") {
+  cowplot::save_plot(
+    filename = here::here(
+      path,
+      stringr::str_glue(type,
+        as.character(name),
+        format,
+        .sep = "_"
+      )
+    ),
+    plot = plt,
+    base_height = h,
+    base_asp = asp,
+    limitsize = FALSE
+  )
+}
+DefaultAssay(combined_sct) <- "integrated"
+plEmbCombCMrk <- FeaturePlot(
+  combined_sct,
+  features = genes.embed[genes.embed %in%
+                           rownames(combined_sct@assays$SCT@data)],
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "general markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk
+save_my_plot(name = "canonical-markers", 
+             plt = plEmbCombCMrk, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.618)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers, fig.width=12, fig.asp=0.206}
+plEmbCombCMrk2 <- FeaturePlot(
+  combined_sct,
+  features = gene_list_plot,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 3, order = TRUE
+) + patchwork::plot_annotation(title = "ROC-test markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk2
+save_my_plot(name = "ROC-test", 
+             plt = plEmbCombCMrk2, 
+             type = "feature-plot",
+             h = 7,
+             asp = 4.854)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=1.868}
+gene_list_plot2 <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.lr,
+                      num_genes = 5,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+plEmbCombCMrk3 <- FeaturePlot(
+  combined_sct,
+  features = gene_list_plot2,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "LR-test markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk3
+save_my_plot(name = "LR-test", 
+             plt = plEmbCombCMrk3, 
+             type = "feature-plot",
+             h = 28,
+             asp = .535)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=0.868}
+plEmbCombCMrk4 <- FeaturePlot(
+  combined_sct,
+  features = genes.anatomy.jj,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Anatomical from Jasna",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk4
+save_my_plot(name = "genes-anatomy-jj", 
+             plt = plEmbCombCMrk4, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.152)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=2.8}
+plEmbCombCMrk5 <- FeaturePlot(
+  combined_sct,
+  features = genes.jj,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Literature from Jasna",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk5
+save_my_plot(name = "genes-literature-jj", 
+             plt = plEmbCombCMrk5, 
+             type = "feature-plot",
+             h = 32,
+             asp = .357)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers3, fig.width=12, fig.asp=1.268}
+plEmbCombCMrk7 <- FeaturePlot(
+  combined_sct,
+  features = unique(c(genes.nature, astroenriched_mouse)),
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Based on Nature",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk7
+save_my_plot(name = "genes-nature", 
+             plt = plEmbCombCMrk7, 
+             type = "feature-plot",
+             h = 32,
+             asp = .357)
+```
+
+## RNA
+
+```{r pl-all-integrated-astrocytes-init-markers-lxn-mfn2, fig.width=12, fig.asp=2.8}
+DefaultAssay(object = combined_sct) <- "RNA"
+plEmbCombCMrk6 <- FeaturePlot(
+  combined_sct,
+  features = outOfAnchors,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 3, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA Genes out of anchor-set",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk6
+save_my_plot(name = "rna_genes-out-of-anchors", 
+             plt = plEmbCombCMrk6, 
+             type = "feature-plot",
+             h = 32,
+             asp = 0.357)
+```
+
+```{r pl-all-integrated-astrocytes-init-canon-markers, fig.width=12}
+plEmbCombCMrk <- FeaturePlot(
+  combined_sct,
+  features = genes.embed[genes.embed %in%
+                           rownames(combined_sct@assays$SCT@data)],
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA general markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk
+save_my_plot(name = "rna_canonical-markers", 
+             plt = plEmbCombCMrk, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.618)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers, fig.width=12, fig.asp=0.206}
+plEmbCombCMrk2 <- FeaturePlot(
+  combined_sct,
+  features = gene_list_plot,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 3, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA ROC-test markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk2
+save_my_plot(name = "rna_ROC-test", 
+             plt = plEmbCombCMrk2, 
+             type = "feature-plot",
+             h = 7,
+             asp = 4.854)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=1.868}
+plEmbCombCMrk3 <- FeaturePlot(
+  combined_sct,
+  features = gene_list_plot2,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA LR-test markers",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk3
+save_my_plot(name = "rna_LR-test", 
+             plt = plEmbCombCMrk3, 
+             type = "feature-plot",
+             h = 28,
+             asp = .535)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=0.868}
+plEmbCombCMrk4 <- FeaturePlot(
+  combined_sct,
+  features = genes.anatomy.jj,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA Anatomical from Jasna",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk4
+save_my_plot(name = "rna_genes-anatomy-jj", 
+             plt = plEmbCombCMrk4, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.152)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers2, fig.width=12, fig.asp=2.8}
+plEmbCombCMrk5 <- FeaturePlot(
+  combined_sct,
+  features = genes.jj,
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA Literature from Jasna",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk5
+save_my_plot(name = "rna_genes-literature-jj", 
+             plt = plEmbCombCMrk5, 
+             type = "feature-plot",
+             h = 32,
+             asp = .357)
+```
+
+```{r pl-all-integrated-astrocytes-init-markers3, fig.width=12, fig.asp=2.8}
+plEmbCombCMrk7 <- FeaturePlot(
+  combined_sct,
+  features = unique(c(genes.nature, astroenriched_mouse)),
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE, slot = "data"
+) + patchwork::plot_annotation(title = "RNA Based on Nature",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrk7
+save_my_plot(name = "rna_genes-nature", 
+             plt = plEmbCombCMrk7, 
+             type = "feature-plot",
+             h = 32,
+             asp = .357)
+```
+
+```{r pl-all-integrated-rna-astrocytes-order-markers, fig.width=14, fig.asp=1.085}
+DefaultAssay(combined_sct) <- "RNA"
+plEmbCombCMrkOrder <- FeaturePlot(
+  combined_sct,
+  features = c("Fos", "Ntrk2", "Aldoc", "Nfia",
+               "Gja1", "Apoe", "Gfap", "Slc38a1",
+               "Slit2", "Aldh1a1", "Tafa1", "Pla2g7",
+               "Sparc", "Plcb1", "Sgcd", "Slc7a10",
+               "Snap25", "Mbp", "Olig1", "Mindy3"),
+  min.cutoff = 0, max.cutoff = "q90",
+  ncol = 4, order = TRUE, slot = "counts"
+) + 
+  patchwork::plot_annotation(
+    title = "UMIs Astrocyte Markers for validation",
+    theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrkOrder
+save_my_plot(name = "rna_genes-to-validate", 
+             plt = plEmbCombCMrkOrder, 
+             type = "feature-plot",
+             h = 14,
+             asp = 0.92165899)
+```
+
+```{r pl-all-integrated-sct-astrocytes-order-markers, fig.width=12, fig.asp=0.412}
+DefaultAssay(combined_sct) <- "integrated"
+plEmbCombCMrkOrderS <- FeaturePlot(
+  combined_sct,
+  features = c("Apoe", "Gfap", "Slit2", "Aldh1a1", 
+               "Tafa1", "Pla2g7", "Sparc", "Slc7a10", 
+               "Fos", "Gja1"),
+  min.cutoff = "q15", max.cutoff = "q85",
+  ncol = 4, order = TRUE
+) + 
+  patchwork::plot_annotation(
+    title = "scaled Astrocyte Markers for validation",
+    theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrkOrderS
+save_my_plot(name = "integrated_genes-to-validate", 
+             plt = plEmbCombCMrkOrderS, 
+             type = "feature-plot",
+             h = 12,
+             asp = 2.427)
+```
+
+```{r pl-all-integrated-rna-astrocytes-order-markers, fig.width=12, fig.asp=1.085}
+DefaultAssay(all_integrated) <- "RNA"
+plEmbCombCMrkOrderAll <- FeaturePlot(
+  all_integrated,
+  features = c("Fos", "Ntrk2", "Aldoc", "Nfia",
+               "Gja1", "Apoe", "Gfap", "Slc38a1",
+               "Slit2", "Aldh1a1", "Tafa1", "Pla2g7",
+               "Sparc", "Plcb1", "Sgcd", "Slc7a10",
+               "Snap25", "Olig1", "Plp", "Meg3"),
+  min.cutoff = 0, max.cutoff = "q90",
+  ncol = 4, order = TRUE, slot = "counts"
+) + patchwork::plot_annotation(title = "UMIs Astrocyte Markers for validation",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombCMrkOrderAll
+save_my_plot(name = "rna_genes-to-validate-contr", 
+             plt = plEmbCombCMrkOrderAll, 
+             type = "feature-plot",
+             h = 12,
+             asp = 0.92165899)
+```
+
+```{r pl-dotplot-logreg-whole, fig.width = 14, fig.asp = 0.868}
+plDotCombMrk <- Clustered_DotPlot(seurat_object = combined_sct,
+                                  features = gene_list_plot2,
+                                  k = 7,
+                                  print_exp_quantiles = F,
+                                  plot_km_elbow = F)
+plDotCombMrk
+
+```
+
+```{r pl-heatmap-logreg, fig.width = 14, fig.asp = 0.868}
+plot_heatmap(
+  dataset = combined_sct,
+  markers = srt.markers.lr,
+  sort_var = c("k_tree", "sample"),
+  anno_var = c(
+    "k_tree",
+    "sample",
+    "stim",
+    "percent.mt",
+    "nFeature_RNA",
+    "nCount_RNA"
+  ),
+  anno_colors = list(
+    "Set2",
+    # RColorBrewer palette
+    c("navy", "red", "orange", "gold", "darkorchid3", "dodgerblue", "forestgreen", "orchid"),
+    # color vector
+    c("navy", "gold"),
+    "Greens",
+    c("blue", "white", "red"),
+    # Three-color gradient
+    "Reds"
+  )
+)
+```
+
+```{r biomart}
+ensembl_asia = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="https://asia.ensembl.org")
+head(listDatasets(ensembl_asia))
+mouse <- useMart(biomart = "ENSEMBL_MART_ENSEMBL",
+                 dataset = "mmusculus_gene_ensembl",
+                 host    = "https://asia.ensembl.org",
+                 verbose = TRUE)
+listAttributes(mouse) |> tibble() |> print(n=30)
+
+
+genes.embed |> 
+  getBM(
+    values     = .,
+    mart       = mouse,
+    attributes = c("mgi_symbol", "ensembl_gene_id",
+                   "gene_biotype", "description"),
+    filters    = "mgi_symbol") |>  as_tibble() -> genes.embed.full.names
+
+genes.jj |> 
+  getBM(
+    values     = .,
+    mart       = mouse,
+    attributes = c("mgi_symbol", "ensembl_gene_id",
+                   "gene_biotype", "description"),
+    filters    = "mgi_symbol") |>  as_tibble() -> genes.jj.full.names
+
+genes.anatomy.jj |> 
+  getBM(
+    values     = .,
+    mart       = mouse,
+    attributes = c("mgi_symbol", "ensembl_gene_id",
+                   "gene_biotype", "description"),
+    filters    = "mgi_symbol") |>  as_tibble() -> genes.anatomy.jj.full.names
+
+gene_list_plot |> 
+  getBM(
+    values     = .,
+    mart       = mouse,
+    attributes = c("mgi_symbol", "ensembl_gene_id",
+                   "gene_biotype", "description"),
+    filters    = "mgi_symbol") |>  as_tibble() -> srt.markers.roc.full.names
+
+gene_list_plot2 |> 
+  getBM(
+    values     = .,
+    mart       = mouse,
+    attributes = c("mgi_symbol", "ensembl_gene_id",
+                   "gene_biotype", "description"),
+    filters    = "mgi_symbol") |>  as_tibble() -> srt.markers.lr.full.names
+```
+
+```{r}
+glimpse(genes.embed.full.names)
+```
+
+```{r}
+glimpse(genes.jj.full.names)
+```
+
+```{r}
+glimpse(genes.anatomy.jj.full.names)
+```
+
+```{r}
+glimpse(srt.markers.roc.full.names)
+```
+
+```{r}
+glimpse(srt.markers.lr.full.names)
+```
+
+```{r}
+table(srt.markers.lr.full.names$gene_biotype)
+```
+
+```{r}
+write_tsv(x = full_names_tab, file = "~/src/genes-meta_astroMap-all.tsv")
+```

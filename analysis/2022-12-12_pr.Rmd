@@ -1,0 +1,1816 @@
+---
+title: "Ageing hypothalamic astrocytes to separate nuclei transfer"
+author: "Evgenii Tretiakov"
+output: workflowr::wflow_html
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+    autodep        = TRUE,
+    cache          = FALSE,
+    cache.lazy     = FALSE,
+    dev            = c("png", "pdf"),
+    echo           = TRUE,
+    error          = FALSE,
+    fig.align      = "center",
+    fig.width      = 8,
+    fig.asp        = 0.618,
+    message        = FALSE,
+    warning        = FALSE
+)
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(here)
+  library(readr)
+  library(purrr)
+  library(dplyr)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(future)
+  library(kableExtra)
+  library(reticulate)
+})
+
+reticulate::use_condaenv("/opt/python/3.8.8/bin/python")
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(SeuratWrappers)
+  library(SeuratDisk)
+  library(UpSetR)
+  library(patchwork)
+  library(swne)
+  library(Nebulosa)
+  library(Scillus)
+  library(scCustomize)
+  library(biomaRt)
+  library(RobustRankAggreg)
+})
+
+# Set paths
+raw_dir    <- here('../../data/PRJNA779749')
+src_dir    <- here('code')
+data_dir   <- here('data')
+output_dir <- here('output')
+plots_dir  <- here(output_dir, 'figures')
+tables_dir <- here(output_dir, 'tables')
+# source(here(src_dir, 'genes.R'))
+
+# parallelisation
+n_cores <- 40
+plan("multiprocess", workers = n_cores)
+options(future.globals.maxSize = 80000 * 1024^2) # 80Gb
+plan()
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+
+#' Save plot
+save_my_plot <- function(name,
+                         plt,
+                         type,
+                         h = 12,
+                         asp = 1.618,
+                         path = plots_dir,
+                         format = ".pdf") {
+  cowplot::save_plot(
+    filename = here::here(
+      path,
+      stringr::str_glue(type,
+        as.character(name),
+        format,
+        .sep = "_"
+      )
+    ),
+    plot = plt,
+    base_height = h,
+    base_asp = asp,
+    limitsize = FALSE
+  )
+}
+```
+
+```{r load-data}
+genes.embed <- c("Ndrg2", "Slc1a3", "Gfap", 
+                 "S100b", "Agt", "Slc6a11",
+                 "Aqp4", "Nfia", "Aldoc", 
+                 "Apoe", "Aldh1l1", "Sox9", 
+                 "Fgfr3", "Egfr", "Ntrk2", "Gja1")
+genes.nature <- c("Ndrg2", "Aqp4", "Gja1", 
+                  "Slc17a9", "Slc17a7", "Slc17a6", 
+                  "Slc16a1", "Slc16a7", "Slc16a3", 
+                  "Panx1", "P2rx7", "Srr", 
+                  "Dao", "Vamp2", "Gab1", 
+                  "Slc18a1", "Slc18a2", "Slc18a3", 
+                  "Slc17a5", "Osmr", "S100a6", 
+                  "Ogn", "Itih5", "Rdh10", 
+                  "Fst", "1500015O10Rik", "Rnf13", 
+                  "A2m", "Rsph9", "Galnt16", 
+                  "Rad23b", "Tgfbr2", "Ppp1r15a",
+                  "Mlc1", "Slc6a11", "Slc1a3", "S100b",
+                  "S100b", "Fabp7", "Gab1", "Igfbp5",
+                  "Hopx", "Igsf1", "Tgfb2", "2810459M11Rik",
+                  "Rnf13", "Itih5", "Slc1a2", "Cd59a",
+                  "Vim", "Slc7a10", "Fos")
+
+genes.jj <- c(
+  "Acsbg1", "Acsl3", "Actb", "Agt", "Aldh1l1", "Aldoc", "Apoe",
+  "Aqp4", "Atp1a2", "Bmpr1b", "Cbs", "Ckb", "Clu", "Cnx43",
+  "Cpe", "Cst3", "Cth", "Cyp4f14", "Dbi", "Dbx2", "Dctd",
+  "Dio2", "Ednrb", "Fgfr3", "Gabbr1", "Gabbr2", "Gjb6", "Gli3",
+  "Gm266", "Gpr37l1", "Grhl1", "Grm3", "Gs", "Gucy2c", "Hapln1",
+  "Hes5", "Heyl", "Hgf", "Id2", "Itih3", "Lars2", "Lcat",
+  "Ldhb", "Malat1", "Mc3r", "Mfge8", "Mlc1", "Mmd2", "Mt1",
+  "Mt2", "Ndrg2", "Nfia", "Npas3", "Nrxn1", "Ntrk2", "Ntsr2",
+  "Olx1", "Otx2", "Pax6", "Pbxip1", "Phkg1", "Pla2g3", "Pla2g7",
+  "Plcd4", "Plce1", "Plp1", "Ppap2b", "Ppia", "Prodh", "Ptprz1",
+  "Rfx4", "Rpl41", "S1pr1", "Scd2", "Serpinb1c", "Slc19a3", "Slc1a2",
+  "Slc1a3", "Slc39a12", "Slc4a4", "Slc6a11", "Son", "Sox2", "Sox9",
+  "Sparc", "Sparcl1", "Tlr3"
+)
+
+genes.anatomy.jj <- c("Gfap", "Meg3", "Snhg11", "Ttc3", "Cst3", "Sparcl1",
+                      "Ndrg2", "Cnx43", "Agt", "S100b", "Aldh1l1", "Lxn",
+                      "Aqp4", "Slc1a2", "Fabp7", "Glul", "Olig2")
+
+# public resources:
+housekeeping_mouse <-
+  read_lines(file = here(data_dir, 'housekeeping_mouse.tsv'))
+astroenriched_mouse <-
+  read_lines(file = here(data_dir, 'astrocyte_enriched_genes_shared_by_mice.tsv'))
+
+astroprogenitor_humans <- 
+  read_lines(file = here(data_dir, 'top_astrocytes_progenitor_cells_genes_by_humans.tsv')) |>
+  str_to_sentence()
+astromature_humans <-
+  read_lines(file = here(data_dir, 'top_mature_astrocyte_genes_by_humans.tsv')) |>
+  str_to_sentence()
+
+# aggregate:
+genes.manual <- unique(c(genes.embed, genes.nature,
+                         genes.jj, genes.anatomy.jj,
+                         astroenriched_mouse,
+                         astromature_humans,
+                         astroprogenitor_humans))
+
+# ROC-test markers
+srt.markers.roc <- read_csv(file = here(tables_dir,
+                      'ageing_astr_recon-mrk_roc-sct.csv'))
+srt.markers.roc %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+gene_list_plot <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.roc,
+                      num_genes = 3,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+
+
+# LR-test markers
+srt.markers.lr <- read_csv(file = here(tables_dir,
+                      'ageing_astr_recon-mrk_logreg-sct.csv'))
+srt.markers.lr %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+gene_list_plot2 <- 
+  Extract_Top_Markers(marker_dataframe = srt.markers.lr,
+                      num_genes = 5,
+                      rank_by = "avg_log2FC",
+                      make_unique = TRUE,
+                      named_vector = FALSE)
+
+all_integrated <- LoadH5Seurat(here(raw_dir, "GSE188646-reintegrated.h5Seurat"))
+astro <- LoadH5Seurat(here(raw_dir, "astro-wo-outliers.h5Seurat"))
+```
+
+```{r pl-all-integrated-whole-astrocytes-markers, fig.width=12, fig.asp=0.868}
+DefaultAssay(object = all_integrated) <- "RNA"
+plEmbCombWMrkR <- FeaturePlot(
+  all_integrated,
+  features = c("Fos", "Glul", "Gja1", "Ndrg2", 
+               "S100b", "Tafa1", "Aldh1a1", "Plcb1", 
+               "Sgcd", "Slit2", "Apoe", "Gfap", 
+               "Slc38a1", "Cst3", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Astro-Marker choice (RNA)",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombWMrkR
+
+DefaultAssay(object = all_integrated) <- "integrated"
+plEmbCombWMrkI <- FeaturePlot(
+  all_integrated,
+  features = c("Fos", "Glul", "Gja1", "Ndrg2", 
+               "S100b", "Tafa1", "Aldh1a1", "Plcb1", 
+               "Sgcd", "Slit2", "Apoe", "Gfap", 
+               "Slc38a1", "Cst3", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + patchwork::plot_annotation(title = "Astro-Marker choice (integrated)",
+                               theme = theme(plot.title = element_text(size = 22)))
+plEmbCombWMrkI
+save_my_plot(name = "ageing-pick-mrks-whole-integrated", 
+             plt = plEmbCombWMrkI, 
+             type = "feature-plot",
+             h = 12,
+             asp = 1.152)
+```
+
+```{r integration-features-astrocytes}
+DefaultAssay(object = astro) <- "RNA"
+subset_genes <- 
+  astro@assays$RNA@counts |>
+  rowSums(na.rm = TRUE) %>%
+  .[. > 50 | . %in% genes.manual] %>% names() %>%
+  .[!. %in% housekeeping_mouse]
+astro <- DietSeurat(astro,
+                    assays = "RNA",
+                    features = subset_genes)
+# select novoseq data only to avoid integration against multiple variables
+astro <- 
+  subset(astro, 
+         subset = sample %in% c("Aged_3", "Aged_4",
+                                "Young_3", "Young_4"))
+astro@meta.data <- 
+  astro@meta.data |> 
+  dplyr::select(nCount_RNA, nFeature_RNA, stim, percent.mt, sample)
+srt_list <- Seurat::SplitObject(astro, split.by = "sample")
+srt_list <- lapply(X = srt_list,
+                   vst.flavor = "v2",
+                   FUN = SCTransform,
+                   vars.to.regress = "percent.mt",
+                   method = "glmGamPoi",
+                   variable.features.n = 8000,
+                   return.only.var.genes = FALSE,
+                   seed.use = reseed,
+                   verbose = FALSE)
+
+features <- 
+  SelectIntegrationFeatures(object.list = srt_list, 
+                            nfeatures = 4000,
+                            verbose = FALSE)
+all_sct_features <- 
+  srt_list |> 
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |> 
+  unique()
+keep_genes <- 
+  c(genes.manual,
+    features) |> 
+  unique() %>%
+  .[. %in% all_sct_features]
+glimpse(keep_genes)
+
+outOfAnchors <- keep_genes[!keep_genes %in% features]
+cat(c("\n", outOfAnchors, "\n"))
+
+CheckGenesInSCT <- function(gene) {
+  srt_list |> 
+    map(pluck, "assays", "SCT", "var.features") |> 
+    map(~gene %in% .x) |> 
+    simplify()
+}
+chkSamples <-
+  outOfAnchors |>
+  map(CheckGenesInSCT) |>
+  base::simplify2array() |> 
+  as_tibble()
+colnames(chkSamples) <- outOfAnchors
+chkSamples
+
+selected_genes <-
+  c(outOfAnchors[
+    chkSamples |>
+      map(all) |>
+      simplify()],
+    features)
+glimpse(selected_genes)
+```
+
+```{r integration-object-astrocytes}
+npcs <- 50
+srt_list <-
+  PrepSCTIntegration(object.list = srt_list,
+                     anchor.features = selected_genes)
+
+anchors <- FindIntegrationAnchors(
+  object.list = srt_list,
+  normalization.method = "SCT",
+  anchor.features = selected_genes,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 10,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+
+combined_sct <- IntegrateData(
+  anchorset = anchors,
+  normalization.method = "SCT",
+  features.to.integrate = selected_genes,
+  dims = 1:npcs,
+  k.weight = 200,
+  verbose = FALSE
+)
+
+combined_sct <-
+  RunPCA(combined_sct, npcs = npcs, 
+         seed.use = reseed, verbose = FALSE)
+combined_sct
+```
+
+```{r embed-integrated-ageing}
+combined_sct <- combined_sct |> 
+  RunUMAP(reduction = "pca", return.model = TRUE,
+          densmap = TRUE, dims = 1:npcs, 
+          seed.use = reseed, verbose = FALSE) |> 
+  FindNeighbors(reduction = "pca", dims = 1:npcs, verbose = FALSE)
+```
+
+Plot by source
+
+```{r pl-all-integrated-astrocytes-sample, fig.width=12, fig.asp=0.309}
+plEmbCombBatch <- DimPlot(combined_sct, reduction = "umap",
+                          group.by = "sample",
+                          label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombReg <- DimPlot(combined_sct, reduction = "umap",
+                        group.by = "stim",
+                        label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombBatch + plEmbCombReg
+```
+
+```{r select-cells, fig.width=6}
+# plot <- DimPlot(combined_sct, reduction = "umap")
+# select.cells <- CellSelector(plot = plot)
+select.cells <-
+  WhichCells(
+    combined_sct, 
+    expression = UMAP_1 > 5)
+Idents(combined_sct, cells = select.cells) <- "deleteme"
+```
+
+```{r check-outliers}
+# Now, we find markers that are specific to the selected cells, and find clear duplets markers
+combined_sct <-
+  PrepSCTFindMarkers(combined_sct, assay = "SCT")
+newcells.markers <-
+  FindMarkers(
+    combined_sct, 
+    assay = "SCT",
+    ident.1 = "deleteme",
+    ident.2 = NULL,
+    min.diff.pct = 0.3,
+    only.pos = TRUE
+  )
+head(newcells.markers)
+
+```
+
+```{r pl-astro-integrated-contam-astrocytes-markers, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  combined_sct,
+  features = c("Fos", "Glul", "Gja1", "Ndrg2", 
+               "S100b", "Tafa1", "Aldh1a1", "Plcb1", 
+               "Sgcd", "Slit2", "Apoe", "Gfap", 
+               "Slc38a1", "Cst3", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + 
+  patchwork::plot_annotation(
+    title = "Astro-Marker choice (integrated astrocytes from novoseq)",
+    theme = theme(plot.title = element_text(size = 22))
+    )
+```
+
+```{r delete-outliers}
+combined_sct2 <- subset(combined_sct, idents = c("deleteme"), invert = TRUE)
+DimPlot(combined_sct2, label = T, repel = T, group.by = "sample")
+DimPlot(combined_sct2, label = T, repel = T, group.by = "stim")
+
+```
+
+```{r delet-tmp-object}
+combined_sct <- combined_sct2
+rm(combined_sct2)
+```
+
+```{r rerun-integration-after-subset}
+srt_list <- 
+  Seurat::SplitObject(combined_sct, split.by = "sample")
+srt_list <- lapply(X = srt_list,
+                   vst.flavor = "v2",
+                   FUN = SCTransform,
+                   vars.to.regress = "percent.mt",
+                   method = "glmGamPoi",
+                   variable.features.n = 8000,
+                   return.only.var.genes = FALSE,
+                   seed.use = reseed,
+                   verbose = FALSE)
+
+features <- 
+  SelectIntegrationFeatures(object.list = srt_list, 
+                            nfeatures = 4000,
+                            verbose = FALSE)
+all_sct_features <- 
+  srt_list |> 
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |> 
+  unique()
+keep_genes <- 
+  c(genes.manual,
+    features) |> 
+  unique() %>%
+  .[. %in% all_sct_features]
+glimpse(keep_genes)
+
+outOfAnchors <- keep_genes[!keep_genes %in% features]
+cat(c("\n", outOfAnchors, "\n"))
+
+chkSamples <-
+  outOfAnchors |>
+  map(CheckGenesInSCT) |>
+  base::simplify2array() |> 
+  as_tibble()
+colnames(chkSamples) <- outOfAnchors
+chkSamples
+
+selected_genes <-
+  c(outOfAnchors[
+    chkSamples |>
+      map(all) |>
+      simplify()],
+    features)
+glimpse(selected_genes)
+
+npcs <- 50
+srt_list <-
+  PrepSCTIntegration(object.list = srt_list,
+                     anchor.features = selected_genes)
+
+anchors <- FindIntegrationAnchors(
+  object.list = srt_list,
+  normalization.method = "SCT",
+  anchor.features = selected_genes,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 10,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+
+combined_sct <- IntegrateData(
+  anchorset = anchors,
+  normalization.method = "SCT",
+  features.to.integrate = selected_genes,
+  dims = 1:npcs,
+  k.weight = 200,
+  verbose = FALSE
+)
+
+```
+
+```{r update-embedding}
+npcs <- 50
+combined_sct <- combined_sct |> 
+  RunPCA(seed.use = reseed, verbose = FALSE) |> 
+  RunUMAP(reduction = "pca", return.model = TRUE,
+          densmap = TRUE, dims = 1:npcs, 
+          seed.use = reseed, verbose = FALSE) |> 
+  FindNeighbors(reduction = "pca", dims = 1:npcs, verbose = FALSE)
+```
+
+Plot by source after clean up
+
+```{r pl-all-integrated-astrocytes-sample-clean, fig.width=12, fig.asp=0.309}
+plEmbCombBatch <- DimPlot(combined_sct, reduction = "umap",
+                          group.by = "sample",
+                          label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombReg <- DimPlot(combined_sct, reduction = "umap",
+                        group.by = "stim",
+                        label = TRUE, repel = TRUE) + NoLegend()
+plEmbCombBatch + plEmbCombReg
+```
+
+```{r pl-clustree, fig.width=10, fig.asp=1.618}
+metadata <- combined_sct@meta.data
+rownames(metadata) <- colnames(combined_sct)
+ref.labels <- metadata$stim
+library(mrtree)
+resolutions <-
+  modularity_event_sampling(
+    A = combined_sct@graphs$integrated_snn,
+    n.res = 15,
+    gamma.min = 0.1,
+    gamma.max = 2
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+combined_sct <- combined_sct |> 
+  FindClusters(algorithm = 4, method = "igraph",
+               resolution = resolutions, random.seed = reseed,
+               verbose = FALSE)
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = combined_sct@meta.data,
+  prefix = 'integrated_snn_res.',
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree, fig.height=6, fig.width=11, echo=TRUE, include=FALSE}
+out <-  mrtree(
+  combined_sct,
+  prefix = 'integrated_snn_res.',
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <-  apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+ks.mrtree <-  apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+amri.flat <-  sapply(1:ncol(out$labelmat.flat), function(i)
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri)
+amri.flat <-  aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <-  sapply(1:ncol(out$labelmat.mrtree), function(i)
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri)
+
+df <-  rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = 'Seurat flat'
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = 'MRtree')
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) + geom_line() + theme_bw()
+```
+
+```{r pl-clustering-resolution, fig.width=5}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution}
+stab.out$df
+resK <-
+  stab.out$df |>
+  as_tibble() |>
+  filter(ari != 1) |> 
+  top_n(n = 1, wt = ari) |> 
+  purrr::pluck(1)
+resK
+table(as.factor(out$labelmat.mrtree[, sprintf("K%s",resK)]))
+```
+
+```{r pl-clustering, fig.height=5, fig.width=8}
+combined_sct$k_tree <- as.factor(out$labelmat.mrtree[, sprintf("K%s",resK)])
+p1 <- DimPlot(combined_sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(combined_sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+
+p1 | p2
+```
+
+```{r markers-tables}
+Idents(combined_sct) <- "k_tree"
+combined_sct <- 
+  PrepSCTFindMarkers(combined_sct, assay = "SCT")
+
+srt.markers.roc <- 
+  FindAllMarkers(
+    combined_sct,
+    assay = "SCT",
+    only.pos = TRUE,
+    min.diff.pct = 0.1,
+    logfc.threshold = 0.25,
+    test.use = "roc")
+write_csv(srt.markers.roc,
+          here(tables_dir,
+               'novoseq-ageing_astr_recon-fix-mrk_roc-sct.csv'))
+
+srt.markers.roc %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+
+srt.markers.lr <-
+  FindAllMarkers(
+    combined_sct,
+    assay = "SCT",
+    only.pos = TRUE,
+    min.diff.pct = 0.15,
+    logfc.threshold = 0.25,
+    test.use = "LR",
+    latent.vars = "sample")
+readr::write_csv(srt.markers.lr, 
+                 here(tables_dir,
+                      'novoseq-ageing_astr_recon-fix-mrk_logreg-sct.csv'))
+srt.markers.lr %>%
+    group_by(cluster) %>%
+    slice_max(n = 3, order_by = avg_log2FC)
+
+
+# srt.markers.mast <-
+#   FindAllMarkers(
+#     combined_sct,
+#     assay = "SCT",
+#     only.pos = TRUE,
+#     min.diff.pct = 0.15,
+#     logfc.threshold = 0.25,
+#     test.use = "MAST",
+#     latent.vars = "sample")
+# readr::write_csv(srt.markers.mast, 
+#                  here(tables_dir,
+#                       'novoseq-ageing_astr_recon-fix-mrk_mast-sct.csv'))
+# srt.markers.mast %>%
+#     group_by(cluster) %>%
+#     slice_max(n = 3, order_by = avg_log2FC)
+
+```
+
+```{r pl-astro-integrated-filt-astrocytes-markers, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  combined_sct,
+  features = c("Apoe", "Gfap", "Slit2", "Aldh1a1", 
+               "Tafa1", "Plcb1", "Sgcd", "Slc38a1", 
+               "Fos", "Gja1", "Snap25", "Olig1", 
+               "Per2", "Lars2", "Lxn", "Mfn2"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) + 
+  patchwork::plot_annotation(
+    title = "Astro-Marker choice (integrated astrocytes from novoseq)",
+    theme = theme(plot.title = element_text(size = 22))
+    )
+```
+
+```{r load-astromap-by-nuclei}
+hypoth.nuclei.astro <- LoadH5Seurat(file = here(data_dir, "comb_astrocytes.bak.h5Seurat"))
+DefaultAssay(hypoth.nuclei.astro) <- "SCT"
+hypoth.nuclei.astro <-
+  hypoth.nuclei.astro |> 
+  DietSeurat(assays = c("RNA", "SCT"))
+hypoth.list <-
+  Seurat::SplitObject(
+    hypoth.nuclei.astro,
+    split.by = "Batch_ID")
+```
+
+## Arcuate nucleus
+
+### Campbell et al. 2017 Dropseq
+
+```{r transfer-ageing-campbell-2017-1}
+hypoth.query.campbell_2017.1 <-
+  hypoth.list[["CampbellDropseq_batch_1"]]
+hypoth.anchors.campbell_2017.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.campbell_2017.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.campbell_2017.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.campbell_2017.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.campbell_2017.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.campbell_2017.1,
+    reference = combined_sct,
+    query = hypoth.query.campbell_2017.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-campbell-2017-1}
+p1 <- DimPlot(combined_sct, reduction = "umap", group.by = "k_tree", label = TRUE, label.size = 3,
+    repel = TRUE) + NoLegend() + ggtitle("Reference annotations")
+p.campbell_2017.1 <- DimPlot(hypoth.query.campbell_2017.1, reduction = "ref.umap", group.by = "predicted.k_tree", label = TRUE,
+    label.size = 3, repel = TRUE) + NoLegend() + ggtitle("Query transferred labels")
+p1 + p.campbell_2017.1
+```
+
+### Lutomska et al. 2017 Dropseq
+
+```{r transfer-ageing-lutomska-2022-1}
+hypoth.query.lutomska_2022.1 <-
+  hypoth.list[["Lutomska_chow_10xv3"]]
+hypoth.anchors.lutomska_2022.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.lutomska_2022.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.lutomska_2022.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.lutomska_2022.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.lutomska_2022.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.lutomska_2022.1,
+    reference = combined_sct,
+    query = hypoth.query.lutomska_2022.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-lutomska-2022-1}
+p.lutomska_2022.1 <-
+  DimPlot(
+    hypoth.query.lutomska_2022.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.lutomska_2022.1
+```
+
+### Deng et al. 2021 10xV3
+
+```{r transfer-ageing-deng-2021-1}
+hypoth.query.deng_2021.1 <-
+  hypoth.list[["Deng10xv3_536-1_chow-diet"]]
+hypoth.anchors.deng_2021.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.deng_2021.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.deng_2021.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.deng_2021.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.deng_2021.1,
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-deng-2021-1}
+p.deng_2021.1 <-
+  DimPlot(
+    hypoth.query.deng_2021.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.deng_2021.1
+```
+
+```{r transfer-ageing-deng-2021-3}
+hypoth.query.deng_2021.3 <-
+  hypoth.list[["Deng10xv3_536-3_chow-diet"]]
+hypoth.anchors.deng_2021.3 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.3,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.deng_2021.3 <-
+  TransferData(
+    anchorset = hypoth.anchors.deng_2021.3,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.deng_2021.3 <-
+  MapQuery(
+    anchorset = hypoth.anchors.deng_2021.3,
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.3,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-deng-2021-3}
+p.deng_2021.3 <-
+  DimPlot(
+    hypoth.query.deng_2021.3,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.deng_2021.3
+```
+
+```{r transfer-ageing-deng-2021-5}
+hypoth.query.deng_2021.5 <-
+  hypoth.list[["Deng10xv3_536-5_chow-diet"]]
+hypoth.anchors.deng_2021.5 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.5,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.deng_2021.5 <-
+  TransferData(
+    anchorset = hypoth.anchors.deng_2021.5,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.deng_2021.5 <-
+  MapQuery(
+    anchorset = hypoth.anchors.deng_2021.5,
+    reference = combined_sct,
+    query = hypoth.query.deng_2021.5,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-deng-2021-5}
+p.deng_2021.5 <-
+  DimPlot(
+    hypoth.query.deng_2021.5,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.deng_2021.5
+```
+
+## Mediobasal hypothalamus
+
+### Rupp et al. 2021 10xV3
+
+```{r transfer-ageing-rupp-2021-1}
+hypoth.query.rupp_2021.1 <-
+  hypoth.list[["Rupp10x_batch_1"]]
+hypoth.anchors.rupp_2021.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.rupp_2021.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.rupp_2021.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.rupp_2021.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.rupp_2021.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.rupp_2021.1,
+    reference = combined_sct,
+    query = hypoth.query.rupp_2021.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-rupp-2021-1}
+p.rupp_2021.1 <-
+  DimPlot(
+    hypoth.query.rupp_2021.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.rupp_2021.1
+```
+
+## Ventromedial hypothalamus
+
+### Affinati et al. 2021 10xV3 nuclei
+
+```{r transfer-ageing-affinati-2021-1}
+hypoth.query.affinati_2021.1 <-
+  hypoth.list[["Affinati10x_batch_1"]]
+hypoth.anchors.affinati_2021.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.affinati_2021.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.affinati_2021.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.affinati_2021.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.affinati_2021.1,
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-affinati-2021-1}
+p.affinati_2021.1 <-
+  DimPlot(
+    hypoth.query.affinati_2021.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.affinati_2021.1
+```
+
+```{r transfer-ageing-affinati-2021-3}
+hypoth.query.affinati_2021.3 <-
+  hypoth.list[["Affinati10x_batch_3"]]
+hypoth.anchors.affinati_2021.3 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.3,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.affinati_2021.3 <-
+  TransferData(
+    anchorset = hypoth.anchors.affinati_2021.3,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.affinati_2021.3 <-
+  MapQuery(
+    anchorset = hypoth.anchors.affinati_2021.3,
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.3,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-affinati-2021-3}
+p.affinati_2021.3 <-
+  DimPlot(
+    hypoth.query.affinati_2021.3,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.affinati_2021.3
+```
+
+```{r transfer-ageing-affinati-2021-4}
+hypoth.query.affinati_2021.4 <-
+  hypoth.list[["Affinati10x_batch_4"]]
+hypoth.anchors.affinati_2021.4 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.4,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.affinati_2021.4 <-
+  TransferData(
+    anchorset = hypoth.anchors.affinati_2021.4,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.affinati_2021.4 <-
+  MapQuery(
+    anchorset = hypoth.anchors.affinati_2021.4,
+    reference = combined_sct,
+    query = hypoth.query.affinati_2021.4,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-affinati-2021-4}
+p.affinati_2021.4 <-
+  DimPlot(
+    hypoth.query.affinati_2021.4,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.affinati_2021.4
+```
+
+### Kim et al. 2019 10xV2
+
+```{r transfer-ageing-kim-2019-1}
+hypoth.query.kim_2019.1 <-
+  hypoth.list[["Kim10x_batch_1"]]
+hypoth.anchors.kim_2019.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.kim_2019.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.kim_2019.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.kim_2019.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.kim_2019.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.kim_2019.1,
+    reference = combined_sct,
+    query = hypoth.query.kim_2019.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-kim-2019-1}
+p.kim_2019.1 <-
+  DimPlot(
+    hypoth.query.kim_2019.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.kim_2019.1
+```
+
+### Liu et al. 2022 10xV3
+
+```{r transfer-ageing-liu-2022-1}
+hypoth.query.liu_2022.1 <-
+  hypoth.list[["Anderson10x_batch_1"]]
+hypoth.anchors.liu_2022.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.liu_2022.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.liu_2022.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.liu_2022.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.liu_2022.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.liu_2022.1,
+    reference = combined_sct,
+    query = hypoth.query.liu_2022.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-liu-2022-1}
+p.liu_2022.1 <-
+  DimPlot(
+    hypoth.query.liu_2022.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.liu_2022.1
+```
+
+## Ventroposterior hypothalamus
+
+### Mickelsen et al. 2020 10xV2
+
+```{r transfer-ageing-mickelsen-2020-1}
+hypoth.query.mickelsen_2020.1 <-
+  hypoth.list[["Flynn10x_batch_1"]]
+hypoth.anchors.mickelsen_2020.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.mickelsen_2020.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.mickelsen_2020.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.mickelsen_2020.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.mickelsen_2020.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.mickelsen_2020.1,
+    reference = combined_sct,
+    query = hypoth.query.mickelsen_2020.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-mickelsen-2020-1}
+p.mickelsen_2020.1 <-
+  DimPlot(
+    hypoth.query.mickelsen_2020.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.mickelsen_2020.1
+```
+
+## Preoptic area
+
+### Moffitt et al. 2018 10xV2
+
+```{r transfer-ageing-moffitt-2018-1}
+hypoth.query.moffitt_2018.1 <-
+  hypoth.list[["Moffit10x_batch_1"]]
+hypoth.anchors.moffitt_2018.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.moffitt_2018.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.moffitt_2018.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.moffitt_2018.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.moffitt_2018.1,
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-moffitt-2018-1}
+p.moffitt_2018.1 <-
+  DimPlot(
+    hypoth.query.moffitt_2018.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.moffitt_2018.1
+```
+
+```{r transfer-ageing-moffitt-2018-2}
+hypoth.query.moffitt_2018.2 <-
+  hypoth.list[["Moffit10x_batch_2"]]
+hypoth.anchors.moffitt_2018.2 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.2,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.moffitt_2018.2 <-
+  TransferData(
+    anchorset = hypoth.anchors.moffitt_2018.2,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.moffitt_2018.2 <-
+  MapQuery(
+    anchorset = hypoth.anchors.moffitt_2018.2,
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.2,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-moffitt-2018-2}
+p.moffitt_2018.2 <-
+  DimPlot(
+    hypoth.query.moffitt_2018.2,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.moffitt_2018.2
+```
+
+```{r transfer-ageing-moffitt-2018-3}
+hypoth.query.moffitt_2018.3 <-
+  hypoth.list[["Moffit10x_batch_3"]]
+hypoth.anchors.moffitt_2018.3 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.3,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.moffitt_2018.3 <-
+  TransferData(
+    anchorset = hypoth.anchors.moffitt_2018.3,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.moffitt_2018.3 <-
+  MapQuery(
+    anchorset = hypoth.anchors.moffitt_2018.3,
+    reference = combined_sct,
+    query = hypoth.query.moffitt_2018.3,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-moffitt-2018-3}
+p.moffitt_2018.3 <-
+  DimPlot(
+    hypoth.query.moffitt_2018.3,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.moffitt_2018.3
+```
+
+## Suprachiasmatic nucleus
+
+### Wen et al. 2020 10xV2
+
+```{r transfer-ageing-wen-2020-1}
+hypoth.query.wen_2020.1 <-
+  hypoth.list[["wen10x_batch_1"]]
+hypoth.anchors.wen_2020.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.wen_2020.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.wen_2020.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.wen_2020.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.wen_2020.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.wen_2020.1,
+    reference = combined_sct,
+    query = hypoth.query.wen_2020.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-wen-2020-1}
+p.wen_2020.1 <-
+  DimPlot(
+    hypoth.query.wen_2020.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.wen_2020.1
+```
+
+### Wen et al. 2020 Dropseq
+
+```{r transfer-ageing-wen-2020-2}
+hypoth.query.wen_2020.2 <-
+  hypoth.list[["wenDropseq_batch_1"]]
+hypoth.anchors.wen_2020.2 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.wen_2020.2,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.wen_2020.2 <-
+  TransferData(
+    anchorset = hypoth.anchors.wen_2020.2,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.wen_2020.2 <-
+  MapQuery(
+    anchorset = hypoth.anchors.wen_2020.2,
+    reference = combined_sct,
+    query = hypoth.query.wen_2020.2,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-wen-2020-2}
+p.wen_2020.2 <-
+  DimPlot(
+    hypoth.query.wen_2020.2,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.wen_2020.2
+```
+
+### Morris et al. 2021 10xV3
+
+```{r transfer-ageing-morris-2021-1}
+hypoth.query.morris_2021.1 <-
+  hypoth.list[["Morris10x_batch_1"]]
+hypoth.anchors.morris_2021.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.morris_2021.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.morris_2021.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.morris_2021.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.morris_2021.1,
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-morris-2021-1}
+p.morris_2021.1 <-
+  DimPlot(
+    hypoth.query.morris_2021.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.morris_2021.1
+```
+
+```{r transfer-ageing-morris-2021-2}
+hypoth.query.morris_2021.2 <-
+  hypoth.list[["Morris10x_batch_2"]]
+hypoth.anchors.morris_2021.2 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.2,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.morris_2021.2 <-
+  TransferData(
+    anchorset = hypoth.anchors.morris_2021.2,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.morris_2021.2 <-
+  MapQuery(
+    anchorset = hypoth.anchors.morris_2021.2,
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.2,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-morris-2021-2}
+p.morris_2021.2 <-
+  DimPlot(
+    hypoth.query.morris_2021.2,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.morris_2021.2
+```
+
+```{r transfer-ageing-morris-2021-3}
+hypoth.query.morris_2021.3 <-
+  hypoth.list[["Morris10x_batch_3"]]
+hypoth.anchors.morris_2021.3 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.3,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.morris_2021.3 <-
+  TransferData(
+    anchorset = hypoth.anchors.morris_2021.3,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.morris_2021.3 <-
+  MapQuery(
+    anchorset = hypoth.anchors.morris_2021.3,
+    reference = combined_sct,
+    query = hypoth.query.morris_2021.3,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-morris-2021-3}
+p.morris_2021.3 <-
+  DimPlot(
+    hypoth.query.morris_2021.3,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.morris_2021.3
+```
+
+## Lateral hypothalamic area
+
+### Mickelsen et al. 2019 10xV2
+
+```{r transfer-ageing-mickelsen-2019-1}
+hypoth.query.mickelsen_2019.1 <-
+  hypoth.list[["Mickelsen10x_batch_1"]]
+hypoth.anchors.mickelsen_2019.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.mickelsen_2019.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.mickelsen_2019.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.mickelsen_2019.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.mickelsen_2019.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.mickelsen_2019.1,
+    reference = combined_sct,
+    query = hypoth.query.mickelsen_2019.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-mickelsen-2019-1}
+p.mickelsen_2019.1 <-
+  DimPlot(
+    hypoth.query.mickelsen_2019.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.mickelsen_2019.1
+```
+
+### Rossi et al. 2019 Dropseq
+
+```{r transfer-ageing-rossi-2019-1}
+hypoth.query.rossi_2019.1 <-
+  hypoth.list[["Mickelsen10x_batch_1"]]
+hypoth.anchors.rossi_2019.1 <-
+  FindTransferAnchors(
+    reference = combined_sct,
+    query = hypoth.query.rossi_2019.1,
+    normalization.method = "SCT",
+    dims = 1:npcs,
+    k.anchor = 10,
+    k.score = 50,
+    k.filter = 100,
+    max.features = 500,
+    n.trees = 100,
+    reference.reduction = "pca")
+
+predictions.rossi_2019.1 <-
+  TransferData(
+    anchorset = hypoth.anchors.rossi_2019.1,
+    refdata = combined_sct$k_tree,
+    dims = 1:npcs)
+
+hypoth.query.rossi_2019.1 <-
+  MapQuery(
+    anchorset = hypoth.anchors.rossi_2019.1,
+    reference = combined_sct,
+    query = hypoth.query.rossi_2019.1,
+    refdata = list(k_tree = "k_tree"),
+    reference.reduction = "pca",
+    reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-rossi-2019-1}
+p.rossi_2019.1 <-
+  DimPlot(
+    hypoth.query.rossi_2019.1,
+    reduction = "ref.umap",
+    group.by = "predicted.k_tree",
+    label = TRUE,
+    label.size = 3,
+    repel = TRUE) +
+  NoLegend() +
+  ggtitle("Query transferred labels")
+
+p1 + p.rossi_2019.1
+```
+
+### Paraventricular nucleus
+
+```{r transfer-ageing-lopez-2021-1}
+# hypoth.query.rupp_2021.1 <-
+#   hypoth.list[["Rupp10x_batch_1"]]
+# hypoth.anchors.rupp_2021.1 <-
+#   FindTransferAnchors(
+#     reference = combined_sct,
+#     query = hypoth.query.rupp_2021.1,
+#     normalization.method = "SCT",
+#     dims = 1:npcs,
+#     k.anchor = 10,
+#     k.score = 50,
+#     k.filter = 100,
+#     max.features = 500,
+#     n.trees = 100,
+#     reference.reduction = "pca")
+# 
+# predictions.rupp_2021.1 <-
+#   TransferData(
+#     anchorset = hypoth.anchors.rupp_2021.1,
+#     refdata = combined_sct$k_tree,
+#     dims = 1:npcs)
+# 
+# hypoth.query.rupp_2021.1 <-
+#   MapQuery(
+#     anchorset = hypoth.anchors.rupp_2021.1,
+#     reference = combined_sct,
+#     query = hypoth.query.rupp_2021.1,
+#     refdata = list(k_tree = "k_tree"),
+#     reference.reduction = "pca",
+#     reduction.model = "umap")
+```
+
+```{r pl-transfer-ageing-lopez-2021-1}
+# p.rupp_2021.1 <-
+#   DimPlot(
+#     hypoth.query.rupp_2021.1,
+#     reduction = "ref.umap",
+#     group.by = "predicted.k_tree",
+#     label = TRUE,
+#     label.size = 3,
+#     repel = TRUE) +
+#   NoLegend() +
+#   ggtitle("Query transferred labels")
+# 
+# p1 + p.rupp_2021.1
+```
+

@@ -30,6 +30,3 @@ dmh_trh_g  <- c('Onecut3', 'Cartpt')
 
 gene_int <- c(npr, np, irs_genes, neurotrans, mcr_genes, pvn_genes, dmh_trh_g) %>% unique()
 
-k_genes <- readr::read_lines(here(data_dir, "keep_genes.tsv"))
-
-big_genes <- union(gene_int, k_genes)

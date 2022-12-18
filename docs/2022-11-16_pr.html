@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Evgenii Tretiakov" />
+
+
+<title>Regional and functional heterogeneity of hypothalamic astrocytes</title>
+
+<script src="site_libs/header-attrs-2.18/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">heteroAstrocytes</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="hfd.html">HFD</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Regional and functional heterogeneity of hypothalamic astrocytes</h1>
+<h4 class="author">Evgenii Tretiakov</h4>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2022-11-13
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>1_heteroAstrocytes/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version 1.7.0). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20220624code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20220624)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20220624code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20220624)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrong1cfad7d"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> 1cfad7d </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrong1cfad7d" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version 1cfad7d. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+    Ignored:    .Rproj.user/
+    Ignored:    data/comb_astrocytes.bak.h5Seurat
+    Ignored:    data/comb_astrocytes.bak.h5ad
+    Ignored:    data/comb_astrocytes.h5Seurat
+    Ignored:    data/comb_astrocytes.h5ad
+    Ignored:    data/deng2019_arc_chow.h5Seurat
+    Ignored:    data/deng2019_arc_chow.h5ad
+    Ignored:    data/deng2019_arc_chow_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_chow_astrocytes.h5ad
+    Ignored:    data/deng2019_arc_chow_astrocytes_fin.h5Seurat
+    Ignored:    data/deng2019_arc_chow_astrocytes_fin.h5ad
+    Ignored:    data/deng2019_arc_chow_clusters.h5Seurat
+    Ignored:    data/deng2019_arc_chow_clusters.h5ad
+    Ignored:    data/deng2019_arc_hfd.h5Seurat
+    Ignored:    data/deng2019_arc_hfd.h5ad
+    Ignored:    data/deng2019_arc_hfd_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_astrocytes.h5ad
+    Ignored:    data/deng2019_arc_hfd_astrocytes_fin.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_astrocytes_fin.h5ad
+    Ignored:    data/deng2019_arc_hfd_clusters.h5Seurat
+    Ignored:    data/deng2019_arc_hfd_clusters.h5ad
+    Ignored:    data/deng2019_arc_refi_astrocytes.h5Seurat
+    Ignored:    data/deng2019_arc_refi_astrocytes.h5ad
+    Ignored:    data/deng_2020_arc_chow.h5Seurat
+    Ignored:    data/deng_2020_arc_chow.h5ad
+    Ignored:    data/deng_2020_arc_chow_astrocytes.h5Seurat
+    Ignored:    data/deng_2020_arc_chow_astrocytes.h5ad
+    Ignored:    data/deng_2020_arc_chow_astrocytes_fin.h5Seurat
+    Ignored:    data/deng_2020_arc_chow_astrocytes_fin.h5ad
+    Ignored:    data/deng_2020_arc_chow_clusters.h5Seurat
+    Ignored:    data/deng_2020_arc_chow_clusters.h5ad
+    Ignored:    data/deng_2020_arc_hfd.h5Seurat
+    Ignored:    data/deng_2020_arc_hfd.h5ad
+    Ignored:    data/deng_2020_arc_hfd_astrocytes.h5Seurat
+    Ignored:    data/deng_2020_arc_hfd_astrocytes.h5ad
+    Ignored:    data/deng_2020_arc_hfd_astrocytes_fin.h5Seurat
+    Ignored:    data/deng_2020_arc_hfd_astrocytes_fin.h5ad
+    Ignored:    data/deng_2020_arc_hfd_clusters.h5Seurat
+    Ignored:    data/deng_2020_arc_hfd_clusters.h5ad
+    Ignored:    data/deng_2020_arc_refi_astrocytes.h5Seurat
+    Ignored:    data/deng_2020_arc_refi_astrocytes.h5ad
+    Ignored:    output/figures/
+
+Untracked files:
+    Untracked:  analysis/2022-11-16_pr.Rmd
+
+Unstaged changes:
+    Modified:   analysis/hfd.Rmd
+    Modified:   code/genes.R
+    Modified:   output/tables/arc_ast.csv
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<pre class="r"><code>genes.embed &lt;- c(&quot;Ndrg2&quot;, &quot;Slc1a3&quot;, &quot;Gfap&quot;, 
+                 &quot;S100b&quot;, &quot;Agt&quot;, &quot;Slc6a11&quot;,
+                 &quot;Aqp4&quot;, &quot;Nfia&quot;, &quot;Aldoc&quot;, 
+                 &quot;Apoe&quot;, &quot;Aldh1l1&quot;, &quot;Sox9&quot;, 
+                 &quot;Fgfr3&quot;, &quot;Egfr&quot;, &quot;Ntrk2&quot;)
+hypoMap &lt;- readRDS(here(raw_dir, &quot;hypoMap.rds&quot;))</code></pre>
+<pre class="r"><code>skim(hypoMap@meta.data)</code></pre>
+<pre><code>── Data Summary ────────────────────────
+                           Values           
+Name                       hypoMap@meta.data
+Number of rows             384925           
+Number of columns          44               
+_______________________                     
+Column type frequency:                      
+  character                38               
+  numeric                  6                
+________________________                    
+Group variables            None             
+
+── Variable type: character ────────────────────────────────────────────────────
+   skim_variable        n_missing complete_rate min max empty n_unique
+ 1 Cell_ID                      0        1       23  45     0   384925
+ 2 Dataset                      0        1        6  16     0       18
+ 3 SRA_ID                   76544        0.801   10  11     0      113
+ 4 Sample_ID                    0        1        7  31     0      126
+ 5 GEO_ID                   97965        0.745   10  10     0       94
+ 6 Run10x                  306529        0.204    5   9     0       18
+ 7 Technology                   0        1        5   7     0        4
+ 8 Strain                   56975        0.852    4  14     0       10
+ 9 Diet                         0        1        5  13     0        6
+10 Pooled                   74085        0.808    2   3     0        3
+11 Age                      84229        0.781    8   9     0        3
+12 Author_Region                0        1       12  41     0        9
+13 inferred_sex                 0        1        1   1     0        3
+14 Author_Exclude           91471        0.762    2   3     0        2
+15 Author_Class            219514        0.430    2  16     0       19
+16 Author_CellType         182688        0.525    2  47     0      654
+17 Phase                        0        1        1   3     0        3
+18 Batch_ID                     0        1       14  24     0       29
+19 Author_Condition        212466        0.448    0  34   512       28
+20 Sex                      79981        0.792    1   1     0        3
+21 Author_Batch            364036        0.0543   2   2     0        6
+22 Author_Class_Curated         0        1        5  16     0       14
+23 C2                           0        1        4   4     0        2
+24 C7                           0        1        4   4     0        7
+25 C25                          0        1        5   6     0       25
+26 C66                          0        1        5   6     0       66
+27 C185                         0        1        6   8     0      185
+28 C286                         0        1        6   8     0      286
+29 C465                         0        1        6   8     0      465
+30 C2_named                     0        1       13  17     0        2
+31 C7_named                     0        1        9  21     0        7
+32 C25_named                    0        1       11  25     0       25
+33 C66_named                    0        1       11  30     0       66
+34 C185_named                   0        1       12  40     0      185
+35 C286_named                   0        1       12  49     0      286
+36 C465_named                   0        1       12  60     0      465
+37 Region_predicted        203334        0.472   12  55     0       21
+38 Region_summarized       203334        0.472   12  55     0       15
+   whitespace
+ 1          0
+ 2          0
+ 3          0
+ 4          0
+ 5          0
+ 6          0
+ 7          0
+ 8          0
+ 9          0
+10          0
+11          0
+12          0
+13          0
+14          0
+15          0
+16          0
+17          0
+18          0
+19          0
+20          0
+21          0
+22          0
+23          0
+24          0
+25          0
+26          0
+27          0
+28          0
+29          0
+30          0
+31          0
+32          0
+33          0
+34          0
+35          0
+36          0
+37          0
+38          0
+
+── Variable type: numeric ──────────────────────────────────────────────────────
+  skim_variable            n_missing complete_rate       mean        sd
+1 nCount_RNA                       0             1 4812.      4326.    
+2 nFeature_RNA                     0             1 2172.      1227.    
+3 percent_mt                       0             1    2.55       2.39  
+4 percent_exclude_features         0             1    0.265      0.178 
+5 S.Score                          0             1   -0.00464    0.0495
+6 G2M.Score                        0             1   -0.0215     0.0645
+          p0       p25       p50        p75     p100 hist 
+1 1000       2038      3388      6012       52648    ▇▁▁▁▁
+2  500       1231      1854      2837        8739    ▇▃▁▁▁
+3    0          0.657     1.86      3.90       10    ▇▃▂▁▁
+4    0.00661    0.175     0.250     0.331      11.0  ▇▁▁▁▁
+5   -0.138     -0.0362   -0.0111    0.0182      1.06 ▇▁▁▁▁
+6   -0.172     -0.0535   -0.0269    0.00151     1.87 ▇▁▁▁▁</code></pre>
+<pre class="r"><code>if (!file.exists(here(raw_dir, &quot;hypoMap.h5Seurat&quot;))) {
+  SaveH5Seurat(hypoMap, 
+               filename = here(raw_dir, &quot;hypoMap.h5Seurat&quot;))
+  Convert(here(raw_dir, &quot;hypoMap.h5Seurat&quot;), 
+          dest = &quot;h5ad&quot;)
+}
+
+Idents(hypoMap) &lt;- &quot;C25_named&quot;
+astroMap &lt;- 
+    hypoMap |&gt;  
+    subset(idents = c(&quot;C25-18: Astrocytes&quot;))
+if (!file.exists(here(raw_dir, &quot;astroMap.h5Seurat&quot;))) {
+  SaveH5Seurat(astroMap, 
+               filename = here(raw_dir, &quot;astroMap.h5Seurat&quot;))
+  Convert(here(raw_dir, &quot;astroMap.h5Seurat&quot;), 
+          dest = &quot;h5ad&quot;)
+}
+
+arcMap &lt;- 
+  hypoMap |&gt; 
+  subset(subset = (Author_Region == &quot;Arcuate Nucleus/Median Eminence&quot; &amp; Author_Class_Curated %in% c(&quot;Astrocytes&quot;, &quot;Neurons&quot;)) | (Region_summarized == &quot;Arcuate hypothalamic nucleus&quot; &amp; Author_Class_Curated %in% c(&quot;Astrocytes&quot;, &quot;Neurons&quot;))) |&gt; 
+  subset(subset = Author_CellType %in% c(&quot;Agrp/Gm8773&quot;, &quot;Agrp/Sst&quot;, &quot;Pomc/Ttr&quot;, &quot;Pomc/Anxa2&quot;, &quot;Pomc/Glipr1&quot;) | C25_named == &quot;C25-18: Astrocytes&quot; | C66_named %in% c(&quot;C66-46: Agrp.GABA-4&quot;, &quot;C66-19: Pomc.GLU-5&quot;)) |&gt; 
+  subset(subset = C66_named %in% c(&quot;C66-53: Etnppl.Astrocytes&quot;, &quot;C66-54: Lgals3.Astrocytes&quot;, &quot;C66-47: Sst.GABA-4&quot;, &quot;C66-46: Agrp.GABA-4&quot;, &quot;C66-19: Pomc.GLU-5&quot;, &quot;C66-41: Tbx3.GABA-1&quot;) &amp; Diet == &quot;Normal chow&quot;)
+if (!file.exists(here(raw_dir, &quot;arcMap.h5Seurat&quot;))) {
+  SaveH5Seurat(hypoMap, 
+               filename = here(raw_dir, &quot;arcMap.h5Seurat&quot;))
+  Convert(here(raw_dir, &quot;arcMap.h5Seurat&quot;), 
+          dest = &quot;h5ad&quot;)
+}
+rm(hypoMap)
+gc()</code></pre>
+<pre><code>            used   (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells   8417882  449.6   14168677   756.7   12648476   675.6
+Vcells 320734970 2447.1 2939718892 22428.3 3661854229 27937.8</code></pre>
+<pre class="r"><code>Ohlig2021_die_astro &lt;- LoadH5Seurat(here(ext1_dir, &quot;astrocytes.h5Seurat&quot;))</code></pre>
+<pre class="r"><code>Deng2020_arc_astro &lt;- LoadH5Seurat(here(data_dir, &quot;deng_2020_arc_chow_astrocytes.h5Seurat&quot;))
+Deng2020_arc_all   &lt;- LoadH5Seurat(here(data_dir, &quot;deng_2020_arc_chow_clusters.h5Seurat&quot;))
+
+Lutomska2022_arc_astro &lt;- LoadH5Seurat(here(ext2_dir, &quot;astrocytes.h5Seurat&quot;))
+Lutomska2022_arc_astro &lt;- 
+  RenameCells(object = Lutomska2022_arc_astro , 
+              new.names = str_c(Cells(Lutomska2022_arc_astro),
+                                &quot;SRR19578591&quot;,
+                                sep = &quot;_&quot;)
+              )
+Lutomska2022_arc_all &lt;- LoadH5Seurat(here(ext2_dir, &quot;Lutomska2022.h5Seurat&quot;))
+Lutomska2022_arc_all &lt;- 
+  RenameCells(object = Lutomska2022_arc_all , 
+              new.names = str_c(Cells(Lutomska2022_arc_all),
+                                &quot;SRR19578591&quot;,
+                                sep = &quot;_&quot;)
+              )</code></pre>
+<pre class="r"><code>Deng2020_arc_astro@meta.data &lt;-
+  Deng2020_arc_astro@meta.data |&gt;
+  select(nCount_RNA:nFeature_SCT, study_id, sex, tech, subsets_mito_percent, ident) |&gt; 
+  rename(Technology = tech,
+         percent_mt = subsets_mito_percent,
+         Sex = sex,
+         Dataset = study_id,
+         Batch_ID = ident) |&gt; 
+  mutate(Author_Region = &quot;Arcuate Nucleus/Median Eminence&quot;,
+         Batch_ID = str_c(&quot;Deng10xv3&quot;, Batch_ID, sep = &quot;_&quot;),
+         Sex = if_else(Sex == &quot;male&quot;, &quot;M&quot;, &quot;F&quot;),
+         Dataset = &quot;Deng10x&quot;)
+DefaultAssay(object = Deng2020_arc_astro) &lt;- &quot;RNA&quot;
+Deng2020_arc_astro &lt;-
+  Deng2020_arc_astro |&gt; 
+  DietSeurat(assays = &quot;RNA&quot;)
+
+
+Lutomska2022_arc_astro@meta.data &lt;-
+  Lutomska2022_arc_astro@meta.data |&gt;
+  select(-(SCT_snn_res.0.01:k_tree)) |&gt; 
+  rename(Batch_ID = orig.ident) |&gt; 
+  mutate(Author_Region = &quot;Arcuate Nucleus/Median Eminence&quot;,
+         SRA_ID = &quot;SRR19578591&quot;)
+DefaultAssay(object = Lutomska2022_arc_astro) &lt;- &quot;RNA&quot;
+Lutomska2022_arc_astro &lt;-
+  Lutomska2022_arc_astro |&gt; 
+  DietSeurat(assays = &quot;RNA&quot;)
+
+
+DefaultAssay(object = Deng2020_arc_all) &lt;- &quot;RNA&quot;
+Deng2020_arc_all@meta.data &lt;-
+  Deng2020_arc_all@meta.data |&gt;
+  select(nCount_RNA:nFeature_SCT, study_id, sex, tech, subsets_mito_percent, ident, seurat_clusters) |&gt; 
+  rename(Technology = tech,
+         percent_mt = subsets_mito_percent,
+         Sex = sex,
+         Dataset = study_id,
+         Batch_ID = ident) |&gt; 
+  mutate(Author_Region = &quot;Arcuate Nucleus/Median Eminence&quot;,
+         Batch_ID = str_c(&quot;Deng10xv3&quot;, Batch_ID, sep = &quot;_&quot;),
+         Sex = if_else(Sex == &quot;male&quot;, &quot;M&quot;, &quot;F&quot;),
+         Dataset = &quot;Deng10x&quot;)
+Deng2020_arc &lt;- 
+  subset(Deng2020_arc_all, 
+         subset = seurat_clusters %in% c(3,6,7)) |&gt;
+  DietSeurat(assays = &quot;RNA&quot;)
+
+Lutomska2022_arc_all@meta.data &lt;-
+  Lutomska2022_arc_all@meta.data |&gt;
+  select(-(SCT_snn_res.0.01:k_tree)) |&gt; 
+  rename(Batch_ID = orig.ident) |&gt; 
+  mutate(Author_Region = &quot;Arcuate Nucleus/Median Eminence&quot;,
+         SRA_ID = &quot;SRR19578591&quot;)
+DefaultAssay(object = Lutomska2022_arc_all) &lt;- &quot;RNA&quot;
+Lutomska2022_arc_all &lt;-
+  Lutomska2022_arc_all |&gt; 
+  DietSeurat(assays = &quot;RNA&quot;)
+gc()</code></pre>
+<pre><code>            used   (Mb) gc trigger    (Mb)   max used    (Mb)
+Ncells   8719181  465.7   14168677   756.7   14168677   756.7
+Vcells 705472386 5382.4 1881420092 14354.1 3661854229 27937.8</code></pre>
+<p>Visualise astrocytes</p>
+<pre class="r"><code>plEmbOrig &lt;- DimPlot(astroMap, reduction = &quot;umap_scvi&quot;,
+                     group.by = &quot;Batch_ID&quot;, 
+                     label = TRUE, repel = TRUE)</code></pre>
+<pre class="r"><code>astroMap &lt;- merge(astroMap, y = c(Deng2020_arc_astro, Lutomska2022_arc_astro), project = &quot;hypothalamic_astrocytes&quot;)
+astroMap</code></pre>
+<pre><code>An object of class Seurat 
+57762 features across 52105 samples within 1 assay 
+Active assay: RNA (57762 features, 0 variable features)</code></pre>
+<pre class="r"><code>astroMap &lt;-
+  SCTransform(astroMap, vst.flavor = &quot;v2&quot;,
+              # vars.to.regress = &quot;percent_mt&quot;,
+              method = &quot;glmGamPoi&quot;,
+              variable.features.n = 5000,
+              return.only.var.genes = FALSE,
+              seed.use = reseed,
+              verbose = FALSE) |&gt; 
+  RunPCA(seed.use = reseed,
+         verbose = FALSE) |&gt; 
+  RunUMAP(reduction = &quot;pca&quot;, 
+          densmap = TRUE, dims = 1:50, 
+          seed.use = reseed, verbose = FALSE)
+plEmbRawBatch &lt;- DimPlot(astroMap, reduction = &quot;umap&quot;, 
+                         group.by = &quot;Batch_ID&quot;, 
+                         label = TRUE, repel = TRUE)
+plEmbRawReg &lt;- DimPlot(astroMap, reduction = &quot;umap&quot;, 
+                       group.by = &quot;Author_Region&quot;,
+                       label = TRUE, repel = TRUE)
+plEmbRawBatch + plEmbRawReg</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-all-not-integrated-astrocytes-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<p>Integration of astrocytes</p>
+<pre class="r"><code>srt_list &lt;- Seurat::SplitObject(astroMap, split.by = &quot;Batch_ID&quot;)
+srt_list &lt;- lapply(X = srt_list,
+                   vst.flavor = &quot;v2&quot;,
+                   FUN = SCTransform,
+                   # vars.to.regress = &quot;percent_mt&quot;,
+                   method = &quot;glmGamPoi&quot;,
+                   variable.features.n = 5000,
+                   return.only.var.genes = FALSE,
+                   seed.use = reseed,
+                   verbose = FALSE)
+features &lt;- SelectIntegrationFeatures(object.list = srt_list, nfeatures = 3000, verbose = FALSE)</code></pre>
+<pre class="r"><code>srt_list &lt;- 
+  srt_list[
+    !(map(srt_list, ncol) |&gt;
+      map(~ .x &lt; 99) |&gt;
+      simplify())
+    ]
+
+npcs &lt;- 50
+srt_list &lt;- lapply(X = srt_list, FUN = RunPCA, features = features, npcs = npcs, seed.use = reseed, verbose = FALSE)
+
+srt_list &lt;- PrepSCTIntegration(object.list = srt_list, anchor.features = features)
+
+anchors &lt;- FindIntegrationAnchors(
+  object.list = srt_list,
+  normalization.method = &quot;SCT&quot;,
+  anchor.features = features,
+  reduction = &quot;rpca&quot;,
+  dims = 1:30,
+  k.anchor = 20,
+  verbose = FALSE
+)
+
+combined_sct &lt;- IntegrateData(
+  anchorset = anchors,
+  normalization.method = &quot;SCT&quot;,
+  dims = 1:30,
+  verbose = FALSE
+)
+
+metadata = combined_sct@meta.data
+rownames(metadata) = colnames(combined_sct)
+ref.labels = metadata$Author_Region
+combined_sct &lt;-
+  RunPCA(combined_sct, npcs = npcs, 
+         seed.use = reseed, verbose = FALSE)
+combined_sct</code></pre>
+<pre><code>An object of class Seurat 
+83030 features across 51734 samples within 3 assays 
+Active assay: integrated (426 features, 426 variable features)
+ 2 other assays present: RNA, SCT
+ 1 dimensional reduction calculated: pca</code></pre>
+<pre class="r"><code>combined_sct &lt;- combined_sct |&gt; 
+  RunUMAP(reduction = &quot;pca&quot;, return.model = TRUE,
+          densmap = TRUE, dims = 1:npcs, 
+          seed.use = reseed, verbose = FALSE) |&gt; 
+  FindNeighbors(reduction = &quot;pca&quot;, dims = 1:npcs, verbose = FALSE)
+
+resolutions &lt;-
+  modularity_event_sampling(
+    A = combined_sct@graphs$integrated_snn,
+    n.res = 30,
+    gamma.min = 0.01,
+    gamma.max = 2.5
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+combined_sct &lt;- combined_sct |&gt; 
+  FindClusters(algorithm = 4, method = &quot;igraph&quot;,
+               resolution = resolutions, random.seed = reseed,
+               verbose = FALSE)
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = combined_sct@meta.data,
+  prefix = &#39;integrated_snn_res.&#39;,
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-clustree-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre><code>
+  |                                                                            
+  |======================================================================| 100%
+  |                                                                            
+  |=                                                                     |   1%
+  |                                                                            
+  |=                                                                     |   2%
+  |                                                                            
+  |==                                                                    |   3%
+  |                                                                            
+  |==                                                                    |   4%
+  |                                                                            
+  |===                                                                   |   4%
+  |                                                                            
+  |====                                                                  |   5%
+  |                                                                            
+  |====                                                                  |   6%
+  |                                                                            
+  |=====                                                                 |   7%
+  |                                                                            
+  |======                                                                |   8%
+  |                                                                            
+  |======                                                                |   9%
+  |                                                                            
+  |=======                                                               |  10%
+  |                                                                            
+  |========                                                              |  11%
+  |                                                                            
+  |========                                                              |  12%
+  |                                                                            
+  |=========                                                             |  12%
+  |                                                                            
+  |=========                                                             |  13%
+  |                                                                            
+  |==========                                                            |  14%
+  |                                                                            
+  |===========                                                           |  15%
+  |                                                                            
+  |===========                                                           |  16%
+  |                                                                            
+  |============                                                          |  17%
+  |                                                                            
+  |============                                                          |  18%
+  |                                                                            
+  |=============                                                         |  19%
+  |                                                                            
+  |==============                                                        |  20%
+  |                                                                            
+  |==============                                                        |  21%
+  |                                                                            
+  |===============                                                       |  21%
+  |                                                                            
+  |================                                                      |  22%
+  |                                                                            
+  |================                                                      |  23%
+  |                                                                            
+  |=================                                                     |  24%
+  |                                                                            
+  |===================                                                   |  27%
+  |                                                                            
+  |===================                                                   |  28%
+  |                                                                            
+  |====================                                                  |  29%
+  |                                                                            
+  |=====================                                                 |  29%
+  |                                                                            
+  |=====================                                                 |  30%
+  |                                                                            
+  |======================                                                |  31%
+  |                                                                            
+  |======================                                                |  32%
+  |                                                                            
+  |=======================                                               |  33%
+  |                                                                            
+  |========================                                              |  34%
+  |                                                                            
+  |========================                                              |  35%
+  |                                                                            
+  |=========================                                             |  36%
+  |                                                                            
+  |==========================                                            |  37%
+  |                                                                            
+  |==========================                                            |  38%
+  |                                                                            
+  |===========================                                           |  38%
+  |                                                                            
+  |============================                                          |  39%
+  |                                                                            
+  |============================                                          |  40%
+  |                                                                            
+  |=============================                                         |  41%
+  |                                                                            
+  |=============================                                         |  42%
+  |                                                                            
+  |==============================                                        |  43%
+  |                                                                            
+  |===============================                                       |  44%
+  |                                                                            
+  |================================                                      |  46%
+  |                                                                            
+  |==================================                                    |  48%
+  |                                                                            
+  |==================================                                    |  49%
+  |                                                                            
+  |===================================                                   |  50%
+  |                                                                            
+  |====================================                                  |  51%
+  |                                                                            
+  |====================================                                  |  52%
+  |                                                                            
+  |=====================================                                 |  53%
+  |                                                                            
+  |======================================                                |  54%
+  |                                                                            
+  |=======================================                               |  55%
+  |                                                                            
+  |=======================================                               |  56%
+  |                                                                            
+  |========================================                              |  57%
+  |                                                                            
+  |=========================================                             |  58%
+  |                                                                            
+  |=========================================                             |  59%
+  |                                                                            
+  |==========================================                            |  60%
+  |                                                                            
+  |==========================================                            |  61%
+  |                                                                            
+  |===========================================                           |  62%
+  |                                                                            
+  |============================================                          |  62%
+  |                                                                            
+  |============================================                          |  63%
+  |                                                                            
+  |=============================================                         |  64%
+  |                                                                            
+  |==============================================                        |  65%
+  |                                                                            
+  |==============================================                        |  66%
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |================================================                      |  68%
+  |                                                                            
+  |=================================================                     |  70%
+  |                                                                            
+  |=================================================                     |  71%
+  |                                                                            
+  |==================================================                    |  71%
+  |                                                                            
+  |===================================================                   |  72%
+  |                                                                            
+  |===================================================                   |  73%
+  |                                                                            
+  |====================================================                  |  74%
+  |                                                                            
+  |====================================================                  |  75%
+  |                                                                            
+  |=====================================================                 |  76%
+  |                                                                            
+  |======================================================                |  77%
+  |                                                                            
+  |======================================================                |  78%
+  |                                                                            
+  |=======================================================               |  79%
+  |                                                                            
+  |========================================================              |  79%
+  |                                                                            
+  |========================================================              |  80%
+  |                                                                            
+  |=========================================================             |  81%
+  |                                                                            
+  |==========================================================            |  82%
+  |                                                                            
+  |==========================================================            |  83%
+  |                                                                            
+  |===========================================================           |  84%
+  |                                                                            
+  |===========================================================           |  85%
+  |                                                                            
+  |============================================================          |  86%
+  |                                                                            
+  |=============================================================         |  87%
+  |                                                                            
+  |=============================================================         |  88%
+  |                                                                            
+  |==============================================================        |  88%
+  |                                                                            
+  |==============================================================        |  89%
+  |                                                                            
+  |===============================================================       |  90%
+  |                                                                            
+  |================================================================      |  91%
+  |                                                                            
+  |================================================================      |  92%
+  |                                                                            
+  |=================================================================     |  93%
+  |                                                                            
+  |==================================================================    |  94%
+  |                                                                            
+  |==================================================================    |  95%
+  |                                                                            
+  |===================================================================   |  96%
+  |                                                                            
+  |====================================================================  |  96%
+  |                                                                            
+  |====================================================================  |  97%
+  |                                                                            
+  |===================================================================== |  98%
+  |                                                                            
+  |===================================================================== |  99%
+  |                                                                            
+  |======================================================================| 100%</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-mrtree-1.png" width="1056" style="display: block; margin: auto;" /></p>
+<pre class="r"><code># Adjusted Multiresolution Rand Index (AMRI)
+ks.flat &lt;-  apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+ks.mrtree &lt;-  apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x)
+    length(unique(x))
+)
+amri.flat &lt;-  sapply(1:ncol(out$labelmat.flat), function(i)
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri)
+amri.flat &lt;-  aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon &lt;-  sapply(1:ncol(out$labelmat.mrtree), function(i)
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri)
+
+df &lt;-  rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = &#39;Seurat flat&#39;
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = &#39;MRtree&#39;)
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) + geom_line() + theme_bw()</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-clustering-amri-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>stab.out &lt;- stability_plot(out)
+stab.out$plot</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-clustering-resolution-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p>Plot by nucleus</p>
+<pre class="r"><code>plEmbCombBatch &lt;- DimPlot(combined_sct, reduction = &quot;umap&quot;,
+                          group.by = &quot;Batch_ID&quot;,
+                          label = TRUE, repel = TRUE)
+plEmbCombReg &lt;- DimPlot(combined_sct, reduction = &quot;umap&quot;,
+                        group.by = &quot;Author_Region&quot;,
+                        label = TRUE, repel = TRUE)
+plEmbCombBatch + plEmbCombReg</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-all-integrated-astrocytes-nucleus-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>combined_sct$k_tree &lt;- as.factor(out$labelmat.mrtree[, &quot;K17&quot;])
+p1 &lt;- DimPlot(combined_sct, label = T, repel = T) + ggtitle(&quot;Unsupervised clustering&quot;)
+p2 &lt;- DimPlot(combined_sct, label = T, repel = T, group.by = &quot;k_tree&quot;) + ggtitle(&quot;MRTree&quot;)
+
+p1 | p2</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-clustering-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>library(schex)
+combined_sct &lt;- make_hexbin(combined_sct, nbins = 60, dimension_reduction = &quot;UMAP&quot;)
+plot_hexbin_density(combined_sct)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-schex-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plot_hexbin_meta(combined_sct, col = &quot;nCount_RNA&quot;, action = &quot;median&quot;)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-schex-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plot_hexbin_meta(combined_sct, col = &quot;k_tree&quot;, action = &quot;majority&quot;)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-schex-3.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>label_df &lt;- make_hexbin_label(combined_sct, col = &quot;k_tree&quot;)
+pp &lt;- plot_hexbin_meta(combined_sct, col = &quot;k_tree&quot;, action = &quot;majority&quot;)
+pp + ggrepel::geom_label_repel(data = label_df, aes(x = x, y = y, label = label), colour = &quot;black&quot;, 
+    label.size = NA, fill = NA)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-schex-k-tree-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>reg_df &lt;- make_hexbin_label(combined_sct, 
+                            col = &quot;Author_Region&quot;)
+pp2 &lt;- plot_hexbin_meta(combined_sct,
+                        col = &quot;Author_Region&quot;,
+                        action = &quot;majority&quot;)
+pp2 + ggrepel::geom_label_repel(data = reg_df, 
+                                aes(x = x, y = y,
+                                    label = label), 
+                                colour = &quot;black&quot;,
+                                label.size = NA, fill = NA)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-schex-regions-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>Idents(combined_sct) &lt;- &quot;k_tree&quot;
+srt.markers &lt;- FindAllMarkers(combined_sct, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+readr::write_csv(srt.markers, 
+                 here(tables_dir,
+                      &#39;astr_k17-mrk_wilcox-sct.csv&#39;))
+srt.markers %&gt;%
+    group_by(cluster) %&gt;%
+    slice_max(n = 3, order_by = avg_log2FC)</code></pre>
+<pre><code># A tibble: 36 × 7
+# Groups:   cluster [12]
+       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene   
+       &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;  
+ 1 9.35e- 19      16.5  0.423 0.277 3.98e- 16 1       Neat1  
+ 2 0               8.22 0.956 0.426 0         1       Malat1 
+ 3 6.18e- 32       7.99 0.508 0.382 2.63e- 29 1       Dclk1  
+ 4 9.09e-245       2.69 0.569 0.42  3.87e-242 2       Tsc22d3
+ 5 1.02e-113       2.27 0.514 0.381 4.35e-111 2       Cox5a  
+ 6 0               1.75 0.704 0.42  0         2       Mt1    
+ 7 1.01e- 26       5.05 0.377 0.378 4.31e- 24 3       Tprgl  
+ 8 2.24e-  6       3.13 0.382 0.402 9.55e-  4 3       Lsm6   
+ 9 1.19e- 36       2.69 0.484 0.423 5.07e- 34 3       S100a16
+10 0              15.9  0.835 0.326 0         4       Nnat   
+# … with 26 more rows</code></pre>
+<pre class="r"><code>srt.markers %&gt;%
+    group_by(cluster) %&gt;%
+    top_n(n = 10, wt = avg_log2FC) -&gt; top10
+DoHeatmap(combined_sct, features = top10$gene, 
+          size = 4, angle = 90) + NoLegend()</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-heatmap-1.png" width="1344" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plEmbCombCMrk &lt;- FeaturePlot(
+  combined_sct,
+  features = genes.embed[genes.embed %in%
+                           rownames(combined_sct@assays$SCT@scale.data)],
+  min.cutoff = &quot;q10&quot;, max.cutoff = &quot;q90&quot;,
+  ncol = 3
+)
+plEmbCombCMrk</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-all-integrated-astrocytes-init-canon-markers-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plot_density(combined_sct, 
+             genes.embed[genes.embed %in%
+                         rownames(combined_sct@assays$SCT@scale.data)], 
+             joint = FALSE) + plot_layout(ncol = 3)</code></pre>
+<p><img src="figure/2022-11-16_pr.Rmd/pl-all-integrated-astrocytes-init-canon-mrk-density-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>if (!file.exists(here(data_dir, &quot;comb_astrocytes.h5Seurat&quot;))) {
+  SaveH5Seurat(combined_sct, 
+               filename = here(data_dir, &quot;comb_astrocytes.h5Seurat&quot;))
+  Convert(here(data_dir, &quot;comb_astrocytes.h5Seurat&quot;), 
+          dest = &quot;h5ad&quot;)
+}</code></pre>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.2.2 (2022-10-31)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 22.04.1 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.20.so
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] stats4    stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] schex_1.12.0                shiny_1.7.3                
+ [3] SingleCellExperiment_1.20.0 SummarizedExperiment_1.28.0
+ [5] Biobase_2.58.0              GenomicRanges_1.50.1       
+ [7] GenomeInfoDb_1.34.2         IRanges_2.32.0             
+ [9] S4Vectors_0.36.0            BiocGenerics_0.44.0        
+[11] MatrixGenerics_1.10.0       matrixStats_0.62.0         
+[13] ggraph_2.1.0                mrtree_0.0.0.9000          
+[15] Nebulosa_1.8.0              swne_0.6.20                
+[17] patchwork_1.1.2             UpSetR_1.4.0               
+[19] glmGamPoi_1.10.0            sctransform_0.3.5          
+[21] SeuratDisk_0.0.0.9020       SeuratWrappers_0.3.1       
+[23] SeuratObject_4.1.3          Seurat_4.2.1               
+[25] kableExtra_1.3.4            future_1.29.0              
+[27] skimr_2.1.4                 magrittr_2.0.3             
+[29] forcats_0.5.2               stringr_1.4.1              
+[31] dplyr_1.0.10                purrr_0.3.5                
+[33] readr_2.1.3                 tidyr_1.2.1                
+[35] tibble_3.1.8                ggplot2_3.4.0              
+[37] tidyverse_1.3.2             here_1.0.1                 
+[39] workflowr_1.7.0            
+
+loaded via a namespace (and not attached):
+  [1] rsvd_1.0.5              ica_1.0-3               svglite_2.1.0          
+  [4] ps_1.7.2                lmtest_0.9-40           rprojroot_2.0.3        
+  [7] crayon_1.5.2            MASS_7.3-58.1           nlme_3.1-160           
+ [10] backports_1.4.1         reprex_2.0.2            rlang_1.0.6            
+ [13] XVector_0.38.0          ROCR_1.0-11             readxl_1.4.1           
+ [16] irlba_2.3.5.1           callr_3.7.3             data.tree_1.0.0        
+ [19] bit64_4.0.5             glue_1.6.2              parallel_4.2.2         
+ [22] processx_3.8.0          spatstat.sparse_3.0-0   spatstat.geom_3.0-3    
+ [25] haven_2.5.1             tidyselect_1.2.0        liger_2.0.1            
+ [28] fitdistrplus_1.1-8      zoo_1.8-11              xtable_1.8-4           
+ [31] evaluate_0.18           cli_3.4.1               zlibbioc_1.44.0        
+ [34] rstudioapi_0.14         miniUI_0.1.1.1          sp_1.5-1               
+ [37] whisker_0.4             bslib_0.4.1             fastmatch_1.1-3        
+ [40] treeio_1.23.0           maps_3.4.1              xfun_0.34              
+ [43] askpass_1.1             usedist_0.4.0           cluster_2.1.4          
+ [46] tidygraph_1.2.2         clusterGeneration_1.3.7 expm_0.999-6           
+ [49] SymSim_0.0.0.9000       ggrepel_0.9.2           ape_5.6-2              
+ [52] listenv_0.8.0           dendextend_1.16.0       png_0.1-7              
+ [55] withr_2.5.0             bitops_1.0-7            ggforce_0.4.1          
+ [58] plyr_1.8.7              cellranger_1.1.0        pracma_2.4.2           
+ [61] coda_0.19-4             pillar_1.8.1            cachem_1.0.6           
+ [64] fs_1.5.2                scatterplot3d_0.3-42    hdf5r_1.3.7            
+ [67] vctrs_0.5.0             ellipsis_0.3.2          generics_0.1.3         
+ [70] tools_4.2.2             entropy_1.3.1           munsell_0.5.0          
+ [73] tweenr_2.0.2            proxy_0.4-27            DelayedArray_0.24.0    
+ [76] fastmap_1.1.0           compiler_4.2.2          abind_1.4-5            
+ [79] httpuv_1.6.6            ggimage_0.3.1           plotly_4.10.1          
+ [82] GenomeInfoDbData_1.2.9  gridExtra_2.3           lattice_0.20-45        
+ [85] deldir_1.0-6            snow_0.4-4              utf8_1.2.2             
+ [88] later_1.3.0             jsonlite_1.8.3          concaveman_1.1.0       
+ [91] scales_1.2.1            tidytree_0.4.1          pbapply_1.5-0          
+ [94] lazyeval_0.2.2          promises_1.2.0.1        R.utils_2.12.1         
+ [97] goftest_1.2-3           spatstat.utils_3.0-1    reticulate_1.26        
+[100] checkmate_2.1.0         rmarkdown_2.18          cowplot_1.1.1          
+[103] webshot_0.5.4           Rtsne_0.16              uwot_0.1.14            
+[106] igraph_1.3.5            survival_3.4-0          numDeriv_2016.8-1.1    
+[109] yaml_2.3.6              plotrix_3.8-2           systemfonts_1.0.4      
+[112] htmltools_0.5.3         graphlayouts_0.8.3      quadprog_1.5-8         
+[115] viridisLite_0.4.1       digest_0.6.30           assertthat_0.2.1       
+[118] mime_0.12               rappdirs_0.3.3          repr_1.1.4             
+[121] yulab.utils_0.0.5       future.apply_1.10.0     ggmin_0.0.0.9000       
+[124] remotes_2.4.2           data.table_1.14.4       R.oo_1.25.0            
+[127] splines_4.2.2           labeling_0.4.2          googledrive_2.0.0      
+[130] RCurl_1.98-1.9          broom_1.0.1             ks_1.13.5              
+[133] hms_1.1.2               modelr_0.1.9            colorspace_2.0-3       
+[136] base64enc_0.1-3         BiocManager_1.30.19     mnormt_2.1.1           
+[139] aplot_0.1.8             sass_0.4.2              Rcpp_1.0.9             
+[142] mclust_6.0.0            RANN_2.6.1              mvtnorm_1.1-3          
+[145] NNLM_0.4.4              fansi_1.0.3             tzdb_0.3.0             
+[148] parallelly_1.32.1       R6_2.5.1                grid_4.2.2             
+[151] ggridges_0.5.4          lifecycle_1.0.3         phytools_1.2-0         
+[154] googlesheets4_1.0.1     leiden_0.4.3            phangorn_2.10.0        
+[157] jquerylib_0.1.4         Matrix_1.5-1            RcppAnnoy_0.0.20       
+[160] RColorBrewer_1.1-3      spatstat.explore_3.0-3  htmlwidgets_1.5.4      
+[163] umap_0.2.9.0            polyclip_1.10-4         timechange_0.1.1       
+[166] gridGraphics_0.5-1      optimParallel_1.0-2     rvest_1.0.3            
+[169] mgcv_1.8-41             globals_0.16.1          openssl_2.0.4          
+[172] spatstat.random_3.0-1   progressr_0.11.0        codetools_0.2-18       
+[175] lubridate_1.9.0         FNN_1.1.3.1             getPass_0.2-2          
+[178] dbplyr_2.2.1            RSpectra_0.16-1         R.methodsS3_1.8.2      
+[181] gtable_0.3.1            DBI_1.1.3               git2r_0.30.1           
+[184] highr_0.9               ggfun_0.0.8             tensor_1.5             
+[187] httr_1.4.4              KernSmooth_2.23-20      vroom_1.6.0            
+[190] stringi_1.7.8           reshape2_1.4.4          farver_2.1.1           
+[193] viridis_0.6.2           hexbin_1.28.2           magick_2.7.3           
+[196] ggtree_3.7.1            xml2_1.3.3              combinat_0.0-8         
+[199] ggplotify_0.1.0         scattermore_0.8         bit_4.0.4              
+[202] clustree_0.5.0          spatstat.data_3.0-0     pkgconfig_2.0.3        
+[205] gargle_1.2.1            knitr_1.40             </code></pre>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

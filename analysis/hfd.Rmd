@@ -97,7 +97,10 @@ runs <- c(
 )
 
 prepRun <- function(prj) {
-  mtx <- Read10X(data.dir = sprintf("~/data/HFD/%s/filtered_feature_bc_matrix/", prj))
+  mtx <- Read10X(data.dir = here(
+    "../../data/HFD", 
+    sprintf("%s/filtered_feature_bc_matrix/", prj)
+    ))
   srt <- CreateSeuratObject(
     counts = mtx,
     project = prj,
@@ -475,7 +478,7 @@ deng_2020_combined_arc_chow <-
           add.cell.ids = c("P60_ARC_ND1",
                            "P60_ARC_ND3",
                            "P60_ARC_ND5"), 
-                      project = "Arc")
+                      project = "Deng_chow_10xv3")
 glimpse(deng_2020_combined_arc_chow@meta.data)
 table(deng_2020_combined_arc_chow$orig.ident)
 SaveH5Seurat(deng_2020_combined_arc_chow, 
@@ -494,7 +497,7 @@ deng_2020_combined_arc_hfd <-
           add.cell.ids = c("P60_ARC_HFD74",
                            "P60_ARC_HFD73",
                            "P60_ARC_HFD82"), 
-                      project = "Arc")
+                      project = "Deng_hfd_10xv3")
 glimpse(deng_2020_combined_arc_hfd@meta.data)
 table(deng_2020_combined_arc_hfd$orig.ident)
 SaveH5Seurat(deng_2020_combined_arc_hfd,
@@ -569,6 +572,12 @@ FeaturePlot(chow.combined.sct,
                                      rownames(chow.combined.sct@assays$SCT@scale.data)], 
             min.cutoff = "q9", ncol = 3)
 DimPlot(chow.combined.sct, label = T)
+```
+
+```{r pl-feeding-chow-init-clust}
+FeaturePlot(chow.combined.sct, 
+            features = c("Agrp", "Npy", "Pomc", "Agt"), 
+            min.cutoff = "q9", ncol = 3)
 ```
 
 ```{r pl-swne-chow-init-clust}
