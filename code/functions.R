@@ -89,12 +89,28 @@ DeriveKTree <- function(srt, n.pcs = n_pcs, vseed = reseed, n.cores = n_cores) {
 
   stab.out <- stability_plot(out)
 
-  resK <-
-    stab.out$df |>
+  tmp.ari <- stab.out$df |>
     as_tibble() |>
     filter(ari != 1) |>
-    top_n(n = 1, wt = ari) |>
-    purrr::pluck(1)
+    top_n(n = 2, wt = ari) |>
+    purrr::pluck(2)
+  tmp.ari <- tmp.ari[1] - tmp.ari[2]
+  if (tmp.ari < 0.05) {
+    resK <-
+      stab.out$df |>
+      as_tibble() |>
+      filter(ari != 1) |>
+      top_n(n = 2, wt = ari) |>
+      purrr::pluck(1)
+    resK <- resK[2]
+  } else {
+    resK <-
+      stab.out$df |>
+      as_tibble() |>
+      filter(ari != 1) |>
+      top_n(n = 1, wt = ari) |>
+      purrr::pluck(1)
+  }
 
   kable_material(
     kable(

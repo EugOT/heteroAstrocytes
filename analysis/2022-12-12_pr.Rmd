@@ -41,6 +41,7 @@ suppressPackageStartupMessages({
   library(SeuratDisk)
   library(UpSetR)
   library(patchwork)
+  library(mrtree)
   library(swne)
   library(Nebulosa)
   library(Scillus)
@@ -525,7 +526,7 @@ plEmbCombBatch + plEmbCombReg
 metadata <- combined_sct@meta.data
 rownames(metadata) <- colnames(combined_sct)
 ref.labels <- metadata$stim
-library(mrtree)
+
 resolutions <-
   modularity_event_sampling(
     A = combined_sct@graphs$integrated_snn,
@@ -607,19 +608,66 @@ stab.out$plot
 ```
 
 ```{r select-resolution}
-stab.out$df
-resK <-
-  stab.out$df |>
+kable_material(
+  kable(
+    stab.out$df,
+    "html"),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 7
+)
+
+tmp.ari <- stab.out$df |>
   as_tibble() |>
   filter(ari != 1) |> 
-  top_n(n = 1, wt = ari) |> 
-  purrr::pluck(1)
+  top_n(n = 2, wt = ari) |> 
+  purrr::pluck(2)
+tmp.ari <- tmp.ari[1] - tmp.ari[2]
+if (tmp.ari < 0.05) {
+  resK <-
+    stab.out$df |>
+    as_tibble() |>
+    filter(ari != 1) |> 
+    top_n(n = 2, wt = ari) |> 
+    purrr::pluck(1)
+  resK <- resK[2]
+} else {
+  resK <-
+    stab.out$df |>
+    as_tibble() |>
+    filter(ari != 1) |> 
+    top_n(n = 1, wt = ari) |> 
+    purrr::pluck(1)
+}
+
 resK
-table(as.factor(out$labelmat.mrtree[, sprintf("K%s",resK)]))
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree)[[2]], "K"
+          )
+        ) - resK)
+      )]
+    ),
+    "html"),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 7
+)
 ```
 
 ```{r pl-clustering, fig.height=5, fig.width=8}
-combined_sct$k_tree <- as.factor(out$labelmat.mrtree[, sprintf("K%s",resK)])
+combined_sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree)[[2]], "K"
+    )
+  ) - resK)
+)]
 p1 <- DimPlot(combined_sct, label = T, repel = T, pt.size = 2) + ggtitle("Unsupervised clustering") + NoLegend()
 p2 <- DimPlot(combined_sct, label = T, repel = T, group.by = "k_tree", pt.size = 2) + ggtitle("MRTree") + NoLegend()
 
@@ -789,7 +837,8 @@ hypoth.anchors.campbell_2017.1 <-
 predictions.campbell_2017.1 <-
   TransferData(
     anchorset = hypoth.anchors.campbell_2017.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.campbell_2017.1 <-
@@ -976,7 +1025,8 @@ hypoth.anchors.lutomska_2022.1 <-
 predictions.lutomska_2022.1 <-
   TransferData(
     anchorset = hypoth.anchors.lutomska_2022.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.lutomska_2022.1 <-
@@ -1149,7 +1199,8 @@ hypoth.anchors.deng_2021.1 <-
 predictions.deng_2021.1 <-
   TransferData(
     anchorset = hypoth.anchors.deng_2021.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.deng_2021.1 <-
@@ -1320,7 +1371,8 @@ hypoth.anchors.deng_2021.3 <-
 predictions.deng_2021.3 <-
   TransferData(
     anchorset = hypoth.anchors.deng_2021.3,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.deng_2021.3 <-
@@ -1491,7 +1543,8 @@ hypoth.anchors.deng_2021.5 <-
 predictions.deng_2021.5 <-
   TransferData(
     anchorset = hypoth.anchors.deng_2021.5,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.deng_2021.5 <-
@@ -1666,7 +1719,8 @@ hypoth.anchors.rupp_2021.1 <-
 predictions.rupp_2021.1 <-
   TransferData(
     anchorset = hypoth.anchors.rupp_2021.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.rupp_2021.1 <-
@@ -1841,7 +1895,8 @@ hypoth.anchors.affinati_2021.1 <-
 predictions.affinati_2021.1 <-
   TransferData(
     anchorset = hypoth.anchors.affinati_2021.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.affinati_2021.1 <-
@@ -2012,7 +2067,8 @@ hypoth.anchors.affinati_2021.3 <-
 predictions.affinati_2021.3 <-
   TransferData(
     anchorset = hypoth.anchors.affinati_2021.3,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.affinati_2021.3 <-
@@ -2183,7 +2239,8 @@ hypoth.anchors.affinati_2021.4 <-
 predictions.affinati_2021.4 <-
   TransferData(
     anchorset = hypoth.anchors.affinati_2021.4,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.affinati_2021.4 <-
@@ -2356,7 +2413,8 @@ hypoth.anchors.kim_2019.1 <-
 predictions.kim_2019.1 <-
   TransferData(
     anchorset = hypoth.anchors.kim_2019.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.kim_2019.1 <-
@@ -2529,7 +2587,8 @@ hypoth.anchors.liu_2022.1 <-
 predictions.liu_2022.1 <-
   TransferData(
     anchorset = hypoth.anchors.liu_2022.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.liu_2022.1 <-
@@ -2705,7 +2764,8 @@ hypoth.anchors.mickelsen_2020.1 <-
 predictions.mickelsen_2020.1 <-
   TransferData(
     anchorset = hypoth.anchors.mickelsen_2020.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.mickelsen_2020.1 <-
@@ -2880,7 +2940,8 @@ hypoth.anchors.moffitt_2018.1 <-
 predictions.moffitt_2018.1 <-
   TransferData(
     anchorset = hypoth.anchors.moffitt_2018.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.moffitt_2018.1 <-
@@ -3051,7 +3112,8 @@ hypoth.anchors.moffitt_2018.2 <-
 predictions.moffitt_2018.2 <-
   TransferData(
     anchorset = hypoth.anchors.moffitt_2018.2,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.moffitt_2018.2 <-
@@ -3222,7 +3284,8 @@ hypoth.anchors.moffitt_2018.3 <-
 predictions.moffitt_2018.3 <-
   TransferData(
     anchorset = hypoth.anchors.moffitt_2018.3,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.moffitt_2018.3 <-
@@ -3397,7 +3460,8 @@ hypoth.anchors.wen_2020.1 <-
 predictions.wen_2020.1 <-
   TransferData(
     anchorset = hypoth.anchors.wen_2020.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.wen_2020.1 <-
@@ -3570,7 +3634,8 @@ hypoth.anchors.wen_2020.2 <-
 predictions.wen_2020.2 <-
   TransferData(
     anchorset = hypoth.anchors.wen_2020.2,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.wen_2020.2 <-
@@ -3743,7 +3808,8 @@ hypoth.anchors.morris_2021.1 <-
 predictions.morris_2021.1 <-
   TransferData(
     anchorset = hypoth.anchors.morris_2021.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.morris_2021.1 <-
@@ -3914,7 +3980,8 @@ hypoth.anchors.morris_2021.2 <-
 predictions.morris_2021.2 <-
   TransferData(
     anchorset = hypoth.anchors.morris_2021.2,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.morris_2021.2 <-
@@ -4085,7 +4152,8 @@ hypoth.anchors.morris_2021.3 <-
 predictions.morris_2021.3 <-
   TransferData(
     anchorset = hypoth.anchors.morris_2021.3,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.morris_2021.3 <-
@@ -4260,7 +4328,8 @@ hypoth.anchors.mickelsen_2019.1 <-
 predictions.mickelsen_2019.1 <-
   TransferData(
     anchorset = hypoth.anchors.mickelsen_2019.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.mickelsen_2019.1 <-
@@ -4434,7 +4503,8 @@ hypoth.anchors.rossi_2019.1 <-
 predictions.rossi_2019.1 <-
   TransferData(
     anchorset = hypoth.anchors.rossi_2019.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.rossi_2019.1 <-
@@ -4608,7 +4678,8 @@ hypoth.anchors.lopez_2021.1 <-
 predictions.lopez_2021.1 <-
   TransferData(
     anchorset = hypoth.anchors.lopez_2021.1,
-    refdata = combined_sct$k_tree,
+    reference = combined_sct,
+    refdata = "k_tree",
     dims = 1:npcs)
 
 hypoth.query.lopez_2021.1 <-
