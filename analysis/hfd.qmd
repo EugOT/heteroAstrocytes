@@ -1,0 +1,3994 @@
+---
+title: "Deng 2021: Arcuate nucleus (HFD and chow)"
+author: "Evgenii O. Tretiakov"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig.width: 14
+    fig.height: 12
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+bibliography: references.bi
+---
+
+## Introduction
+
+Here we use dataset of adult mice hypothalami Arcuate nuclei single
+nucleus RNA-seq from paper @dengSingleNucleusRNASequencing2020 We're
+going to use both parts of data: first, we will use only astrocytes from
+control mice for data integration against whole hypothalamus matrix; in
+second, part we're going to add another variable - normal chow vs high
+fat diet.
+
+First we need to load packages that we need for processing, setup
+environment and load data.
+
+```{r setup, include = FALSE}
+DOCNAME <- "deng-2021-arcuate-nucleus-hfd-chow"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("pdf", "png"),
+  timeit         = TRUE
+)
+
+# Sys.setenv(RETICULATE_PYTHON = "/home/etretiakov/micromamba/bin/python")
+
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(RColorBrewer)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(future)
+  library(zeallot)
+  library(kableExtra)
+})
+# reticulate::use_condaenv("/home/etretiakov/micromamba/bin/python")
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scuttle)
+  library(scater)
+  library(flexmix)
+  library(splines)
+  library(miQC)
+  library(Seurat)
+  library(SeuratWrappers)
+  library(SeuratDisk)
+  library(sctransform)
+  library(glmGamPoi)
+  library(MAST)
+  library(UpSetR)
+  library(patchwork)
+  library(mrtree)
+  library(swne)
+  library(Nebulosa)
+})
+
+# Set paths
+src_dir <- here("code")
+data_dir <- here("data")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures")
+tables_dir <- here(output_dir, "tables")
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+
+# parallelisation
+n_cores <- 20
+plan("multisession", workers = n_cores)
+options(future.globals.maxSize = 90000 * 1024^2) # 90Gb
+# plan("sequential")
+plan()
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+## Load datasets
+
+```{r load}
+runs <- c(
+  "536-1_chow-diet",
+  "536-3_chow-diet",
+  "536-5_chow-diet",
+  "536-2_537-4_high-fat-diet",
+  "537-1_537-3_high-fat-diet",
+  "537-5_538-2_high-fat-diet"
+)
+
+prepRun <- function(prj) {
+  mtx <- Read10X(data.dir = paste0(
+    "/data/HFD/",
+    sprintf("%s/filtered_feature_bc_matrix/", prj)
+  ))
+  srt <- CreateSeuratObject(
+    counts = mtx,
+    project = prj,
+    min.cells = 0,
+    min.features = 200
+  )
+  srt$age <- "adult"
+  srt$sex <- "male"
+  srt$study_id <- "deng_2020"
+  srt$tech <- "10xv3"
+  srt$hfd <- str_detect(
+    string = prj,
+    pattern = "high-fat-diet"
+  )
+  return(srt)
+}
+
+srt_list <- runs |> purrr::map(prepRun)
+names(srt_list) <- runs
+
+genes.embed <-
+  c(
+    "Ndrg2", "Slc1a3", "Gfap",
+    "Gh", "Agt", "Slc6a11",
+    "Mfn2", "Lxn", "Pomc",
+    "Lep", "Lepr", "Ghsr"
+  )
+
+```
+
+## Add QC metrics and filter
+
+### Chow-diet samples
+
+#### 1. 536-1
+
+```{r get-mt-536-1_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[["536-1_chow-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-1_chow-diet}
+sce <- addPerCellQC(sce, subsets = feature_ctrls)
+
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-1_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-536-1_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-1_chow-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-536-1_chow-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[["536-1_chow-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 2. 536-3
+
+```{r get-mt-536-3_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[["536-3_chow-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-3_chow-diet}
+sce <- addPerCellQC(sce,
+  subsets = feature_ctrls,
+  BPPARAM = BiocParallel::MulticoreParam()
+)
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-3_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-536-3_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-3_chow-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-536-3_chow-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[["536-3_chow-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 3. 536-5
+
+```{r get-mt-536-5_chow-diet}
+sce <- as.SingleCellExperiment(srt_list[["536-5_chow-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-5_chow-diet}
+sce <- addPerCellQC(sce,
+  subsets = feature_ctrls,
+  BPPARAM = BiocParallel::MulticoreParam()
+)
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-5_chow-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+# plotFiltering(sce, model)
+
+```
+
+the model above gives error
+
+```{r pl-mixsplinemodel-536-5_chow-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-5_chow-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.7)
+```
+
+use strong criteria due to strength data
+
+```{r fix-mtfilter-536-5_chow-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.7)
+srt_list[["536-5_chow-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+### HFD samples
+
+#### 1. 536-2_537-4
+
+```{r get-mt-536-2_537-4_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[["536-2_537-4_high-fat-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-536-2_537-4_high-fat-diet}
+sce <- addPerCellQC(sce,
+  subsets = feature_ctrls,
+  BPPARAM = BiocParallel::MulticoreParam()
+)
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-536-2_537-4_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+# plotFiltering(sce, model)
+
+```
+
+accept all?
+
+```{r pl-mixsplinemodel-536-2_537-4_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-536-2_537-4_high-fat-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.999999)
+```
+
+```{r fix-mtfilter-536-2_537-4_high-fat-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.999999)
+srt_list[["536-2_537-4_high-fat-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 2. 537-1_537-3
+
+```{r get-mt-537-1_537-3_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[["537-1_537-3_high-fat-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-537-1_537-3_high-fat-diet}
+sce <- addPerCellQC(sce,
+  subsets = feature_ctrls,
+  BPPARAM = BiocParallel::MulticoreParam()
+)
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-537-1_537-3_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-537-1_537-3_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-537-1_537-3_high-fat-diet}
+plotFiltering(sce, model2, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-537-1_537-3_high-fat-diet}
+sce <- filterCells(sce, model2, posterior_cutoff = 0.95)
+srt_list[["537-1_537-3_high-fat-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+#### 3. 537-5_538-2
+
+```{r get-mt-537-5_538-2_high-fat-diet}
+sce <- as.SingleCellExperiment(srt_list[["537-5_538-2_high-fat-diet"]])
+mt_genes <- grepl("^mt-", rownames(sce))
+feature_ctrls <- list(mito = rownames(sce)[mt_genes])
+
+feature_ctrls
+```
+
+```{r add-percellqc-537-5_538-2_high-fat-diet}
+sce <- addPerCellQC(sce,
+  subsets = feature_ctrls,
+  BPPARAM = BiocParallel::MulticoreParam()
+)
+qcstats <- perCellQCMetrics(sce,
+  subsets = feature_ctrls
+)
+qcfilter <- quickPerCellQC(qcstats,
+  sub.fields = "subsets_mito_percent"
+)
+colData(sce) <- cbind(colData(sce), qcfilter)
+
+plotMetrics(sce)
+head(colData(sce))
+skim(sce$sum)
+skim(sce$detected)
+skim(sce$subsets_mito_percent)
+plotColData(sce, x = "sum", y = "detected", colour_by = "discard")
+plotColData(sce, x = "sum", y = "detected", other_fields = "discard") + facet_wrap(~discard)
+plotColData(sce, x = "sum", y = "subsets_mito_percent", colour_by = "discard")
+plotHighestExprs(sce, exprs_values = "counts")
+```
+
+```{r pl-mixmodel-537-5_538-2_high-fat-diet}
+model <- mixtureModel(sce)
+plotModel(sce, model)
+plotFiltering(sce, model)
+
+```
+
+```{r pl-mixsplinemodel-537-5_538-2_high-fat-diet}
+model2 <- mixtureModel(sce, model_type = "spline")
+plotModel(sce, model2)
+plotFiltering(sce, model2)
+```
+
+```{r pl-selectedmodel-537-5_538-2_high-fat-diet}
+plotFiltering(sce, model, posterior_cutoff = 0.95)
+```
+
+```{r fix-mtfilter-537-5_538-2_high-fat-diet}
+sce <- filterCells(sce, model, posterior_cutoff = 0.95)
+srt_list[["537-5_538-2_high-fat-diet"]] <- as.Seurat(sce)
+
+rm(sce, model, model2, feature_ctrls, mt_genes)
+gc()
+```
+
+### Save initial data
+
+```{r save-init_deng_2020_chow}
+deng_2020_combined_arc_chow <-
+  merge(srt_list[["536-1_chow-diet"]],
+    y = c(
+      srt_list[["536-3_chow-diet"]],
+      srt_list[["536-5_chow-diet"]]
+    ),
+    add.cell.ids = c(
+      "P60_ARC_ND1",
+      "P60_ARC_ND3",
+      "P60_ARC_ND5"
+    ),
+    project = "Deng_chow_10xv3"
+  )
+glimpse(deng_2020_combined_arc_chow@meta.data)
+table(deng_2020_combined_arc_chow$orig.ident)
+SaveH5Seurat(deng_2020_combined_arc_chow,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+```
+
+```{r save-init_deng_2020_hfd}
+deng_2020_combined_arc_hfd <-
+  merge(srt_list[["536-2_537-4_high-fat-diet"]],
+    y = c(
+      srt_list[["537-1_537-3_high-fat-diet"]],
+      srt_list[["537-5_538-2_high-fat-diet"]]
+    ),
+    add.cell.ids = c(
+      "P60_ARC_HFD74",
+      "P60_ARC_HFD73",
+      "P60_ARC_HFD82"
+    ),
+    project = "Deng_hfd_10xv3"
+  )
+glimpse(deng_2020_combined_arc_hfd@meta.data)
+table(deng_2020_combined_arc_hfd$orig.ident)
+SaveH5Seurat(deng_2020_combined_arc_hfd,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+```
+
+## Perform normalization and dimensionality reduction
+
+### Chow-diet
+
+#### Iteration 1
+
+```{r pl-unsupervised-chow}
+# normalize and run dimensionality reduction on control dataset
+chow.list <- SplitObject(deng_2020_combined_arc_chow,
+  split.by = "orig.ident"
+)
+chow.list <- lapply(
+  X = chow.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  method = "glmGamPoi",
+  variable.features.n = 5000,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+```
+
+```{r prepare-features-chow}
+features <-
+  SelectIntegrationFeatures(
+    object.list = chow.list,
+    nfeatures = 3500,
+    verbose = FALSE
+  )
+all_sct_features <-
+  chow.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+chow.list <- PrepSCTIntegration(object.list = chow.list, anchor.features = features)
+```
+
+```{r find-anchors-chow}
+npcs <- 30
+chow.anchors <- FindIntegrationAnchors(
+  object.list = chow.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 20,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(chow.anchors@anchor.features, n = 1000)
+```
+
+```{r unsupervised-integration-chow}
+chow.combined.sct <- IntegrateData(
+  anchorset = chow.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 200,
+  verbose = FALSE
+)
+```
+
+```{r unsupervised-chow}
+chow.combined.sct <-
+  chow.combined.sct |>
+  RunPCA(seed.use = reseed, verbose = FALSE) |>
+  FindNeighbors(
+    dims = 1:10,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:10,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 15L,
+    min.dist = 0.01,
+    spread = 2L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+```
+
+Plot by source after clean up
+
+```{r pl-all-integrated-chow, fig.width=12, fig.asp=0.618}
+plEmbCombBatch <- DimPlot(chow.combined.sct,
+  reduction = "umap",
+  group.by = "orig.ident", pt.size = 3,
+  label = TRUE, repel = TRUE
+) + NoLegend()
+plEmbCombBatch
+```
+
+```{r pl-clustree-chow, fig.width=10, fig.asp=1.618}
+metadata <- chow.combined.sct@meta.data
+rownames(metadata) <- colnames(chow.combined.sct)
+ref.labels <- metadata$orig.ident
+
+resolutions <-
+  modularity_event_sampling(
+    A = chow.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+chow.combined.sct <- chow.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = chow.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-chow, fig.height=6, fig.width=11, echo=TRUE, include=FALSE}
+out <- mrtree(
+  chow.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-chow}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-chow, fig.width=5}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-chow}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-chow, fig.height=5, fig.width=8}
+chow.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(chow.combined.sct, label = T, repel = T, pt.size = 2) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(chow.combined.sct, label = T, repel = T, group.by = "k_tree", pt.size = 2) + ggtitle("MRTree") + NoLegend()
+
+p1 | p2
+```
+
+```{r markers-tables-chow}
+Idents(chow.combined.sct) <- "k_tree"
+chow.combined.sct <-
+  PrepSCTFindMarkers(chow.combined.sct, assay = "SCT")
+
+chow.markers.roc <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.1,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  chow.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_roc-sct.csv"
+  )
+)
+
+chow.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+chow.markers.wilcox <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  chow.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_wilcox-sct.csv"
+  )
+)
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+```
+
+```{r pl-heatmap-chow, fig.width = 18, fig.asp = 0.868}
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+DoHeatmap(chow.combined.sct, features = top10$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-chow, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2",
+    "Hepacam", "Slc1a3",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-test-markers-chow, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Apoe", "Gfap", "Slit2", "Aldh1a1",
+    "Tafa1", "Plcb1", "Sgcd", "Slc38a1",
+    "Fos", "Gja1", "Snap25", "Olig1",
+    "Per2", "Lars2", "Lxn", "Mfn2",
+    "Rarres2", "Ccdc153", "Rax", "Col23a1",
+    "Col25a1", "6330403K07Rik", "Frzb"
+  ),
+  min.cutoff = "q01", max.cutoff = "q99",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker test integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-markers-chow, fig.height=12, fig.asp=1.268}
+FeaturePlot(chow.combined.sct,
+  features = c(
+    "Agrp", "Npy", "Pomc",
+    "Slc17a6", "Tbx3", "Foxo4",
+    "Gad1", "Gad2", "Slc32a1",
+    "Sst", "Th", "Ddc", "S100a6",
+    "Ntrk2", "Crym", "Snap25"
+  ),
+  order = TRUE, min.cutoff = "q9",
+  ncol = 3
+)
+```
+
+```{r pl-heatmap-chow-rna, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+DoHeatmap(chow.combined.sct, features = top10$gene, slot = "data") + NoLegend()
+```
+
+```{r pl-astro-markers-chow-rna, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2",
+    "Hepacam", "Slc1a3",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-test-markers-chow-rna, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Apoe", "Gfap", "Slit2", "Aldh1a1",
+    "Tafa1", "Plcb1", "Sgcd", "Slc38a1",
+    "Fos", "Gja1", "Snap25", "Olig1",
+    "Per2", "Lars2", "Lxn", "Mfn2",
+    "Rarres2", "Ccdc153", "Rax", "Col23a1",
+    "Col25a1", "6330403K07Rik", "Frzb"
+  ),
+  min.cutoff = "q01", max.cutoff = "q99",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker test RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-markers-chow-rna, fig.height=12, fig.asp=1.268}
+FeaturePlot(chow.combined.sct,
+  features = c(
+    "Agrp", "Npy", "Pomc",
+    "Slc17a6", "Tbx3", "Foxo4",
+    "Gad1", "Gad2", "Slc32a1",
+    "Sst", "Th", "Ddc", "S100a6",
+    "Ntrk2", "Crym", "Snap25"
+  ),
+  order = TRUE, min.cutoff = "q9",
+  ncol = 3, slot = "data"
+)
+```
+
+```{r save-all-cells-chow}
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "4")) <- "Astrocytes1"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "11")) <- "Astrocytes2"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "12")) <- "Tanycytes_Ependyma"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "13")) <- "OPC1"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "15")) <- "OPC2"
+chow.combined.sct$level1 <- Idents(chow.combined.sct)
+
+glimpse(chow.combined.sct@meta.data)
+table(chow.combined.sct$level1)
+SaveH5Seurat(
+  chow.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow_clusters.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow_clusters.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+
+```
+
+#### Iteration 2 (subset close clusters of glia and pericytes)
+
+```{r renormalisation-chow}
+chow.combined.sct <-
+  subset(
+    chow.combined.sct,
+    idents = c(
+      "Astrocytes1",
+      "Astrocytes2",
+      "Tanycytes_Ependyma",
+      "OPC1",
+      "OPC2"
+    )
+  )
+DefaultAssay(chow.combined.sct) <- "RNA"
+chow.combined.sct <- DietSeurat(chow.combined.sct, assays = "RNA")
+
+
+# normalize and run dimensionality reduction on control dataset
+npcs <- 30
+metadata <-
+  chow.combined.sct@meta.data %>%
+  select(orig.ident, nCount_RNA, nFeature_RNA, age, sex, study_id, tech, hfd, subsets_mito_detected, subsets_mito_percent, prob_compromised, level1)
+rownames(metadata) <- colnames(chow.combined.sct)
+chow.combined.sct@meta.data <- metadata
+chow.list <- SplitObject(chow.combined.sct,
+  split.by = "orig.ident"
+)
+chow.list <- lapply(
+  X = chow.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  method = "glmGamPoi",
+  variable.features.n = 8000,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+
+features <-
+  SelectIntegrationFeatures(
+    object.list = chow.list,
+    nfeatures = 5000,
+    verbose = FALSE
+  )
+all_sct_features <-
+  chow.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+chow.list <- PrepSCTIntegration(object.list = chow.list, anchor.features = features)
+
+npcs <- 20
+chow.anchors <- FindIntegrationAnchors(
+  object.list = chow.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 20,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(chow.anchors@anchor.features, n = 1000)
+
+chow.combined.sct <- IntegrateData(
+  anchorset = chow.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 150,
+  verbose = FALSE
+)
+
+chow.combined.sct <-
+  chow.combined.sct |>
+  RunPCA(seed.use = reseed, verbose = FALSE)
+
+```
+
+```{r pca-genes-chow-iter2}
+print(chow.combined.sct[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+```{r pl-pca-loadings-chow-iter2, fig.height=8, fig.asp=1.688}
+VizDimLoadings(chow.combined.sct, dims = 1:20, reduction = "pca")
+```
+
+```{r pl-pca-heatmap-chow-iter2, fig.height=8, fig.width=6}
+DimHeatmap(chow.combined.sct, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+```{r pl-elbow-pca-chow-iter2, fig.height=4, fig.width=6}
+ElbowPlot(chow.combined.sct, ndims = npcs)
+```
+
+```{r pl-clustree-chow-iter2, fig.height=7, fig.width=12}
+chow.combined.sct <-
+  chow.combined.sct |>
+  FindNeighbors(
+    dims = 1:npcs,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:npcs,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 15L,
+    min.dist = 0.01,
+    spread = 2L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+metadata <- chow.combined.sct@meta.data
+rownames(metadata) <- colnames(chow.combined.sct)
+ref.labels <- metadata$level1
+
+resolutions <-
+  modularity_event_sampling(
+    A = chow.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+chow.combined.sct <- chow.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = chow.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-chow-iter2, fig.height=6, fig.width=11}
+out <- mrtree(
+  chow.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-chow-iter2, fig.height=5, fig.asp = 0.618}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-chow-iter2, fig.height=5, fig.asp = 0.618}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-chow-iter2}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-chow-iter2, fig.height=5, fig.width=12}
+chow.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(chow.combined.sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(chow.combined.sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+p3 <- DimPlot(chow.combined.sct, label = T, repel = T, group.by = "level1") + ggtitle("First iteration") + NoLegend()
+
+p1 | p2 | p3
+```
+
+```{r markers-tables-chow-iter2}
+Idents(chow.combined.sct) <- "k_tree"
+chow.combined.sct <-
+  PrepSCTFindMarkers(chow.combined.sct, assay = "SCT")
+
+chow.markers.roc <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  chow.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_roc-sct-iter2.csv"
+  )
+)
+
+chow.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+chow.markers.wilcox <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  chow.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_wilcox-sct-iter2.csv"
+  )
+)
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+```
+
+```{r pl-heatmap-chow-iter2, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = chow.combined.sct) <- "integrated"
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+DoHeatmap(chow.combined.sct, features = top10$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-chow-iter2, fig.width=12, fig.asp=1.236}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2", "Otp",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2",
+    "Npy1r", "Npy2r", "Esr1", "Prlr"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-heatmap-chow-rna-iter2, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+DoHeatmap(chow.combined.sct, features = top10$gene, slot = "counts") + NoLegend()
+```
+
+```{r pl-astro-markers-rna-chow-iter2, fig.width=12, fig.asp=1.236}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2", "Otp",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2",
+    "Npy1r", "Npy2r", "Esr1", "Prlr"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-corr-lxn-chow-iter2, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+plCorrLxnNpy1r <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy2r <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnGfap <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnMfn2 <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy1r | plCorrLxnNpy2r | plCorrLxnGfap | plCorrLxnMfn2
+```
+
+```{r pl-astro-corr-adgene-lxn-chow-iter2, fig.width=12, fig.asp=1.618}
+genes.embed %>%
+  map(~ FeatureScatter(chow.combined.sct,
+    "Lxn",
+    .x,
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend())
+```
+
+```{r pl-astro-corr-npr-lxn-chow-iter2, fig.width=12, fig.asp=1.618}
+npr %>%
+  map(~ FeatureScatter(chow.combined.sct,
+    "Lxn",
+    .x,
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend())
+```
+
+```{r pl-astro-corr-nmr-lxn-chow-iter2, fig.width=12, fig.asp=1.618}
+nmr %>%
+  map(~ FeatureScatter(chow.combined.sct,
+    "Lxn",
+    .x,
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend())
+```
+
+```{r pl-astro-corr-gja1-chow-iter2, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+plCorrGja1Npy1r <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy2r <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Gfap <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Mfn2 <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy1r | plCorrGja1Npy2r | plCorrGja1Gfap | plCorrGja1Mfn2
+```
+
+```{r pl-astro-batch-chow-iter2, fig.width=12, fig.asp=0.618}
+plEmbCombBatch <- DimPlot(chow.combined.sct,
+  reduction = "umap",
+  group.by = "orig.ident", pt.size = 2,
+  label = TRUE, repel = TRUE, shuffle = TRUE
+) + NoLegend()
+plEmbCombBatch | p2
+```
+
+#### Iteration 3
+
+```{r renormalisation2-chow}
+Idents(chow.combined.sct) <- "k_tree"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "1")) <- "Astrocytes1"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "2")) <- "Astrocytes2"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "5")) <- "Astrocytes3"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "6")) <- "Astrocytes4"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "9")) <- "Astrocytes5"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "14")) <- "Astrocytes6"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "12")) <- "Astrocytes7"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "3")) <- "Astrocytes8"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "7")) <- "Astrocytes9"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "15")) <- "Astrocytes10"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "11")) <- "Tanycytes_Ependyma1"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "13")) <- "Tanycytes_Ependyma2"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "4")) <- "OPC1"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "10")) <- "OPC2"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "8")) <- "OPC3"
+Idents(chow.combined.sct, cells = WhichCells(chow.combined.sct, idents = "16")) <- "OPC4"
+chow.combined.sct$level2 <- Idents(chow.combined.sct)
+chow.combined.sct <-
+  subset(
+    chow.combined.sct,
+    idents = str_c("Astrocytes", 1:10)
+  )
+DefaultAssay(chow.combined.sct) <- "RNA"
+chow.combined.sct <- DietSeurat(chow.combined.sct, assays = "RNA")
+
+
+# normalize and run dimensionality reduction on control dataset
+
+metadata <-
+  chow.combined.sct@meta.data %>%
+  select(orig.ident, nCount_RNA, nFeature_RNA, age, sex, study_id, tech, hfd, subsets_mito_detected, subsets_mito_percent, prob_compromised, level1, level2)
+rownames(metadata) <- colnames(chow.combined.sct)
+chow.combined.sct@meta.data <- metadata
+chow.list <- SplitObject(chow.combined.sct,
+  split.by = "orig.ident"
+)
+chow.list <- lapply(
+  X = chow.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  variable.features.n = 3500,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+
+features <-
+  SelectIntegrationFeatures(
+    object.list = chow.list,
+    nfeatures = 2000,
+    verbose = FALSE
+  )
+all_sct_features <-
+  chow.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+chow.list <- PrepSCTIntegration(object.list = chow.list, anchor.features = features)
+
+npcs <- 15
+chow.anchors <- FindIntegrationAnchors(
+  object.list = chow.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 10,
+  k.score = 25,
+  k.filter = 100,
+  max.features = 200,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(chow.anchors@anchor.features, n = 1000)
+
+chow.combined.sct <- IntegrateData(
+  anchorset = chow.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 25,
+  verbose = FALSE
+)
+npcs <- 30
+chow.combined.sct <-
+  chow.combined.sct |>
+  RunPCA(seed.use = reseed, verbose = FALSE)
+
+
+```
+
+```{r pca-genes-chow-iter3}
+print(chow.combined.sct[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+```{r pl-pca-loadings-chow-iter3, fig.height=8, fig.asp=1.688}
+VizDimLoadings(chow.combined.sct, dims = 1:20, reduction = "pca")
+```
+
+```{r pl-pca-heatmap-chow-iter3, fig.height=8, fig.width=6}
+DimHeatmap(chow.combined.sct, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+```{r pl-elbow-pca-chow-iter3, fig.height=4, fig.width=6}
+ElbowPlot(chow.combined.sct, ndims = npcs)
+```
+
+```{r pl-clustree-chow-iter3, fig.height=7, fig.width=12}
+chow.combined.sct <-
+  chow.combined.sct |>
+  FindNeighbors(
+    dims = 1:npcs,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:npcs,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 15L,
+    min.dist = 0.01,
+    spread = 2L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+metadata <- chow.combined.sct@meta.data
+rownames(metadata) <- colnames(chow.combined.sct)
+ref.labels <- metadata$level2
+
+resolutions <-
+  modularity_event_sampling(
+    A = chow.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+chow.combined.sct <- chow.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = chow.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-chow-iter3, fig.height=6, fig.width=11}
+out <- mrtree(
+  chow.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-chow-iter3, fig.height=5, fig.asp = 0.618}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-chow-iter3, fig.height=5, fig.asp = 0.618}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-chow-iter3}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-chow-iter3, fig.height=5, fig.width=12}
+chow.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(chow.combined.sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(chow.combined.sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+p3 <- DimPlot(chow.combined.sct, label = T, repel = T, group.by = "level2") + ggtitle("Second iteration") + NoLegend()
+
+p1 | p2 | p3
+```
+
+```{r markers-tables-chow-iter3}
+Idents(chow.combined.sct) <- "k_tree"
+chow.combined.sct <-
+  PrepSCTFindMarkers(chow.combined.sct, assay = "SCT")
+
+chow.markers.roc <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  chow.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_roc-sct-iter3.csv"
+  )
+)
+
+chow.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+chow.markers.wilcox <-
+  FindAllMarkers(
+    chow.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  chow.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-chow-all-mrk_wilcox-sct-iter3.csv"
+  )
+)
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+```
+
+```{r}
+pvn.markers.lr <- readr::read_csv(here("../Lopez2021/output/tables/pvn-all-mrk_logreg-sct-iter3.csv"))
+glimpse(pvn.markers.lr)
+pvn.markers.lr %<>% mutate(pct.dif = pct.1 - pct.2)
+skim(pvn.markers.lr)
+```
+```{r}
+pvn.markers.lr.filt <-
+  pvn.markers.lr |>
+  filter(
+    p_val_adj <= .001,
+    pct.1 >= .15,
+    pct.dif >= quantile(pct.dif, .25)
+  ) |>
+  arrange(p_val_adj) |>
+  distinct(gene, .keep_all = T)
+
+glimpse(pvn.markers.lr.filt)
+skim(pvn.markers.lr.filt)
+```
+```{r}
+chow.markers.roc.filt <-
+  chow.markers.roc |>
+  filter(
+    p_val_adj <= .001,
+    pct.1 >= .15,
+    pct.dif >= quantile(pct.dif, .25)
+  ) |>
+  arrange(p_val_adj) |>
+  distinct(gene, .keep_all = T)
+
+glimpse(chow.markers.roc.filt)
+skim(chow.markers.roc.filt)
+```
+
+```{r}
+chow.markers.wilcox.filt <-
+  chow.markers.wilcox |>
+  filter(
+    p_val_adj <= .001,
+    pct.1 >= .15,
+    pct.dif >= quantile(pct.dif, .25)
+  ) |>
+  arrange(p_val_adj) |>
+  distinct(gene, .keep_all = T)
+
+glimpse(chow.markers.wilcox.filt)
+skim(chow.markers.wilcox.filt)
+```
+
+```{r}
+pvn.markers.lr |>
+  filter(gene %in% c(
+    "Slc1a3", "Glul", "Gja1", "Ndrg2", "Ntrk2",
+    "S100b", "Tafa1", "Aldh1a1", "Aldh1l1",
+    "Plcb1", "Slit2", "Apoe", "Gfap", "Ntsr2",
+    "Slc38a1", "Cst3", "Nfia", "Mfn2", "Lxn",
+    "Npy1r", "Npy2r", "Esr1", "Prlr", "Otp"
+  )) |>
+  arrange(p_val_adj) |>
+  distinct(gene, .keep_all = T)
+```
+
+
+```{r pl-heatmap-chow-iter3, fig.width = 18, fig.asp = 0.868}
+chow.markers.roc %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+chow.markers.wilcox %>%
+  group_by(cluster) %>%
+  filter(p_val_adj < 0.05, avg_log10FC > 0.05) %>%
+  top_n(n = 15, wt = avg_log10FC) -> top15
+DoHeatmap(chow.combined.sct, features = top15$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-test-chow-iter3, fig.width=16, fig.asp=1.868}
+DefaultAssay(object = chow.combined.sct) <- "integrated"
+FeaturePlot(
+  chow.combined.sct,
+  features = top10$gene,
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 5, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker ROC-test (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-markers-rna-test-chow-iter3, fig.width=16, fig.asp=1.868}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+FeaturePlot(
+  chow.combined.sct,
+  slot = "data",
+  features = top10$gene,
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 5, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker ROC-test RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-markers-rna-chow-iter3, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(
+    "Slc1a3", "Glul", "Gja1", "Ndrg2", "Ntrk2",
+    "S100b", "Tafa1", "Aldh1a1", "Aldh1l1",
+    "Plcb1", "Slit2", "Apoe", "Gfap", "Ntsr2",
+    "Slc38a1", "Cst3", "Nfia", "Mfn2", "Lxn",
+    "Npy1r", "Npy2r", "Esr1", "Prlr", "Otp"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-heatmap-chow-rna-iter3, fig.width = 18, fig.asp = 0.868}
+DoHeatmap(chow.combined.sct, features = top15$gene, slot = "data") + NoLegend()
+```
+
+```{r pl-astro-markers-ins-rna-chow-iter3, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  chow.combined.sct,
+  features = c(gene_int[83:93], "Lmo3"),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker ins RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+
+```{r pl-astro-corr-lxn-chow-iter3, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+plCorrLxnNpy1r <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy2r <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnGfap <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnMfn2 <-
+  FeatureScatter(chow.combined.sct,
+    "Lxn",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy1r | plCorrLxnNpy2r | plCorrLxnGfap | plCorrLxnMfn2
+```
+
+
+
+```{r pl-astro-corr-gja1-chow-iter3, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = chow.combined.sct) <- "RNA"
+plCorrGja1Npy1r <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy2r <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Gfap <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Mfn2 <-
+  FeatureScatter(chow.combined.sct,
+    "Gja1",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy1r | plCorrGja1Npy2r | plCorrGja1Gfap | plCorrGja1Mfn2
+```
+
+```{r save-chow}
+glimpse(chow.combined.sct@meta.data)
+table(chow.combined.sct$level1)
+table(chow.combined.sct$level2)
+table(Idents(chow.combined.sct))
+SaveH5Seurat(
+  chow.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes_sct.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes_sct.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+```
+
+### HFD
+
+#### Iteration 1
+
+```{r pl-unsupervised-hfd}
+# normalize and run dimensionality reduction on control dataset
+hfd.list <- SplitObject(deng_2020_combined_arc_hfd,
+  split.by = "orig.ident"
+)
+hfd.list <- lapply(
+  X = hfd.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  method = "glmGamPoi",
+  variable.features.n = 5000,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+
+features <-
+  SelectIntegrationFeatures(
+    object.list = hfd.list,
+    nfeatures = 3500,
+    verbose = FALSE
+  )
+all_sct_features <-
+  hfd.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+hfd.list <- PrepSCTIntegration(object.list = hfd.list, anchor.features = features)
+
+npcs <- 30
+hfd.anchors <- FindIntegrationAnchors(
+  object.list = hfd.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 20,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(hfd.anchors@anchor.features, n = 1000)
+
+hfd.combined.sct <- IntegrateData(
+  anchorset = hfd.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 200,
+  verbose = FALSE
+)
+
+hfd.combined.sct <-
+  hfd.combined.sct |>
+  RunPCA(seed.use = reseed, npcs = npcs, verbose = FALSE) |>
+  FindNeighbors(
+    dims = 1:20,
+    k.param = 20,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:20,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 20L,
+    min.dist = 0.05,
+    spread = 8L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 20,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+```
+
+Plot by source after clean up
+
+```{r pl-all-integrated-hfd, fig.width=12, fig.asp=0.618}
+plEmbCombBatch <-
+  DimPlot(
+    hfd.combined.sct,
+    reduction = "umap",
+    group.by = "orig.ident", pt.size = 3,
+    label = TRUE, repel = TRUE, shuffle = TRUE
+  ) + NoLegend()
+plEmbCombBatch
+```
+
+```{r pl-clustree-hfd, fig.width=10, fig.asp=1.618}
+metadata <- hfd.combined.sct@meta.data
+rownames(metadata) <- colnames(hfd.combined.sct)
+ref.labels <- metadata$orig.ident
+
+resolutions <-
+  modularity_event_sampling(
+    A = hfd.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+hfd.combined.sct <- hfd.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = hfd.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-hfd, fig.height=6, fig.width=11, echo=TRUE, include=FALSE}
+out <- mrtree(
+  hfd.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-hfd}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-hfd, fig.width=5}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-hfd}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-hfd, fig.height=5, fig.width=8}
+hfd.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(hfd.combined.sct, label = T, repel = T, pt.size = 2) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(hfd.combined.sct, label = T, repel = T, group.by = "k_tree", pt.size = 2) + ggtitle("MRTree") + NoLegend()
+
+p1 | p2
+```
+
+```{r pl-mt-content-hfd, fig.height=5, fig.width=8}
+FeaturePlot(
+  hfd.combined.sct,
+  features = "subsets_mito_percent"
+) & theme(plot.title = element_text(size = 10)) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdYlGn")))
+
+FeaturePlot(
+  hfd.combined.sct,
+  features = "nFeature_RNA"
+) & theme(plot.title = element_text(size = 10)) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdYlGn")))
+```
+
+
+```{r markers-tables-hfd}
+Idents(hfd.combined.sct) <- "k_tree"
+hfd.combined.sct <-
+  PrepSCTFindMarkers(hfd.combined.sct, assay = "SCT")
+
+hfd.markers.roc <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.1,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  hfd.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_roc-sct.csv"
+  )
+)
+
+hfd.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+hfd.markers.wilcox <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  hfd.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_wilcox-sct.csv"
+  )
+)
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+```
+
+```{r pl-heatmap-hfd, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = hfd.combined.sct) <- "integrated"
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+DoHeatmap(hfd.combined.sct, features = top10$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-hfd, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2",
+    "Hepacam", "Slc1a3",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  ) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "Spectral")))
+```
+
+```{r pl-astro-test-markers-hfd, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Apoe", "Gfap", "Slit2", "Aldh1a1",
+    "Tafa1", "Plcb1", "Sgcd", "Slc38a1",
+    "Fos", "Gja1", "Snap25", "Olig1",
+    "Per2", "Lars2", "Lxn", "Mfn2",
+    "Rarres2", "Ccdc153", "Rax", "Col23a1",
+    "Col25a1", "6330403K07Rik", "Frzb"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker test integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  ) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "Spectral")))
+```
+
+```{r pl-markers-hfd, fig.height=12, fig.asp=1.268}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Agrp", "Npy", "Pomc",
+    "Slc17a6", "Tbx3", "Foxo4",
+    "Gad1", "Gad2", "Slc32a1",
+    "Sst", "Th", "Ddc", "S100a6",
+    "Ntrk2", "Crym", "Snap25"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 3, order = TRUE
+) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "Spectral")))
+```
+
+```{r pl-heatmap-hfd-rna, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = hfd.combined.sct) <- "RNA"
+DoHeatmap(hfd.combined.sct, features = top10$gene, slot = "data") + NoLegend()
+```
+
+```{r pl-astro-markers-hfd-rna, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2",
+    "Hepacam", "Slc1a3",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  ) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "PiYG")))
+```
+
+```{r pl-astro-test-markers-hfd-rna, fig.width=12, fig.asp=1.042}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Apoe", "Gfap", "Slit2", "Aldh1a1",
+    "Tafa1", "Plcb1", "Sgcd", "Slc38a1",
+    "Fos", "Gja1", "Snap25", "Olig1",
+    "Per2", "Lars2", "Lxn", "Mfn2",
+    "Rarres2", "Ccdc153", "Rax", "Col23a1",
+    "Col25a1", "6330403K07Rik", "Frzb"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker test RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  ) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "PiYG")))
+```
+
+```{r pl-markers-hfd-rna, fig.height=12, fig.asp=1.268}
+FeaturePlot(hfd.combined.sct,
+  features = c(
+    "Agrp", "Npy", "Pomc",
+    "Slc17a6", "Tbx3", "Foxo4",
+    "Gad1", "Gad2", "Slc32a1",
+    "Sst", "Th", "Ddc", "S100a6",
+    "Ntrk2", "Crym", "Snap25"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  order = TRUE, ncol = 3, slot = "data"
+) & scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "PiYG")))
+```
+
+```{r save-all-cells-hfd}
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "4")) <- "Astrocytes1"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "11")) <- "Astrocytes2"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "12")) <- "Tanycytes_Ependyma"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "13")) <- "OPC1"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "15")) <- "OPC2"
+hfd.combined.sct$level1 <- Idents(hfd.combined.sct)
+
+glimpse(hfd.combined.sct@meta.data)
+table(hfd.combined.sct$level1)
+SaveH5Seurat(
+  hfd.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd_clusters.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd_clusters.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+
+```
+
+#### Iteration 2 (subset close clusters of glia and pericytes)
+
+```{r renormalisation-hfd}
+hfd.combined.sct <-
+  subset(
+    hfd.combined.sct,
+    idents = c(
+      "Astrocytes1",
+      "Astrocytes2",
+      "Tanycytes_Ependyma",
+      "OPC1",
+      "OPC2"
+    )
+  )
+DefaultAssay(hfd.combined.sct) <- "RNA"
+hfd.combined.sct <- DietSeurat(hfd.combined.sct, assays = "RNA")
+
+
+# normalize and run dimensionality reduction on control dataset
+npcs <- 30
+metadata <-
+  hfd.combined.sct@meta.data %>%
+  select(orig.ident, nCount_RNA, nFeature_RNA, age, sex, study_id, tech, hfd, subsets_mito_detected, subsets_mito_percent, prob_compromised, level1)
+rownames(metadata) <- colnames(hfd.combined.sct)
+hfd.combined.sct@meta.data <- metadata
+hfd.list <- SplitObject(hfd.combined.sct,
+  split.by = "orig.ident"
+)
+hfd.list <- lapply(
+  X = hfd.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  method = "glmGamPoi",
+  variable.features.n = 8000,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+
+features <-
+  SelectIntegrationFeatures(
+    object.list = hfd.list,
+    nfeatures = 5000,
+    verbose = FALSE
+  )
+all_sct_features <-
+  hfd.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+hfd.list <- PrepSCTIntegration(object.list = hfd.list, anchor.features = features)
+
+npcs <- 20
+hfd.anchors <- FindIntegrationAnchors(
+  object.list = hfd.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 20,
+  k.score = 50,
+  k.filter = 100,
+  max.features = 500,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(hfd.anchors@anchor.features, n = 1000)
+
+hfd.combined.sct <- IntegrateData(
+  anchorset = hfd.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 150,
+  verbose = FALSE
+)
+
+hfd.combined.sct <-
+  hfd.combined.sct |>
+  RunPCA(seed.use = reseed, verbose = FALSE)
+
+```
+
+```{r pca-genes-hfd-iter2}
+print(hfd.combined.sct[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+```{r pl-pca-loadings-hfd-iter2, fig.height=8, fig.asp=1.688}
+VizDimLoadings(hfd.combined.sct, dims = 1:20, reduction = "pca")
+```
+
+```{r pl-pca-heatmap-hfd-iter2, fig.height=8, fig.width=6}
+DimHeatmap(hfd.combined.sct, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+```{r pl-elbow-pca-hfd-iter2, fig.height=4, fig.width=6}
+ElbowPlot(hfd.combined.sct, ndims = npcs)
+```
+
+```{r pl-clustree-hfd-iter2, fig.height=7, fig.width=12}
+hfd.combined.sct <-
+  hfd.combined.sct |>
+  FindNeighbors(
+    dims = 1:npcs,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:npcs,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 15L,
+    min.dist = 0.01,
+    spread = 2L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+metadata <- hfd.combined.sct@meta.data
+rownames(metadata) <- colnames(hfd.combined.sct)
+ref.labels <- metadata$level1
+
+resolutions <-
+  modularity_event_sampling(
+    A = hfd.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+hfd.combined.sct <- hfd.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = hfd.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-hfd-iter2, fig.height=6, fig.width=11}
+out <- mrtree(
+  hfd.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-hfd-iter2, fig.height=5, fig.asp = 0.618}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-hfd-iter2, fig.height=5, fig.asp = 0.618}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-hfd-iter2}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-hfd-iter2, fig.height=5, fig.width=12}
+hfd.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(hfd.combined.sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(hfd.combined.sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+p3 <- DimPlot(hfd.combined.sct, label = T, repel = T, group.by = "level1") + ggtitle("First iteration") + NoLegend()
+
+p1 | p2 | p3
+```
+
+```{r markers-tables-hfd-iter2}
+Idents(hfd.combined.sct) <- "k_tree"
+hfd.combined.sct <-
+  PrepSCTFindMarkers(hfd.combined.sct, assay = "SCT")
+
+hfd.markers.roc <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  hfd.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_roc-sct-iter2.csv"
+  )
+)
+
+hfd.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+hfd.markers.wilcox <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  hfd.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_wilcox-sct-iter2.csv"
+  )
+)
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+```
+
+```{r pl-heatmap-hfd-iter2, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = hfd.combined.sct) <- "integrated"
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+DoHeatmap(hfd.combined.sct, features = top10$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-hfd-iter2, fig.width=12, fig.asp=1.236}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2", "Otp",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2",
+    "Npy1r", "Npy2r", "Esr1", "Prlr"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order integrated (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-heatmap-hfd-rna-iter2, fig.width = 18, fig.asp = 0.868}
+DefaultAssay(object = hfd.combined.sct) <- "RNA"
+DoHeatmap(hfd.combined.sct, features = top10$gene, slot = "counts") + NoLegend()
+```
+
+```{r pl-astro-markers-rna-hfd-iter2, fig.width=12, fig.asp=1.236}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Fos", "Glul", "Gja1", "Ndrg2", "Otp",
+    "S100b", "Tafa1", "Aldh1a1", "Plcb1",
+    "Sgcd", "Slit2", "Apoe", "Gfap",
+    "Slc38a1", "Cst3", "Lxn", "Mfn2",
+    "Npy1r", "Npy2r", "Esr1", "Prlr"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-corr-lxn-hfd-iter2, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = hfd.combined.sct) <- "RNA"
+plCorrLxnNpy1r <-
+  FeatureScatter(hfd.combined.sct,
+    "Lxn",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy2r <-
+  FeatureScatter(hfd.combined.sct,
+    "Lxn",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnGfap <-
+  FeatureScatter(hfd.combined.sct,
+    "Lxn",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnMfn2 <-
+  FeatureScatter(hfd.combined.sct,
+    "Lxn",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrLxnNpy1r | plCorrLxnNpy2r | plCorrLxnGfap | plCorrLxnMfn2
+```
+
+```{r pl-astro-corr-gja1-hfd-iter2, fig.width=12, fig.asp=0.412}
+DefaultAssay(object = hfd.combined.sct) <- "RNA"
+plCorrGja1Npy1r <-
+  FeatureScatter(hfd.combined.sct,
+    "Gja1",
+    "Npy1r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy2r <-
+  FeatureScatter(hfd.combined.sct,
+    "Gja1",
+    "Npy2r",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Gfap <-
+  FeatureScatter(hfd.combined.sct,
+    "Gja1",
+    "Gfap",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Mfn2 <-
+  FeatureScatter(hfd.combined.sct,
+    "Gja1",
+    "Mfn2",
+    span = 2,
+    smooth = F,
+    jitter = T
+  ) + NoLegend()
+plCorrGja1Npy1r | plCorrGja1Npy2r | plCorrGja1Gfap | plCorrGja1Mfn2
+```
+
+```{r pl-astro-batch-hfd-iter2, fig.width=12, fig.asp=0.618}
+plEmbCombBatch <- DimPlot(hfd.combined.sct,
+  reduction = "umap",
+  group.by = "orig.ident", pt.size = 2,
+  label = TRUE, repel = TRUE, shuffle = TRUE
+) + NoLegend()
+plEmbCombBatch | p2
+```
+
+#### Iteration 3 (subset close clusters of glia and pericytes)
+
+```{r renormalisation2-hfd}
+Idents(hfd.combined.sct) <- "k_tree"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "1")) <- "Astrocytes1"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "2")) <- "Astrocytes2"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "5")) <- "Astrocytes3"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "6")) <- "Astrocytes4"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "9")) <- "Astrocytes5"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "14")) <- "Astrocytes6"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "12")) <- "Astrocytes7"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "3")) <- "Astrocytes8"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "7")) <- "Astrocytes9"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "15")) <- "Astrocytes10"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "11")) <- "Tanycytes_Ependyma1"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "13")) <- "Tanycytes_Ependyma2"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "4")) <- "OPC1"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "10")) <- "OPC2"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "8")) <- "OPC3"
+Idents(hfd.combined.sct, cells = WhichCells(hfd.combined.sct, idents = "16")) <- "OPC4"
+hfd.combined.sct$level2 <- Idents(hfd.combined.sct)
+hfd.combined.sct <-
+  subset(
+    hfd.combined.sct,
+    idents = str_c("Astrocytes", 1:10)
+  )
+DefaultAssay(hfd.combined.sct) <- "RNA"
+hfd.combined.sct <- DietSeurat(hfd.combined.sct, assays = "RNA")
+
+
+# normalize and run dimensionality reduction on control dataset
+
+metadata <-
+  hfd.combined.sct@meta.data %>%
+  select(orig.ident, nCount_RNA, nFeature_RNA, age, sex, study_id, tech, hfd, subsets_mito_detected, subsets_mito_percent, prob_compromised, level1, level2)
+rownames(metadata) <- colnames(hfd.combined.sct)
+hfd.combined.sct@meta.data <- metadata
+hfd.list <- SplitObject(hfd.combined.sct,
+  split.by = "orig.ident"
+)
+hfd.list <- lapply(
+  X = hfd.list,
+  vst.flavor = "v2",
+  FUN = SCTransform,
+  vars.to.regress = "subsets_mito_percent",
+  variable.features.n = 3500,
+  return.only.var.genes = FALSE,
+  seed.use = reseed,
+  verbose = FALSE
+)
+
+features <-
+  SelectIntegrationFeatures(
+    object.list = hfd.list,
+    nfeatures = 2000,
+    verbose = FALSE
+  )
+all_sct_features <-
+  hfd.list |>
+  map(pluck, "assays", "SCT", "var.features") |>
+  purrr::reduce(c) |>
+  unique()
+hfd.list <- PrepSCTIntegration(object.list = hfd.list, anchor.features = features)
+
+npcs <- 15
+hfd.anchors <- FindIntegrationAnchors(
+  object.list = hfd.list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reduction = "cca",
+  dims = 1:npcs,
+  k.anchor = 10,
+  k.score = 25,
+  k.filter = 100,
+  max.features = 200,
+  n.trees = 100,
+  verbose = FALSE
+)
+head(hfd.anchors@anchor.features, n = 1000)
+
+hfd.combined.sct <- IntegrateData(
+  anchorset = hfd.anchors,
+  normalization.method = "SCT",
+  features.to.integrate = features,
+  dims = 1:npcs,
+  k.weight = 25,
+  verbose = FALSE
+)
+npcs <- 30
+hfd.combined.sct <-
+  hfd.combined.sct |>
+  RunPCA(seed.use = reseed, verbose = FALSE)
+
+
+```
+
+```{r pca-genes-hfd-iter3}
+print(hfd.combined.sct[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+```{r pl-pca-loadings-hfd-iter3, fig.height=8, fig.asp=1.688}
+VizDimLoadings(hfd.combined.sct, dims = 1:20, reduction = "pca")
+```
+
+```{r pl-pca-heatmap-hfd-iter3, fig.height=8, fig.width=6}
+DimHeatmap(hfd.combined.sct, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+```{r pl-elbow-pca-hfd-iter3, fig.height=4, fig.width=6}
+ElbowPlot(hfd.combined.sct, ndims = npcs)
+```
+
+```{r pl-clustree-hfd-iter3, fig.height=7, fig.width=12}
+hfd.combined.sct <-
+  hfd.combined.sct |>
+  FindNeighbors(
+    dims = 1:npcs,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  ) |>
+  RunUMAP(
+    dims = 1:npcs,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1L,
+    dens.frac = 0.3,
+    n.epochs = 1000L,
+    n.neighbors = 15L,
+    min.dist = 0.01,
+    spread = 2L,
+    metric = "correlation",
+    init = "pca",
+    seed.use = reseed,
+    verbose = FALSE
+  ) |>
+  FindNeighbors(
+    reduction = "umap",
+    dims = 1:2,
+    force.recalc = TRUE,
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE
+  )
+metadata <- hfd.combined.sct@meta.data
+rownames(metadata) <- colnames(hfd.combined.sct)
+ref.labels <- metadata$level2
+
+resolutions <-
+  modularity_event_sampling(
+    A = hfd.combined.sct@graphs$integrated_snn,
+    n.res = 70,
+    gamma.min = 0.05,
+    gamma.max = 4.000001
+  ) # sample based on the similarity matrix
+
+# clustering using Suerat
+hfd.combined.sct <- hfd.combined.sct |>
+  FindClusters(
+    algorithm = 4, method = "igraph",
+    resolution = resolutions, random.seed = reseed,
+    verbose = FALSE
+  )
+
+# initial cluster tree from Seurat flat clustering
+plot_clustree(
+  labelmat = hfd.combined.sct@meta.data,
+  prefix = "integrated_snn_res.",
+  ref.labels = ref.labels,
+  plot.ref = FALSE
+)
+```
+
+```{r pl-mrtree-hfd-iter3, fig.height=6, fig.width=11}
+out <- mrtree(
+  hfd.combined.sct,
+  prefix = "integrated_snn_res.",
+  n.cores = n_cores,
+  consensus = FALSE,
+  augment.path = FALSE
+)
+# if there are few partitions per k, within resolution consensus step can speed up the algorithm
+# weight per sample is encoraged if the classes are imbalanced
+
+plot_tree(
+  labelmat = out$labelmat.mrtree,
+  ref.labels = ref.labels,
+  plot.piechart = TRUE,
+  node.size = 0.2,
+  tip.label.dist = 10,
+  bottom.margin = 30
+)
+```
+
+```{r pl-clustering-amri-hfd-iter3, fig.height=5, fig.asp = 0.618}
+# Adjusted Multiresolution Rand Index (AMRI)
+ks.flat <- apply(
+  out$labelmat.flat,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+ks.mrtree <- apply(
+  out$labelmat.mrtree,
+  2,
+  FUN = function(x) {
+    length(unique(x))
+  }
+)
+amri.flat <- sapply(1:ncol(out$labelmat.flat), function(i) {
+  AMRI(out$labelmat.flat[, i], ref.labels)$amri
+})
+amri.flat <- aggregate(amri.flat, by = list(k = ks.flat), FUN = mean)
+amri.recon <- sapply(1:ncol(out$labelmat.mrtree), function(i) {
+  AMRI(out$labelmat.mrtree[, i], ref.labels)$amri
+})
+
+df <- rbind(
+  data.frame(
+    k = amri.flat$k,
+    amri = amri.flat$x,
+    method = "Seurat flat"
+  ),
+  data.frame(k = ks.mrtree, amri = amri.recon, method = "MRtree")
+)
+ggplot2::ggplot(data = df, aes(x = k, y = amri, color = method)) +
+  geom_line() +
+  theme_bw()
+```
+
+```{r pl-clustering-resolution-hfd-iter3, fig.height=5, fig.asp = 0.618}
+stab.out <- stability_plot(out)
+stab.out$plot
+```
+
+```{r select-resolution-hfd-iter3}
+kable_material(
+  kable(
+    stab.out$df,
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+
+resK <- SelectResolution(stab.out$df)
+resK
+
+kable_material(
+  kable(
+    table(
+      out$labelmat.mrtree[, which.min(
+        abs(as.integer(
+          str_remove(dimnames(
+            out$labelmat.mrtree
+          )[[2]], "K")
+        ) - resK)
+      )]
+    ),
+    "html"
+  ),
+  bootstrap_options = "striped",
+  position = "left",
+  font_size = 14
+)
+```
+
+```{r pl-clustering-hfd-iter3, fig.height=5, fig.width=12}
+hfd.combined.sct$k_tree <- out$labelmat.mrtree[, which.min(
+  abs(as.integer(
+    str_remove(dimnames(
+      out$labelmat.mrtree
+    )[[2]], "K")
+  ) - resK)
+)]
+p1 <- DimPlot(hfd.combined.sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(hfd.combined.sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+p3 <- DimPlot(hfd.combined.sct, label = T, repel = T, group.by = "level2") + ggtitle("Second iteration") + NoLegend()
+
+p1 | p2 | p3
+```
+
+```{r markers-tables-hfd-iter3}
+Idents(hfd.combined.sct) <- "k_tree"
+hfd.combined.sct <-
+  PrepSCTFindMarkers(hfd.combined.sct, assay = "SCT")
+
+hfd.markers.roc <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "roc"
+  )
+write_csv(
+  hfd.markers.roc,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_roc-sct-iter3.csv"
+  )
+)
+
+hfd.markers.roc %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
+
+hfd.markers.wilcox <-
+  FindAllMarkers(
+    hfd.combined.sct,
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.05,
+    base = 10,
+    logfc.threshold = 0.05,
+    densify = TRUE,
+    test.use = "wilcox"
+  )
+write_csv(
+  hfd.markers.wilcox,
+  here(
+    tables_dir,
+    "deng2021-hfd-all-mrk_wilcox-sct-iter3.csv"
+  )
+)
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+```
+
+```{r pl-heatmap-hfd-iter3, fig.width = 18, fig.asp = 0.868}
+hfd.markers.roc %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log10FC) -> top10
+hfd.markers.wilcox %>%
+  group_by(cluster) %>%
+  filter(p_val_adj < 0.05, avg_log10FC > 0.05) %>%
+  top_n(n = 15, wt = avg_log10FC) -> top15
+DoHeatmap(hfd.combined.sct, features = top15$gene) + NoLegend()
+```
+
+```{r pl-astro-markers-test-hfd-iter3, fig.width=16, fig.asp=1.868}
+DefaultAssay(object = hfd.combined.sct) <- "integrated"
+FeaturePlot(
+  hfd.combined.sct,
+  features = top10$gene,
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 5, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker ROC-test (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-markers-rna-test-hfd-iter3, fig.width=16, fig.asp=1.868}
+DefaultAssay(object = hfd.combined.sct) <- "RNA"
+FeaturePlot(
+  hfd.combined.sct,
+  slot = "data",
+  features = top10$gene,
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 5, order = TRUE
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker ROC-test RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-astro-markers-rna-hfd-iter3, fig.width=12, fig.asp=0.868}
+FeaturePlot(
+  hfd.combined.sct,
+  features = c(
+    "Slc1a3", "Glul", "Gja1", "Ndrg2", "Ntrk2",
+    "S100b", "Tafa1", "Aldh1a1", "Aldh1l1",
+    "Plcb1", "Slit2", "Apoe", "Gfap", "Ntsr2",
+    "Slc38a1", "Cst3", "Nfia", "Mfn2", "Lxn",
+    "Npy1r", "Npy2r", "Esr1", "Prlr", "Otp"
+  ),
+  min.cutoff = "q05", max.cutoff = "q95",
+  ncol = 4, order = TRUE, slot = "data"
+) +
+  patchwork::plot_annotation(
+    title = "Astro-Marker order RNA (Arc Deng 2021)",
+    theme = theme(plot.title = element_text(size = 22))
+  )
+```
+
+```{r pl-heatmap-hfd-rna-iter3, fig.width = 18, fig.asp = 0.868}
+DoHeatmap(hfd.combined.sct, features = top15$gene, slot = "data") + NoLegend()
+```
+
+```{r save-hfd}
+glimpse(hfd.combined.sct@meta.data)
+table(hfd.combined.sct$level1)
+table(hfd.combined.sct$level2)
+table(Idents(hfd.combined.sct))
+SaveH5Seurat(
+  hfd.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes_sct.h5Seurat"
+  ),
+  overwrite = TRUE
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes_sct.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = TRUE
+)
+```
+
+## Identify Clusters
+
+### Chow-diet
+
+```{r pl-features-chow-init-clust}
+FeaturePlot(chow.combined.sct,
+  features = genes.embed[genes.embed %in%
+    rownames(chow.combined.sct@assays$SCT@scale.data)],
+  min.cutoff = "q9", ncol = 3
+)
+DimPlot(chow.combined.sct, label = T)
+```
+
+```{r pl-feeding-chow-init-clust}
+FeaturePlot(chow.combined.sct,
+  features = c("Agrp", "Npy", "Pomc", "Agt"),
+  min.cutoff = "q9", ncol = 3
+)
+```
+
+```{r pl-swne-chow-init-clust}
+VariableFeatures(chow.combined.sct) <- rownames(chow.combined.sct@assays$SCT@scale.data)
+swne.chow.embedding <- RunSWNE(chow.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(chow.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.chow.embedding,
+  alpha.plot = 0.4,
+  sample.groups = Idents(chow.combined.sct),
+  do.label = T,
+  label.size = 3.5,
+  pt.size = 1.25,
+  show.legend = F,
+  seed = 42
+)
+gc()
+```
+
+```{r subset-astro-chow}
+astro.chow.sct <- subset(chow.combined.sct, idents = c(3))
+gc()
+```
+
+### HFD
+
+```{r pl-features-hfd-init-clust}
+FeaturePlot(hfd.combined.sct,
+  features = genes.embed[
+    genes.embed %in% rownames(hfd.combined.sct@assays$SCT@scale.data)
+  ],
+  min.cutoff = "q9", ncol = 3
+)
+DimPlot(hfd.combined.sct, label = T)
+```
+
+```{r pl-swne-hfd-init-clust}
+VariableFeatures(hfd.combined.sct) <- rownames(hfd.combined.sct@assays$SCT@scale.data)
+swne.hfd.embedding <- RunSWNE(hfd.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(hfd.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.hfd.embedding,
+  alpha.plot = 0.4,
+  sample.groups = Idents(hfd.combined.sct),
+  do.label = T,
+  label.size = 3.5,
+  pt.size = 1.25,
+  show.legend = F,
+  seed = 42
+)
+gc()
+```
+
+```{r subset-astro-hfd}
+astro.hfd.sct <- subset(hfd.combined.sct, idents = c(3))
+gc()
+```
+
+## Save initial clusters and subset astrocytes
+
+```{r save-clust_deng_2020_chow}
+glimpse(chow.combined.sct@meta.data)
+table(chow.combined.sct$seurat_clusters)
+SaveH5Seurat(chow.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow_clusters.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow_clusters.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+
+SaveH5Seurat(astro.chow.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+```
+
+```{r save-clust_deng_2020_hfd}
+glimpse(hfd.combined.sct@meta.data)
+table(hfd.combined.sct$seurat_clusters)
+SaveH5Seurat(hfd.combined.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd_clusters.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd_clusters.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+
+SaveH5Seurat(astro.hfd.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+```
+
+## Test astrocytes difference
+
+```{r pl-unsup-astro}
+DefaultAssay(astro.chow.sct) <- "SCT"
+DefaultAssay(astro.hfd.sct) <- "SCT"
+# a.list <- list(chow = DietSeurat(astro.chow.sct,
+#                                  assays = c("RNA", "SCT")),
+#                hfd  = DietSeurat(astro.hfd.sct,
+#                                  assays = c("RNA", "SCT")))
+a1.list <- SplitObject(astro.chow.sct,
+  split.by = "orig.ident"
+)
+a2.list <- SplitObject(astro.hfd.sct,
+  split.by = "orig.ident"
+)
+a.list <- c(unlist(a1.list), unlist(a2.list))
+a.list <- lapply(X = a.list, FUN = function(x) {
+  SCTransform(x, vst.flavor = "v2", verbose = FALSE) |>
+    RunPCA(npcs = 30, verbose = FALSE)
+})
+
+features <- SelectIntegrationFeatures(object.list = a.list, nfeatures = 3000)
+a.list <- PrepSCTIntegration(object.list = a.list, anchor.features = features)
+
+a.anchors <- FindIntegrationAnchors(
+  object.list = a.list, normalization.method = "SCT",
+  anchor.features = features
+)
+a.combined.sct <- IntegrateData(anchorset = a.anchors, normalization.method = "SCT")
+
+a.combined.sct <- RunPCA(a.combined.sct, verbose = FALSE)
+a.combined.sct <- RunUMAP(a.combined.sct, reduction = "pca", dims = 1:30, verbose = FALSE)
+a.combined.sct <- FindNeighbors(a.combined.sct, reduction = "pca", dims = 1:30)
+a.combined.sct <- FindClusters(a.combined.sct, resolution = 0.5)
+a.combined.sct$reclust_comb <-
+  Idents(a.combined.sct)
+
+(DimPlot(a.combined.sct, reduction = "umap", split.by = "hfd")) / (DimPlot(a.combined.sct, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+```
+
+```{r pl-usup-astro-genes}
+a.combined.sct <- PrepSCTFindMarkers(a.combined.sct)
+a.inmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.inmark %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+
+a.combined.sct$clust.hfd <- paste(a.combined.sct$reclust_comb, as.numeric(a.combined.sct$hfd),
+  sep = "_"
+)
+Idents(a.combined.sct) <- "clust.hfd"
+a.splmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.splmark %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+
+DefaultAssay(a.combined.sct) <- "SCT"
+a.splmark %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+DoHeatmap(a.combined.sct, features = top10$gene) + NoLegend()
+FeaturePlot(a.combined.sct,
+  features = genes.embed[
+    genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+  ],
+  min.cutoff = "q9", ncol = 3, order = T
+)
+
+# refine subset of astrocytes
+astro.sct <- subset(a.combined.sct, idents = c("0_1", "0_0", "3_0", "3_1"))
+SaveH5Seurat(astro.sct,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_refi_astrocytes.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_refi_astrocytes.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+
+```
+
+```{r pl-check-refined-astro}
+DefaultAssay(astro.sct) <- "RNA"
+ast <- DietSeurat(astro.sct, assays = "RNA")
+ast <- SCTransform(ast, vst.flavor = "v2", verbose = FALSE) %>%
+  RunPCA(npcs = 30, verbose = FALSE) %>%
+  RunUMAP(reduction = "pca", dims = 1:30, densmap = TRUE, verbose = FALSE) %>%
+  FindNeighbors(reduction = "pca", dims = 1:30, verbose = FALSE) %>%
+  FindClusters(resolution = 0.7, verbose = FALSE)
+
+(DimPlot(ast, reduction = "umap", split.by = "hfd")) / (DimPlot(ast, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+
+Idents(ast) <- "clust.hfd"
+(DimPlot(ast, reduction = "umap", split.by = "hfd")) / (DimPlot(ast, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+
+DefaultAssay(ast) <- "SCT"
+ast <- PrepSCTFindMarkers(ast)
+ast.inmark <- FindAllMarkers(ast, assay = "SCT", verbose = F)
+ast.inmark %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+write_csv(x = ast.inmark, file = here(tables_dir, "arc_ast.csv"))
+
+
+ast.inmark %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+DoHeatmap(ast, features = top20$gene) + NoLegend()
+```
+
+```{r refine-chow}
+DefaultAssay(chow.combined.sct) <- "RNA"
+astro.chow <- subset(chow.combined.sct, subset = Slc1a3 > 1 & Gfap > 1 & Ndrg2 > 1)
+DefaultAssay(chow.combined.sct) <- "RNA"
+DefaultAssay(astro.chow) <- "SCT"
+
+SaveH5Seurat(astro.chow,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes_fin.h5Seurat"
+  )
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_chow_astrocytes_fin.h5Seurat"
+  ),
+  dest = "h5ad"
+)
+```
+
+```{r refine-hfd}
+DefaultAssay(hfd.combined.sct) <- "RNA"
+astro.hfd <- subset(hfd.combined.sct, subset = Slc1a3 > 1 & Gfap > 1 & Ndrg2 > 1)
+DefaultAssay(hfd.combined.sct) <- "SCT"
+DefaultAssay(astro.hfd) <- "SCT"
+astro.hfd <- subset(astro.hfd, subset = Slc1a3 > 1 & Slc6a11 > 1 & Ndrg2 > 1)
+
+SaveH5Seurat(astro.hfd,
+  filename = here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes_fin.h5Seurat"
+  ),
+  overwrite = T
+)
+Convert(
+  here(
+    data_dir,
+    "deng_2020_arc_hfd_astrocytes_fin.h5Seurat"
+  ),
+  dest = "h5ad",
+  overwrite = T
+)
+```
+
+```{r pl-features-hfd-astro-clust}
+FeaturePlot(astro.hfd,
+  features = genes.embed[
+    genes.embed %in% rownames(astro.hfd@assays$SCT@scale.data)
+  ],
+  min.cutoff = "q9", ncol = 3
+)
+DimPlot(astro.hfd, label = T)
+```
+
+```{r corr-astro}
+DefaultAssay(astro.chow) <- "SCT"
+DefaultAssay(astro.hfd) <- "SCT"
+
+a.combined.sct <- merge(astro.chow, astro.hfd)
+
+a.combined.sct <- SCTransform(a.combined.sct,
+  vst.flavor = "v2", verbose = FALSE
+) %>%
+  RunPCA(npcs = 30, verbose = FALSE) %>%
+  RunUMAP(reduction = "pca", dims = 1:30, densmap = TRUE, verbose = FALSE) %>%
+  FindNeighbors(reduction = "pca", dims = 1:30, verbose = FALSE) %>%
+  FindClusters(resolution = 0.3, verbose = FALSE)
+
+(DimPlot(a.combined.sct, reduction = "umap", split.by = "hfd")) / (DimPlot(a.combined.sct, reduction = "umap", group.by = "orig.ident", split.by = "hfd"))
+```
+
+```{r pl-features-corr-astro}
+a.combined.sct <- PrepSCTFindMarkers(a.combined.sct)
+DefaultAssay(a.combined.sct) <- "SCT"
+a.inmark <- FindAllMarkers(a.combined.sct, assay = "SCT", verbose = F)
+a.inmark %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+a.inmark %>%
+  group_by(cluster) %>%
+  top_n(n = 20, wt = avg_log2FC) -> top20
+DoHeatmap(a.combined.sct, features = top20$gene) + NoLegend()
+
+a.combined.sct$clust.hfd <- paste(a.combined.sct$seurat_clusters, as.numeric(a.combined.sct$hfd),
+  sep = "_"
+)
+Idents(a.combined.sct) <- "clust.hfd"
+a.splmark <- FindAllMarkers(a.combined.sct, test.use = "roc", assay = "SCT", verbose = T)
+a.splmark %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = power)
+
+a.splmark %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = power) -> top10
+DoHeatmap(a.combined.sct, features = top10$gene, slot = "data") + NoLegend()
+FeaturePlot(a.combined.sct,
+  features = genes.embed[
+    genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+  ],
+  min.cutoff = "q75", ncol = 3, order = T
+)
+
+VlnPlot(a.combined.sct,
+  features = genes.embed[
+    genes.embed %in% rownames(a.combined.sct@assays$SCT@scale.data)
+  ]
+)
+
+```
+
+### SWNE
+
+```{r pl-swne-corr-astro}
+VariableFeatures(a.combined.sct) <- rownames(a.combined.sct@assays$SCT@scale.data)
+swne.a.embedding <- RunSWNE(a.combined.sct, k = 20, genes.embed = genes.embed[genes.embed %in% rownames(a.combined.sct@assays$SCT@data)], snn.exp = 0.25, snn.k = 20)
+
+PlotSWNE(swne.a.embedding,
+  alpha.plot = 0.4,
+  sample.groups = Idents(a.combined.sct),
+  do.label = T,
+  label.size = 3.5,
+  pt.size = 1.25,
+  show.legend = F,
+  seed = 42
+)
+```
+
+```{r pl-lxn-swne-corr-astro}
+norm.counts <- GetAssayData(a.combined.sct, assay = "SCT", slot = "data")
+gene.use <- "Lxn"
+gene.expr <- norm.counts[gene.use, ]
+FeaturePlotSWNE(swne.a.embedding, gene.expr, gene.use, alpha.plot = 0.4, label.size = 3.5, pt.size = 1.25)
+```
+
+```{r pl-mfn2-swne-corr-astro}
+gene.use <- "Mfn2"
+gene.expr <- norm.counts[gene.use, ]
+FeaturePlotSWNE(swne.a.embedding, gene.expr, gene.use, alpha.plot = 0.4, label.size = 3.5, pt.size = 1.25)
+```

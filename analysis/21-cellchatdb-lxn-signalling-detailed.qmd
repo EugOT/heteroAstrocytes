@@ -1,0 +1,2860 @@
+---
+title: "Detailed CellChat signalling analysis of Lxn positive vs. Lxn negative astrocytes"
+author: "Evgenii O. Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig-width: 14
+    fig-height: 12
+    fig-format: retina
+    fig-responsive: true
+    fig-dpi: 200
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+    fig.width: 14
+    fig.height: 12
+editor: visual
+---
+
+```{r setup, include = FALSE}
+DOCNAME <- "cellchatdb-signalling-between-agrp-or-pomc-neurons-and-lxn-pos-or-neg-astrocytes-in-arc-and-pvn"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("png", "pdf"),
+  timeit         = TRUE
+)
+```
+
+## Load data and setup parameters
+
+```{r libraries, cache=FALSE}
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(reticulate)
+  library(future)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(RColorBrewer)
+})
+
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(ggrepel)
+  library(cowplot)
+  library(patchwork)
+  library(ggstatsplot)
+  library(ggupset)
+  library(ComplexUpset)
+  library(dabestr)
+})
+```
+
+### Set paths
+
+```{r paths}
+src_dir <- here("code")
+data_dir <- here("data")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures")
+tables_dir <- here(output_dir, "tables")
+```
+
+### Load helper functions and gene-sets
+
+```{r source, cache = FALSE}
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+```
+
+### Set fixed variables
+
+```{r params-computation, cache = FALSE}
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# Parameters for parallel execution
+n_cores <- 8
+plan("multisession", workers = n_cores)
+options(
+  future.globals.maxSize = 100000 * 1024^2,
+  future.rng.onMisuse = "ignore"
+)
+plan()
+
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+## Load selected astrocytes signalling data estimated using Liana-py and Rank Aggregation method (including CellPhoneDB, CellChat, ICELLNET, connectomeDB2020, and CellTalkDB) for CellChatDB only
+
+```{r load-data, cache = FALSE}
+lutomska_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lutomska",
+    "arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+
+lutomska_hfhsd <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lutomska",
+    "hfd-arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+
+deng_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "deng",
+    "arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+
+deng_hfd <-
+  read_csv(here(
+    data_dir,
+    "signalling", "deng",
+    "hfd-arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+
+lopez_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lopez",
+    "pvn_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+
+lopez_csds <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lopez",
+    "chronic-stress-pvn_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  ))
+```
+
+```{r eda-lutomska_norm}
+skim(lutomska_norm)
+```
+
+```{r eda-lutomska_hfhsd}
+skim(lutomska_hfhsd)
+```
+
+```{r eda-deng_norm}
+skim(deng_norm)
+```
+
+```{r eda-deng_hfd}
+skim(deng_hfd)
+```
+
+```{r eda-lopez_norm}
+skim(lopez_norm)
+```
+
+```{r eda-lopez_csds}
+skim(lopez_csds)
+```
+
+## Filter by p-values
+
+```{r filtering}
+lutomska_norm <-
+  lutomska_norm |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+
+lutomska_hfhsd <-
+  lutomska_hfhsd |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+
+deng_norm <-
+  deng_norm |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+
+deng_hfd <-
+  deng_hfd |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+
+lopez_norm <-
+  lopez_norm |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+
+lopez_csds <-
+  lopez_csds |>
+  filter(
+    specificity_rank <= 1,
+    magnitude_rank <= 1
+  )
+```
+
+```{r eda-lutomska_norm-filtering}
+skim(lutomska_norm)
+```
+
+```{r eda-lutomska_hfhsd-filtering}
+skim(lutomska_hfhsd)
+```
+
+```{r eda-deng_norm-filtering}
+skim(deng_norm)
+```
+
+```{r eda-deng_hfd-filtering}
+skim(deng_hfd)
+```
+
+```{r eda-lopez_norm-filtering}
+skim(lopez_norm)
+```
+
+```{r eda-lopez_csds-filtering}
+skim(lopez_csds)
+```
+
+Merge datasets
+
+```{r merge-datasets}
+lutomska_norm <-
+  lutomska_norm |>
+  mutate(
+    region = "ARC",
+    condition = "HFHSD",
+    control = TRUE
+  )
+
+lutomska_hfhsd <-
+  lutomska_hfhsd |>
+  mutate(
+    region = "ARC",
+    condition = "HFHSD",
+    control = FALSE
+  )
+
+deng_norm <-
+  deng_norm |>
+  mutate(
+    region = "ARC",
+    condition = "HFD",
+    control = TRUE
+  )
+
+deng_hfd <-
+  deng_hfd |>
+  mutate(
+    region = "ARC",
+    condition = "HFD",
+    control = FALSE
+  )
+
+lopez_norm <-
+  lopez_norm |>
+  mutate(
+    region = "PVN",
+    condition = "CSDS",
+    control = TRUE
+  )
+
+lopez_csds <-
+  lopez_csds |>
+  mutate(
+    region = "PVN",
+    condition = "CSDS",
+    control = FALSE
+  )
+
+df_complex_conditions <-
+  bind_rows(
+    lopez_norm,
+    lopez_csds,
+    lutomska_norm,
+    lutomska_hfhsd,
+    deng_norm,
+    deng_hfd
+  )
+df_complex_conditions <-
+  df_complex_conditions |>
+  mutate(pairs = str_c(source, target, sep = "==>")) |>
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons",
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons",
+      "POMC neurons==>Astro_LXN+",
+      "AGRP/NPY neurons==>Astro_LXN+",
+      "POMC neurons==>Astro_LXN-",
+      "AGRP/NPY neurons==>Astro_LXN-"
+    ),
+    cellchat_pvals < 1, cellphone_pvals < 1
+  )
+```
+
+# Deng 2020
+
+## Signalling pairs
+
+### How do latexin positive or negative astrocytes coupled with POMC neurons?
+
+#### Normal diet
+
+```{r deng2020-signalling-to-pomc-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>POMC neurons` - `Astro_LXN-==>POMC neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>POMC neurons`, `Astro_LXN-==>POMC neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r deng2020-plot-receptors-complexes-signalling-to-pomc-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r deng2020-plot-ligands-complexes-signalling-to-pomc-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r deng2020-plot-ligand-receptor-complexes-signalling-to-pomc-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>POMC neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>POMC neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+#### HFD
+
+```{r hfd-deng2020-signalling-to-pomc-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>POMC neurons` - `Astro_LXN-==>POMC neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>POMC neurons`, `Astro_LXN-==>POMC neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r hfd-deng2020-plot-receptors-complexes-signalling-to-pomc-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r hfd-deng2020-plot-ligands-complexes-signalling-to-pomc-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r hfd-deng2020-plot-ligand-receptor-complexes-signalling-to-pomc-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>POMC neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>POMC neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+### How do latexin positive or negative astrocytes coupled with AGRP/NPY neurons?
+
+#### Normal diet
+
+```{r deng2020-signalling-to-agrp-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>AGRP/NPY neurons` - `Astro_LXN-==>AGRP/NPY neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>AGRP/NPY neurons`, `Astro_LXN-==>AGRP/NPY neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r deng2020-plot-receptors-complexes-signalling-to-agrp-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r deng2020-plot-ligands-complexes-signalling-to-agrp-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r deng2020-plot-ligand-receptor-complexes-signalling-to-agrp-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+#### HFD
+
+```{r hfd-deng2020-signalling-to-agrp-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>AGRP/NPY neurons` - `Astro_LXN-==>AGRP/NPY neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>AGRP/NPY neurons`, `Astro_LXN-==>AGRP/NPY neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r hfd-deng2020-plot-receptors-complexes-signalling-to-agrp-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r hfd-deng2020-plot-ligands-complexes-signalling-to-agrp-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r hfd-deng2020-plot-ligand-receptor-complexes-signalling-to-agrp-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+# Lutomska 2022
+
+## Signalling pairs
+
+### How do latexin positive or negative astrocytes coupled with POMC neurons?
+
+#### Normal diet
+
+```{r lutomska2022-signalling-to-pomc-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>POMC neurons` - `Astro_LXN-==>POMC neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>POMC neurons`, `Astro_LXN-==>POMC neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r lutomska2022-plot-receptors-complexes-signalling-to-pomc-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r lutomska2022-plot-ligands-complexes-signalling-to-pomc-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r lutomska2022-plot-ligand-receptor-complexes-signalling-to-pomc-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>POMC neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>POMC neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+#### HFHSD
+
+```{r hfhsd-lutomska2022-signalling-to-pomc-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFHSD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons"
+    ),
+    condition == "HFHSD",
+    control == FALSE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>POMC neurons` - `Astro_LXN-==>POMC neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>POMC neurons`, `Astro_LXN-==>POMC neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r hfhsd-lutomska2022-plot-receptors-complexes-signalling-to-pomc-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r hfhsd-lutomska2022-plot-ligands-complexes-signalling-to-pomc-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>POMC neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>POMC neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r hfhsd-lutomska2022-plot-ligand-receptor-complexes-signalling-to-pomc-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>POMC neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>POMC neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>POMC neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+### How do latexin positive or negative astrocytes coupled with AGRP/NPY neurons?
+
+#### Normal diet
+
+```{r lutomska2022-signalling-to-agrp-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>AGRP/NPY neurons` - `Astro_LXN-==>AGRP/NPY neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>AGRP/NPY neurons`, `Astro_LXN-==>AGRP/NPY neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r lutomska2022-plot-receptors-complexes-signalling-to-agrp-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r lutomska2022-plot-ligands-complexes-signalling-to-agrp-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r lutomska2022-plot-ligand-receptor-complexes-signalling-to-agrp-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+#### HFHSD
+
+```{r hfhsd-lutomska2022-signalling-to-agrp-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs %in% c(
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"
+    ),
+    condition == "HFHSD",
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(pairs, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = pairs, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `Astro_LXN+==>AGRP/NPY neurons` - `Astro_LXN-==>AGRP/NPY neurons`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.001 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(`Astro_LXN+==>AGRP/NPY neurons`, `Astro_LXN-==>AGRP/NPY neurons`), names_to = "pairs", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("pairs", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(pairs) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(pairs) %>%
+  distinct(ligand_complex, diff_category, lr_probs, pairs, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, pairs, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r hfhsd-lutomska2022-plot-receptors-complexes-signalling-to-agrp-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r hfhsd-lutomska2022-plot-ligands-complexes-signalling-to-agrp-neurons}
+pl <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN+==>AGRP/NPY neurons",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      pairs == "Astro_LXN-==>AGRP/NPY neurons",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r hfhsd-lutomska2022-plot-ligand-receptor-complexes-signalling-to-agrp-neurons}
+plr <- ggplot(df_long, aes(x = pairs, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN+==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           pairs == "Astro_LXN-==>AGRP/NPY neurons" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+# ARC vs PVN (Lopez)
+
+## Signalling pairs
+
+### How do latexin positive or negative astrocytes coupled with POMC neurons?
+
+```{r arc-vs-pvn-signalling-to-pomc-neurons}
+df <- df_complex_conditions %>%
+  filter(
+    pairs == "Astro_LXN+==>POMC neurons",
+    condition %in% c("CSDS", "HFHSD"),
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    neg_log10_magnitude_rank = -log10(magnitude_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(region, lr_complex, ligand_complex, receptor_complex, lr_probs, control)
+
+df
+skim(df)
+
+df_specificity <- df_complex_conditions %>%
+  filter(
+    pairs == "Astro_LXN+==>POMC neurons",
+    condition %in% c("CSDS", "HFHSD"),
+    control == TRUE
+  ) %>%
+  mutate(
+    neg_log10_specificity_rank = -log10(specificity_rank),
+    lr_complex = str_c(ligand_complex, receptor_complex, sep = "–>")
+  ) %>%
+  select(region, lr_complex, ligand_complex, receptor_complex, neg_log10_specificity_rank, control)
+
+# Reshape the dataframe to a wider format
+df_wide <- df %>%
+  pivot_wider(names_from = region, values_from = lr_probs)
+
+# Calculate the difference and categorize it
+df_wide <- df_wide %>%
+  mutate(diff_rank = `PVN` - `ARC`) %>%
+  mutate(diff_category = ifelse(abs(diff_rank) > 0.002 | is.na(abs(diff_rank)), "big difference", "small difference"))
+
+df_wide
+skim(df_wide)
+
+# Reshape the dataframe back to a long format
+df_long <- df_wide %>%
+  pivot_longer(cols = c(ARC, PVN), names_to = "region", values_to = "lr_probs") %>%
+  full_join(df_specificity, by = c("region", "lr_complex", "ligand_complex", "receptor_complex", "control"))
+
+df_long
+skim(df_long)
+
+# Prepare the top 20 data
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(region) %>%
+  distinct(ligand_complex, diff_category, lr_probs, region, .keep_all = TRUE) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 40) %>%
+  ungroup() %>%
+  group_by(region) %>%
+  slice_max(order_by = lr_probs, n = 10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "big difference"
+  ) %>%
+  group_by(region) %>%
+  distinct(ligand_complex, diff_category, lr_probs, region, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "big difference"
+  ) %>%
+  group_by(region) %>%
+  distinct(ligand_complex, diff_category, lr_probs, region, .keep_all = TRUE) %>%
+  slice_max(order_by = diff_rank, n = 15) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    !ligand_complex %in% df_long$receptor_complex,
+    diff_category == "small difference"
+  ) %>%
+  group_by(region) %>%
+  distinct(ligand_complex, diff_category, lr_probs, region, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 60) %>%
+  ungroup() %>%
+  group_by(region) %>%
+  slice_max(order_by = neg_log10_specificity_rank, n = 20) %>%
+  bind_rows(top_bot_10)
+
+top_bot_10 <- df_long %>%
+  filter(
+    diff_category == "small difference"
+  ) %>%
+  group_by(region) %>%
+  distinct(ligand_complex, diff_category, lr_probs, region, .keep_all = TRUE) %>%
+  slice_max(order_by = lr_probs, n = 10) %>%
+  bind_rows(top_bot_10) %>%
+  distinct(lr_complex, diff_category, region, .keep_all = TRUE) %>%
+  filter(!ligand_complex %in% c("Pomc", "Agrp", "Npy"))
+
+top_bot_10
+skim(top_bot_10)
+```
+
+```{r arc-vs-pvn-plot-receptors-complexes-signalling-to-pomc-neurons}
+# Generate the plot
+pr <- ggplot(df_long, aes(x = region, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pr <- pr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      region == "PVN",
+      diff_rank >= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      region == "ARC",
+      diff_rank <= 0
+    ),
+  aes(
+    label = receptor_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pr)
+```
+
+```{r arc-vs-pvn-plot-ligands-complexes-signalling-to-pomc-neurons}
+pl <- ggplot(df_long, aes(x = region, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+pl <- pl + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      region == "PVN",
+      diff_rank >= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      region == "ARC",
+      diff_rank <= 0
+    ),
+  aes(
+    label = ligand_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(pl)
+```
+
+```{r arc-vs-pvn-plot-ligand-receptor-complexes-signalling-to-pomc-neurons}
+plr <- ggplot(df_long, aes(x = region, y = lr_probs, color = as.factor(diff_category), size = neg_log10_specificity_rank)) +
+  geom_jitter(width = 0.05) +
+  geom_line(aes(group = lr_complex), linetype = "solid", alpha = 0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  facet_wrap(~diff_category)
+
+# Add text labels for min and max 5 values within each group using ggrepel
+plr <- plr + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (region == "PVN" & 
+        diff_rank >= 0) |
+        (!is.na(lr_probs) &
+           region == "PVN" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = 0.2, direction = "y", hjust = "left",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) + geom_text_repel(
+  data = top_bot_10 %>%
+    filter(
+      (region == "ARC" & 
+        diff_rank <= 0) |
+        (!is.na(lr_probs) &
+           region == "ARC" & 
+           is.na(diff_rank))
+    ),
+  aes(
+    label = lr_complex,
+    point.size = neg_log10_specificity_rank
+  ), # data point size
+  nudge_x = -.2, direction = "y", hjust = "right",
+  size = 6, # font size in the text labels
+  point.padding = 0.2, # additional padding around each point
+  min.segment.length = 0, # draw all line segments
+  max.time = 5, max.iter = 1e6, # stop after 1 second, or after 100,000 iterations
+  seed = reseed,
+  max.overlaps = Inf,
+  box.padding = 0.5
+) +
+  scale_x_discrete(expand = expansion(add = 2))
+
+print(plr)
+```
+
+# Session info
+
+```{r}
+sessioninfo::session_info()
+```

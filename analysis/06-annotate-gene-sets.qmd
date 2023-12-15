@@ -1,0 +1,1036 @@
+---
+title: "Signalling analysis of Lxn positive vs. Lxn negative astrocytes"
+author: "Evgenii O. Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig-width: 14
+    fig-height: 12
+    fig-format: retina
+    fig-responsive: true
+    fig-dpi: 200
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+    fig.width: 14
+    fig.height: 12
+editor: visual
+---
+
+```{r setup, include = FALSE}
+DOCNAME <- "annotate-gene-sets"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("png", "pdf"),
+  timeit         = TRUE
+)
+```
+
+## Prepare data and setup parameters
+
+```{r libraries, cache=FALSE}
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(reticulate)
+  library(future)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(RColorBrewer)
+})
+
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(patchwork)
+  library(ggstatsplot)
+  library(ggupset)
+  library(ComplexUpset)
+  library(dabestr)
+  library(gprofiler2)
+  library(RobustRankAggreg)
+})
+```
+
+### Set paths
+
+```{r paths}
+src_dir <- here("code")
+data_dir <- here("data")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures")
+tables_dir <- here(output_dir, "tables")
+```
+
+### Prepare helper functions and gene-sets
+
+```{r source, cache = FALSE}
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+```
+
+### Set fixed variables
+
+```{r params-computation, cache = FALSE}
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+## Prepare filtering lists for **ED Table 2**
+
+```{r load-data-astrocyte-selection, cache = FALSE}
+flt_include <- c(
+    "Adcyap1r1",
+    "Agt",
+    "Aldh1l1",
+    "Fgfr3",
+    "Glul",
+    "Gli1",
+    "Lcat",
+    "Lxn",
+    "Aqp4",
+    "Gja1",
+    "Gfap",
+    "Hacd2",
+    "Hepacam",
+    "Htra1",
+    "Ndrg2",
+    "Ntsr2",
+    "Ntrk2",
+    "Pla2g7",
+    "Slc1a3",
+    "Slc6a11",
+    "Slc1a2",
+    "Apoe"
+)
+
+flt_exclude <- c(
+    "Rbfox3",
+    "Dlx5",
+    "Elavl4",
+    "Stmn2",
+    "Snap25",
+    "Th",
+    "Slc17a6",
+    "Gad1",
+    "Gad2",
+    "Npy",
+    "Agrp",
+    "Crh",
+    "Trh",
+    "Avp",
+    "Pomc",
+    "Hcrt",
+    "Oxt",
+    "Cxcl14",
+    "Cxcl1",
+    "Cxcl2",
+    "Foxj1",
+    "Vim",
+    "Nes",
+    "Enkur",
+    "Foxj1",
+    "Kif6",
+    "Kif9",
+    "Hydin",
+    "Mog",
+    "Plp1",
+    "Cnp",
+    "Mag",
+    "Opalin",
+    "Sox10",
+    "Olig1",
+    "Olig2",
+    "Aif1",
+    "Itgam",
+    "Ptprc",
+    "Fcrls",
+    "Pdgfra",
+    "Pdgfrb",
+    "Gpr17",
+    "Ugt8a",
+    "Sema3c",
+    "Sema4d",
+    "Sema4f",
+    "Gpr37",
+    "Cspg4",
+    "Lingo1",
+    "Rgs5",
+    "Des",
+    "Acta2",
+    "Cd248",
+    "Myh11",
+    "Cdh5",
+    "Fgf10",
+    "Rax",
+    "Tbx3"
+)
+```
+
+```{r annotate-astrocyte-selection}
+flt_include <- gconvert(
+  flt_include,
+  organism = "mmusculus",
+  target = "MGI",
+  numeric_ns = "",
+  mthreshold = Inf,
+  filter_na = TRUE
+) %>% select(name, description)
+write_excel_csv(flt_include, file = here(tables_dir, "flt_include-annotated.csv"))
+
+flt_exclude <- gconvert(
+  flt_exclude,
+  organism = "mmusculus",
+  target = "MGI",
+  numeric_ns = "",
+  mthreshold = Inf,
+  filter_na = TRUE
+) %>% select(name, description)
+write_excel_csv(flt_exclude, file = here(tables_dir, "flt_exclude-annotated.csv"))
+```
+
+## Prepare DEGs for **ED Table 3**
+
+```{r load-data-deg-all, cache = FALSE}
+deg_all <-
+    read_delim(
+        file = here(tables_dir,
+                    "2022-11-14_astr_k17-mrk_wilcox-sct.csv"),
+        delim = ";",
+        col_types = cols(
+            p_val = col_number(),
+            avg_log2FC = col_guess(),
+            pct.1 = col_guess(),
+            pct.2 = col_guess(),
+            p_val_adj = col_number(),
+            cluster = col_factor(),
+            gene = col_character()
+        )
+    ) |>
+    mutate(
+        avg_log2FC = as.numeric(str_replace(avg_log2FC, ",", ".")),
+        pct.1      = as.numeric(str_replace(pct.1, ",", ".")),
+        pct.2      = as.numeric(str_replace(pct.2, ",", "."))
+    ) |>
+    rename(pct_1 = pct.1,
+           pct_2 = pct.2)
+glimpse(deg_all)
+```
+
+```{r annotate-deg-all}
+deg_all_update <- gconvert(
+  deg_all$gene,
+  organism = "mmusculus",
+  target = "MGI",
+  numeric_ns = "",
+  mthreshold = Inf,
+  filter_na = TRUE
+) %>% select(name, description)
+deg_all_update <-
+  left_join(deg_all, deg_all_update,
+            by = c("gene" = "name"))
+write_excel_csv(deg_all_update, file = here(tables_dir, "deg_all-annotated.csv"))
+deg_all_update
+```
+
+```{r gsea-table-deg-all}
+get_enrichment <- function(df) {
+  dat <- gost(query = df$gene, organism = "mmusculus")
+  return(dat$result)
+}
+
+get_enrichment_clusters <- function(data) {
+  data |>
+    filter(p_val_adj <= 0.05) |>
+    group_by(cluster) |>
+    nest() |>
+    mutate(gsea = map(data, get_enrichment)) |>
+    select(cluster, gsea) |>
+    filter(!is.null(unlist(gsea))) |>
+    unnest(cols = c(gsea)) |>
+    select(
+      cluster,
+      term_name,
+      precision,
+      recall,
+      p_value,
+      query_size,
+      intersection_size,
+      term_size,
+      term_id,
+      source,
+      effective_domain_size,
+      source_order,
+      parents
+    )
+}
+
+get_enrichment_clusters2 <- function(data) {
+  data |>
+    group_by(cluster) |>
+    nest() |>
+    mutate(gsea = map(data, get_enrichment)) |>
+    select(cluster, gsea) |>
+    filter(!is.null(unlist(gsea))) |>
+    unnest(cols = c(gsea)) |>
+    select(
+      cluster,
+      term_name,
+      precision,
+      recall,
+      p_value,
+      query_size,
+      intersection_size,
+      term_size,
+      term_id,
+      source,
+      effective_domain_size,
+      source_order,
+      parents
+    )
+}
+
+deg_all_gsea <- get_enrichment_clusters(deg_all_update)
+
+write_excel_csv(deg_all_gsea, file = here(tables_dir, "deg_all-enrichment.csv"))
+deg_all_gsea
+```
+
+## Prepare shared signatures for **ED Table 3**
+
+```{r load-data-shared-signatures, cache = FALSE}
+z_nc   <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA438862-nc.tsv"))
+z_001  <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA438862-0.01.tsv"))
+z_0001 <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA438862-0.001.tsv"))
+
+r_nc   <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA548917-nc.tsv"))
+r_001  <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA548917-0.01.tsv"))
+r_0001 <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA548917-0.001.tsv"))
+
+k_nc   <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA547712-nc.tsv"))
+k_001  <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA547712-0.01.tsv"))
+k_0001 <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA547712-0.001.tsv"))
+
+h_nc   <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA779749-nc.tsv"))
+h_001  <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA779749-0.01.tsv"))
+h_0001 <- read_tsv(here(tables_dir, "shared_anchor_genes", "astrocytes_genes-PRJNA779749-0.001.tsv"))
+
+shared_signature_nc   <- read_tsv(here(tables_dir, "shared_signature", "astrocytes_genes-aggregated-nc.tsv"))
+shared_signature_001  <- read_tsv(here(tables_dir, "shared_signature", "astrocytes_genes-aggregated-0.01.tsv"))
+shared_signature_0001 <- read_tsv(here(tables_dir, "shared_signature", "astrocytes_genes-aggregated-0.001.tsv"))
+```
+
+```{r annotate-shared-signatures}
+genes_update <- function(df) {
+  df <- rename(df, gene = Name)
+  dat <- gconvert(
+    df$gene,
+    organism = "mmusculus",
+    target = "MGI",
+    numeric_ns = "",
+    mthreshold = Inf,
+    filter_na = TRUE
+  ) %>%
+    select(name, description) %>%
+    rename(gene = name)
+  dat <- left_join(dat, df)
+}
+
+genes_update2 <- function(df) {
+  dat <- gconvert(
+    df$gene,
+    organism = "mmusculus",
+    target = "MGI",
+    numeric_ns = "",
+    mthreshold = Inf,
+    filter_na = TRUE
+  ) %>%
+    select(name, description) %>%
+    rename(gene = name)
+  dat <- left_join(dat, df)
+}
+
+z_nc_update <- genes_update(z_nc)
+z_001_update <- genes_update(z_001)
+z_0001_update <- genes_update(z_0001)
+r_nc_update <- genes_update(r_nc)
+r_001_update <- genes_update(r_001)
+r_0001_update <- genes_update(r_0001)
+k_nc_update <- genes_update(k_nc)
+k_001_update <- genes_update(k_001)
+k_0001_update <- genes_update(k_0001)
+h_nc_update <- genes_update(h_nc)
+h_001_update <- genes_update(h_001)
+h_0001_update <- genes_update(h_0001)
+shared_signature_nc_update <- genes_update(shared_signature_nc)
+shared_signature_001_update <- genes_update(shared_signature_001)
+shared_signature_0001_update <- genes_update(shared_signature_0001)
+
+write_excel_csv(z_nc_update, file = here(tables_dir, "z_nc-annotated.csv"))
+write_excel_csv(z_001_update, file = here(tables_dir, "z_001-annotated.csv"))
+write_excel_csv(z_0001_update, file = here(tables_dir, "z_0001-annotated.csv"))
+write_excel_csv(r_nc_update, file = here(tables_dir, "r_nc-annotated.csv"))
+write_excel_csv(r_001_update, file = here(tables_dir, "r_001-annotated.csv"))
+write_excel_csv(r_0001_update, file = here(tables_dir, "r_0001-annotated.csv"))
+write_excel_csv(k_nc_update, file = here(tables_dir, "k_nc-annotated.csv"))
+write_excel_csv(k_001_update, file = here(tables_dir, "k_001-annotated.csv"))
+write_excel_csv(k_0001_update, file = here(tables_dir, "k_0001-annotated.csv"))
+write_excel_csv(h_nc_update, file = here(tables_dir, "h_nc-annotated.csv"))
+write_excel_csv(h_001_update, file = here(tables_dir, "h_001-annotated.csv"))
+write_excel_csv(h_0001_update, file = here(tables_dir, "h_0001-annotated.csv"))
+write_excel_csv(shared_signature_nc_update, file = here(tables_dir, "shared_signature_nc-annotated.csv"))
+write_excel_csv(shared_signature_001_update, file = here(tables_dir, "shared_signature_001-annotated.csv"))
+write_excel_csv(shared_signature_0001_update, file = here(tables_dir, "shared_signature_0001-annotated.csv"))
+```
+
+```{r gsea-table-shared-signatures}
+z_nc_gsea <- get_enrichment(z_nc_update)
+z_001_gsea <- get_enrichment(z_001_update)
+z_0001_gsea <- get_enrichment(z_0001_update)
+r_nc_gsea <- get_enrichment(r_nc_update)
+r_001_gsea <- get_enrichment(r_001_update)
+r_0001_gsea <- get_enrichment(r_0001_update)
+k_nc_gsea <- get_enrichment(k_nc_update)
+k_001_gsea <- get_enrichment(k_001_update)
+k_0001_gsea <- get_enrichment(k_0001_update)
+h_nc_gsea <- get_enrichment(h_nc_update)
+h_001_gsea <- get_enrichment(h_001_update)
+h_0001_gsea <- get_enrichment(h_0001_update)
+shared_signature_nc_gsea <- get_enrichment(shared_signature_nc_update)
+shared_signature_001_gsea <- get_enrichment(shared_signature_001_update)
+shared_signature_0001_gsea <- get_enrichment(shared_signature_0001_update)
+
+write_excel_csv(z_nc_gsea, file = here(tables_dir, "z_nc-enrichment.csv"))
+write_excel_csv(z_001_gsea, file = here(tables_dir, "z_001-enrichment.csv"))
+write_excel_csv(z_0001_gsea, file = here(tables_dir, "z_0001-enrichment.csv"))
+write_excel_csv(r_nc_gsea, file = here(tables_dir, "r_nc-enrichment.csv"))
+write_excel_csv(r_001_gsea, file = here(tables_dir, "r_001-enrichment.csv"))
+write_excel_csv(r_0001_gsea, file = here(tables_dir, "r_0001-enrichment.csv"))
+write_excel_csv(k_nc_gsea, file = here(tables_dir, "k_nc-enrichment.csv"))
+write_excel_csv(k_001_gsea, file = here(tables_dir, "k_001-enrichment.csv"))
+write_excel_csv(k_0001_gsea, file = here(tables_dir, "k_0001-enrichment.csv"))
+write_excel_csv(h_nc_gsea, file = here(tables_dir, "h_nc-enrichment.csv"))
+write_excel_csv(h_001_gsea, file = here(tables_dir, "h_001-enrichment.csv"))
+write_excel_csv(h_0001_gsea, file = here(tables_dir, "h_0001-enrichment.csv"))
+write_excel_csv(shared_signature_nc_gsea, file = here(tables_dir, "shared_signature_nc-enrichment.csv"))
+write_excel_csv(shared_signature_001_gsea, file = here(tables_dir, "shared_signature_001-enrichment.csv"))
+write_excel_csv(shared_signature_0001_gsea, file = here(tables_dir, "shared_signature_0001-enrichment.csv"))
+```
+
+## Prepare direct feature selection results **ED Table 4**
+
+```{r load-data-subregional-fs-direct, cache = FALSE}
+main_chi2   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_chi2_features.tsv"), col_names = "Name")
+main_anova   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_anova_features.tsv"), col_names = "Name")
+main_mutual_information <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_mutual_information_features.tsv"), col_names = "Name")
+
+main_logit   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_logit_features.tsv"), col_names = "Name")
+main_xgboost <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_xgboost_features.tsv"), col_names = "Name")
+
+
+z_logit   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA438862_logit_features.tsv"), col_names = "Name")
+z_xgboost <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA438862_xgboost_features.tsv"), col_names = "Name")
+
+r_logit   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA548917_logit_features.tsv"), col_names = "Name")
+r_xgboost <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA548917_xgboost_features.tsv"), col_names = "Name")
+
+k_logit   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA547712_logit_features.tsv"), col_names = "Name")
+k_xgboost <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA547712_xgboost_features.tsv"), col_names = "Name")
+
+h_logit   <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA779749_logit_features.tsv"), col_names = "Name")
+h_xgboost <- read_tsv(here(tables_dir, "feature_selection/direct", "fs_PRJNA779749_xgboost_features.tsv"), col_names = "Name")
+```
+
+```{r annotate-subregional-fs-direct}
+main_chi2_update <- genes_update(main_chi2)
+main_anova_update <- genes_update(main_anova)
+main_mutual_information_update <- genes_update(main_mutual_information)
+main_logit_update <- genes_update(main_logit)
+main_xgboost_update <- genes_update(main_xgboost)
+z_logit_update <- genes_update(z_logit)
+z_xgboost_update <- genes_update(z_xgboost)
+r_logit_update <- genes_update(r_logit)
+r_xgboost_update <- genes_update(r_xgboost)
+k_logit_update <- genes_update(k_logit)
+k_xgboost_update <- genes_update(k_xgboost)
+h_logit_update <- genes_update(h_logit)
+h_xgboost_update <- genes_update(h_xgboost)
+
+
+write_excel_csv(main_chi2_update, file = here(tables_dir, "main_chi2-annotated.csv"))
+write_excel_csv(main_anova_update, file = here(tables_dir, "main_anova-annotated.csv"))
+write_excel_csv(main_mutual_information_update, file = here(tables_dir, "main_mutual_information-annotated.csv"))
+write_excel_csv(main_logit_update, file = here(tables_dir, "main_logit-annotated.csv"))
+write_excel_csv(main_xgboost_update, file = here(tables_dir, "main_xgboost-annotated.csv"))
+write_excel_csv(z_logit_update, file = here(tables_dir, "z_logit-annotated.csv"))
+write_excel_csv(z_xgboost_update, file = here(tables_dir, "z_xgboost-annotated.csv"))
+write_excel_csv(r_logit_update, file = here(tables_dir, "r_logit-annotated.csv"))
+write_excel_csv(r_xgboost_update, file = here(tables_dir, "r_xgboost-annotated.csv"))
+write_excel_csv(k_logit_update, file = here(tables_dir, "k_logit-annotated.csv"))
+write_excel_csv(k_xgboost_update, file = here(tables_dir, "k_xgboost-annotated.csv"))
+write_excel_csv(h_logit_update, file = here(tables_dir, "h_logit-annotated.csv"))
+write_excel_csv(h_xgboost_update, file = here(tables_dir, "h_xgboost-annotated.csv"))
+```
+
+```{r gsea-table-subregional-fs-direct}
+main_chi2_gsea <- get_enrichment(main_chi2_update)
+main_anova_gsea <- get_enrichment(main_anova_update)
+main_mutual_information_gsea <- get_enrichment(main_mutual_information_update)
+main_logit_gsea <- get_enrichment(main_logit_update)
+main_xgboost_gsea <- get_enrichment(main_xgboost_update)
+z_logit_gsea <- get_enrichment(z_logit_update)
+z_xgboost_gsea <- get_enrichment(z_xgboost_update)
+r_logit_gsea <- get_enrichment(r_logit_update)
+r_xgboost_gsea <- get_enrichment(r_xgboost_update)
+k_logit_gsea <- get_enrichment(k_logit_update)
+k_xgboost_gsea <- get_enrichment(k_xgboost_update)
+h_logit_gsea <- get_enrichment(h_logit_update)
+h_xgboost_gsea <- get_enrichment(h_xgboost_update)
+
+write_excel_csv(main_chi2_gsea, file = here(tables_dir, "main_chi2-enrichment.csv"))
+write_excel_csv(main_anova_gsea, file = here(tables_dir, "main_anova-enrichment.csv"))
+write_excel_csv(main_mutual_information_gsea, file = here(tables_dir, "main_mutual_information-enrichment.csv"))
+write_excel_csv(main_logit_gsea, file = here(tables_dir, "main_logit-enrichment.csv"))
+write_excel_csv(main_xgboost_gsea, file = here(tables_dir, "main_xgboost-enrichment.csv"))
+write_excel_csv(z_logit_gsea, file = here(tables_dir, "z_logit-enrichment.csv"))
+write_excel_csv(z_xgboost_gsea, file = here(tables_dir, "z_xgboost-enrichment.csv"))
+write_excel_csv(r_logit_gsea, file = here(tables_dir, "r_logit-enrichment.csv"))
+write_excel_csv(r_xgboost_gsea, file = here(tables_dir, "r_xgboost-enrichment.csv"))
+write_excel_csv(k_logit_gsea, file = here(tables_dir, "k_logit-enrichment.csv"))
+write_excel_csv(k_xgboost_gsea, file = here(tables_dir, "k_xgboost-enrichment.csv"))
+write_excel_csv(h_logit_gsea, file = here(tables_dir, "h_logit-enrichment.csv"))
+write_excel_csv(h_xgboost_gsea, file = here(tables_dir, "h_xgboost-enrichment.csv"))
+```
+
+## Prepare *ad hoc* feature selection results **ED Table 4**
+
+```{r load-data-subregional-fs-ad-hoc, cache = FALSE}
+adhoc_chi2   <- read_tsv(here(tables_dir, "feature_selection/adhoc", "fs_chi2_features.tsv"), col_names = "Name")
+adhoc_anova   <- read_tsv(here(tables_dir, "feature_selection/adhoc", "fs_anova_features.tsv"), col_names = "Name")
+adhoc_mutual_information <- read_tsv(here(tables_dir, "feature_selection/adhoc", "fs_mutual_information_features.tsv"), col_names = "Name")
+
+adhoc_logit   <- read_tsv(here(tables_dir, "feature_selection/adhoc", "fs_logit_features.tsv"), col_names = "Name")
+adhoc_xgboost <- read_tsv(here(tables_dir, "feature_selection/adhoc", "fs_xgboost_features.tsv"), col_names = "Name")
+```
+
+```{r annotate-subregional-fs-ad-hoc}
+adhoc_chi2_update <- genes_update(adhoc_chi2)
+adhoc_anova_update <- genes_update(adhoc_anova)
+adhoc_mutual_information_update <- genes_update(adhoc_mutual_information)
+adhoc_logit_update <- genes_update(adhoc_logit)
+adhoc_xgboost_update <- genes_update(adhoc_xgboost)
+
+write_excel_csv(adhoc_chi2_update, file = here(tables_dir, "adhoc_chi2-annotated.csv"))
+write_excel_csv(adhoc_anova_update, file = here(tables_dir, "adhoc_anova-annotated.csv"))
+write_excel_csv(adhoc_mutual_information_update, file = here(tables_dir, "adhoc_mutual_information-annotated.csv"))
+write_excel_csv(adhoc_logit_update, file = here(tables_dir, "adhoc_logit-annotated.csv"))
+write_excel_csv(adhoc_xgboost_update, file = here(tables_dir, "adhoc_xgboost-annotated.csv"))
+```
+
+```{r gsea-table-subregional-fs-ad-hoc}
+adhoc_chi2_gsea <- get_enrichment(adhoc_chi2_update)
+adhoc_anova_gsea <- get_enrichment(adhoc_anova_update)
+adhoc_mutual_information_gsea <- get_enrichment(adhoc_mutual_information_update)
+adhoc_logit_gsea <- get_enrichment(adhoc_logit_update)
+adhoc_xgboost_gsea <- get_enrichment(adhoc_xgboost_update)
+
+write_excel_csv(adhoc_chi2_gsea, file = here(tables_dir, "adhoc_chi2-enrichment.csv"))
+write_excel_csv(adhoc_anova_gsea, file = here(tables_dir, "adhoc_anova-enrichment.csv"))
+write_excel_csv(adhoc_mutual_information_gsea, file = here(tables_dir, "adhoc_mutual_information-enrichment.csv"))
+write_excel_csv(adhoc_logit_gsea, file = here(tables_dir, "adhoc_logit-enrichment.csv"))
+write_excel_csv(adhoc_xgboost_gsea, file = here(tables_dir, "adhoc_xgboost-enrichment.csv"))
+```
+
+## Prepare direct pipeline DEGs **ED Table 6**
+
+```{r load-data-subregional-deg-direct, cache = FALSE}
+z_deg <- read_csv(here(tables_dir, "differential_expression/direct", "PRJNA438862-all-marker-genes.csv"))
+r_deg <- read_csv(here(tables_dir, "differential_expression/direct", "PRJNA548917-all-marker-genes.csv"))
+k_deg <- read_csv(here(tables_dir, "differential_expression/direct", "PRJNA547712-all-marker-genes.csv"))
+h_deg <- read_csv(here(tables_dir, "differential_expression/direct", "PRJNA779749-all-marker-genes.csv"))
+
+z_deg <- z_deg |> mutate(cluster = case_when(cluster == 0 ~ "ARC",
+                                             cluster == 1 ~ "LHA",
+                                             cluster == 2 ~ "MnPO",
+                                             cluster == 3 ~ "POA",
+                                             cluster == 4 ~ "PVN",
+                                             cluster == 5 ~ "SCN",
+                                             cluster == 6 ~ "VMH",
+                                             cluster == 7 ~ "VPH"))
+r_deg <- r_deg |> mutate(cluster = case_when(cluster == 0 ~ "ARC",
+                                             cluster == 1 ~ "LHA",
+                                             cluster == 2 ~ "MnPO",
+                                             cluster == 3 ~ "POA",
+                                             cluster == 4 ~ "PVN",
+                                             cluster == 5 ~ "SCN",
+                                             cluster == 6 ~ "VMH",
+                                             cluster == 7 ~ "VPH"))
+k_deg <- k_deg |> mutate(cluster = case_when(cluster == 0 ~ "ARC",
+                                             cluster == 1 ~ "LHA",
+                                             cluster == 2 ~ "MnPO",
+                                             cluster == 3 ~ "POA",
+                                             cluster == 4 ~ "PVN",
+                                             cluster == 5 ~ "SCN",
+                                             cluster == 6 ~ "VMH",
+                                             cluster == 7 ~ "VPH"))
+h_deg <- h_deg |> mutate(cluster = case_when(cluster == 0 ~ "ARC",
+                                             cluster == 1 ~ "LHA",
+                                             cluster == 2 ~ "MnPO",
+                                             cluster == 3 ~ "POA",
+                                             cluster == 4 ~ "PVN",
+                                             cluster == 5 ~ "SCN",
+                                             cluster == 6 ~ "VMH",
+                                             cluster == 7 ~ "VPH"))
+```
+
+```{r annotate-subregional-deg-direct}
+z_deg_update <- genes_update2(z_deg)
+r_deg_update <- genes_update2(r_deg)
+k_deg_update <- genes_update2(k_deg)
+h_deg_update <- genes_update2(h_deg)
+
+write_excel_csv(z_deg_update, file = here(tables_dir, "z_deg-annotated.csv"))
+write_excel_csv(r_deg_update, file = here(tables_dir, "r_deg-annotated.csv"))
+write_excel_csv(k_deg_update, file = here(tables_dir, "k_deg-annotated.csv"))
+write_excel_csv(h_deg_update, file = here(tables_dir, "h_deg-annotated.csv"))
+```
+
+```{r gsea-table-subregional-deg-direct}
+z_deg_gsea <- get_enrichment_clusters(z_deg_update)
+r_deg_gsea <- get_enrichment_clusters(r_deg_update)
+k_deg_gsea <- get_enrichment_clusters(k_deg_update)
+h_deg_gsea <- get_enrichment_clusters(h_deg_update)
+
+write_excel_csv(z_deg_gsea, file = here(tables_dir, "z_deg-enrichment.csv"))
+write_excel_csv(r_deg_gsea, file = here(tables_dir, "r_deg-enrichment.csv"))
+write_excel_csv(k_deg_gsea, file = here(tables_dir, "k_deg-enrichment.csv"))
+write_excel_csv(h_deg_gsea, file = here(tables_dir, "h_deg-enrichment.csv"))
+
+z_deg_gsea
+r_deg_gsea
+k_deg_gsea
+h_deg_gsea
+```
+
+## Prepare *ad hoc* pipeline DEGs **ED Table 6**
+
+```{r load-data-subregional-deg-ad-hoc, cache = FALSE}
+# z_adhoc_deg <- read_tsv(here(tables_dir, "differential_expression/adhoc", "PRJNA438862-all-marker-genes.tsv"))
+# 
+# r_adhoc_deg <- read_tsv(here(tables_dir, "differential_expression/adhoc", "PRJNA548917-all-marker-genes.tsv"))
+# 
+# k_adhoc_deg <- read_tsv(here(tables_dir, "differential_expression/adhoc", "PRJNA547712-all-marker-genes.tsv"))
+# 
+# h_adhoc_deg <- read_tsv(here(tables_dir, "differential_expression/adhoc", "PRJNA779749-all-marker-genes.tsv"))
+```
+
+## Aggregate direct pipeline DEGs **ED Table 6**
+
+```{r aggregate-direct, cache = FALSE}
+# total number of distinct translatable genes in GENCODE Release M32tttt
+gn <- sum(length(unique(z_deg_update$gene)),
+          length(unique(r_deg_update$gene)),
+          length(unique(k_deg_update$gene)),
+          length(unique(h_deg_update$gene)))
+
+specificity_genes <- function(data) {
+  data |>
+    filter(p_val <= 0.05) |>
+    arrange(p_val) %>%
+    .$gene
+}
+
+magnitude_genes <- function(data) {
+  data |>
+    filter(p_val <= 0.05) |>
+    arrange(desc(avg_log2FC)) %>%
+    .$gene
+}
+
+arc <- list(
+  filter(z_deg_update, cluster == "ARC"),
+  filter(r_deg_update, cluster == "ARC"),
+  filter(k_deg_update, cluster == "ARC"),
+  filter(h_deg_update, cluster == "ARC")
+  )
+
+lha <- list(
+  filter(z_deg_update, cluster == "LHA"),
+  filter(r_deg_update, cluster == "LHA"),
+  filter(k_deg_update, cluster == "LHA"),
+  filter(h_deg_update, cluster == "LHA")
+  )
+
+mnpo <- list(
+  filter(z_deg_update, cluster == "MnPO"),
+  filter(r_deg_update, cluster == "MnPO"),
+  filter(k_deg_update, cluster == "MnPO"),
+  filter(h_deg_update, cluster == "MnPO")
+  )
+
+poa <- list(
+  filter(z_deg_update, cluster == "POA"),
+  filter(r_deg_update, cluster == "POA"),
+  filter(k_deg_update, cluster == "POA"),
+  filter(h_deg_update, cluster == "POA")
+  )
+
+pvn <- list(
+  filter(z_deg_update, cluster == "PVN"),
+  filter(r_deg_update, cluster == "PVN"),
+  filter(k_deg_update, cluster == "PVN"),
+  filter(h_deg_update, cluster == "PVN")
+  )
+
+scn <- list(
+  filter(z_deg_update, cluster == "SCN"),
+  filter(r_deg_update, cluster == "SCN"),
+  filter(k_deg_update, cluster == "SCN"),
+  filter(h_deg_update, cluster == "SCN")
+  )
+
+vmh <- list(
+  filter(z_deg_update, cluster == "VMH"),
+  filter(r_deg_update, cluster == "VMH"),
+  filter(k_deg_update, cluster == "VMH"),
+  filter(h_deg_update, cluster == "VMH")
+  )
+
+vph <- list(
+  filter(z_deg_update, cluster == "VPH"),
+  filter(r_deg_update, cluster == "VPH"),
+  filter(k_deg_update, cluster == "VPH"),
+  filter(h_deg_update, cluster == "VPH")
+  )
+
+
+glist_s_arc <- map(
+  arc,
+  ~ specificity_genes(.x)
+)
+tc_s_arc <- map_dbl(glist_s_arc, ~ length(.x) / gn)
+granks_s_arc <-
+  aggregateRanks(
+    glist = glist_s_arc,
+    N = gn,
+    topCutoff = as.vector(tc_s_arc)
+  )
+
+
+glist_s_lha <- map(
+  lha,
+  ~ specificity_genes(.x)
+)
+tc_s_lha <- map_dbl(glist_s_lha, ~ length(.x) / gn)
+granks_s_lha <-
+  aggregateRanks(
+    glist = glist_s_lha,
+    N = gn,
+    topCutoff = as.vector(tc_s_lha)
+  )
+
+
+glist_s_mnpo <- map(
+  mnpo,
+  ~ specificity_genes(.x)
+)
+tc_s_mnpo <- map_dbl(glist_s_mnpo, ~ length(.x) / gn)
+granks_s_mnpo <-
+  aggregateRanks(
+    glist = glist_s_mnpo,
+    N = gn,
+    topCutoff = as.vector(tc_s_mnpo)
+  )
+
+
+glist_s_poa <- map(
+  poa,
+  ~ specificity_genes(.x)
+)
+tc_s_poa <- map_dbl(glist_s_poa, ~ length(.x) / gn)
+granks_s_poa <-
+  aggregateRanks(
+    glist = glist_s_poa,
+    N = gn,
+    topCutoff = as.vector(tc_s_poa)
+  )
+
+
+glist_s_pvn <- map(
+  pvn,
+  ~ specificity_genes(.x)
+)
+tc_s_pvn <- map_dbl(glist_s_pvn, ~ length(.x) / gn)
+granks_s_pvn <-
+  aggregateRanks(
+    glist = glist_s_pvn,
+    N = gn,
+    topCutoff = as.vector(tc_s_pvn)
+  )
+
+
+glist_s_scn <- map(
+  scn,
+  ~ specificity_genes(.x)
+)
+tc_s_scn <- map_dbl(glist_s_scn, ~ length(.x) / gn)
+granks_s_scn <-
+  aggregateRanks(
+    glist = glist_s_scn,
+    N = gn,
+    topCutoff = as.vector(tc_s_scn)
+  )
+
+
+glist_s_vmh <- map(
+  vmh,
+  ~ specificity_genes(.x)
+)
+tc_s_vmh <- map_dbl(glist_s_vmh, ~ length(.x) / gn)
+granks_s_vmh <-
+  aggregateRanks(
+    glist = glist_s_vmh,
+    N = gn,
+    topCutoff = as.vector(tc_s_vmh)
+  )
+
+
+glist_s_vph <- map(
+  vph,
+  ~ specificity_genes(.x)
+)
+tc_s_vph <- map_dbl(glist_s_vph, ~ length(.x) / gn)
+granks_s_vph <-
+  aggregateRanks(
+    glist = glist_s_vph,
+    N = gn,
+    topCutoff = as.vector(tc_s_vph)
+  )
+
+
+glist_m_arc <- map(
+  arc,
+  ~ magnitude_genes(.x)
+)
+tc_m_arc <- map_dbl(glist_m_arc, ~ length(.x) / gn)
+granks_m_arc <-
+  aggregateRanks(
+    glist = glist_m_arc,
+    N = gn,
+    topCutoff = as.vector(tc_m_arc)
+  )
+
+
+glist_m_lha <- map(
+  lha,
+  ~ magnitude_genes(.x)
+)
+tc_m_lha <- map_dbl(glist_m_lha, ~ length(.x) / gn)
+granks_m_lha <-
+  aggregateRanks(
+    glist = glist_m_lha,
+    N = gn,
+    topCutoff = as.vector(tc_m_lha)
+  )
+
+
+glist_m_mnpo <- map(
+  mnpo,
+  ~ magnitude_genes(.x)
+)
+tc_m_mnpo <- map_dbl(glist_m_mnpo, ~ length(.x) / gn)
+granks_m_mnpo <-
+  aggregateRanks(
+    glist = glist_m_mnpo,
+    N = gn,
+    topCutoff = as.vector(tc_m_mnpo)
+  )
+
+
+glist_m_poa <- map(
+  poa,
+  ~ magnitude_genes(.x)
+)
+tc_m_poa <- map_dbl(glist_m_poa, ~ length(.x) / gn)
+granks_m_poa <-
+  aggregateRanks(
+    glist = glist_m_poa,
+    N = gn,
+    topCutoff = as.vector(tc_m_poa)
+  )
+
+
+glist_m_pvn <- map(
+  pvn,
+  ~ magnitude_genes(.x)
+)
+tc_m_pvn <- map_dbl(glist_m_pvn, ~ length(.x) / gn)
+granks_m_pvn <-
+  aggregateRanks(
+    glist = glist_m_pvn,
+    N = gn,
+    topCutoff = as.vector(tc_m_pvn)
+  )
+
+
+glist_m_scn <- map(
+  scn,
+  ~ magnitude_genes(.x)
+)
+tc_m_scn <- map_dbl(glist_m_scn, ~ length(.x) / gn)
+granks_m_scn <-
+  aggregateRanks(
+    glist = glist_m_scn,
+    N = gn,
+    topCutoff = as.vector(tc_m_scn)
+  )
+
+
+glist_m_vmh <- map(
+  vmh,
+  ~ magnitude_genes(.x)
+)
+tc_m_vmh <- map_dbl(glist_m_vmh, ~ length(.x) / gn)
+granks_m_vmh <-
+  aggregateRanks(
+    glist = glist_m_vmh,
+    N = gn,
+    topCutoff = as.vector(tc_m_vmh)
+  )
+
+
+glist_m_vph <- map(
+  vph,
+  ~ magnitude_genes(.x)
+)
+tc_m_vph <- map_dbl(glist_m_vph, ~ length(.x) / gn)
+granks_m_vph <-
+  aggregateRanks(
+    glist = glist_m_vph,
+    N = gn,
+    topCutoff = as.vector(tc_m_vph)
+  )
+
+
+granks_arc <- 
+  full_join(granks_s_arc, granks_m_arc,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "ARC")
+
+granks_lha <- 
+  full_join(granks_s_lha, granks_m_lha,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "LHA")
+
+granks_mnpo <- 
+  full_join(granks_s_mnpo, granks_m_mnpo,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "MnPO")
+
+granks_poa <- 
+  full_join(granks_s_poa, granks_m_poa,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "POA")
+
+granks_pvn <- 
+  full_join(granks_s_pvn, granks_m_pvn,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "PVN")
+
+granks_scn <- 
+  full_join(granks_s_scn, granks_m_scn,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "SCN")
+
+granks_vmh <- 
+  full_join(granks_s_vmh, granks_m_vmh,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "VMH")
+
+granks_vph <- 
+  full_join(granks_s_vph, granks_m_vph,
+            by = c("Name"),
+            suffix = c("_specificity", "_magnitude")) |> 
+  mutate(cluster = "VPH")
+
+aggregated_deg <-
+  bind_rows(
+    granks_arc,
+    granks_lha,
+    granks_mnpo,
+    granks_poa,
+    granks_pvn,
+    granks_scn,
+    granks_vmh,
+    granks_vph
+  )
+
+aggregated_deg
+```
+
+```{r annotate-aggregate-direct}
+aggregated_deg <- rename(aggregated_deg, gene = Name)
+write_excel_csv(aggregated_deg, file = here(tables_dir, "aggregated_deg-annotated.csv"))
+```
+
+```{r gsea-table-aggregate-direct}
+aggregated_deg_gsea <- get_enrichment_clusters2(aggregated_deg)
+write_excel_csv(aggregated_deg_gsea, file = here(tables_dir, "aggregated_deg-enrichment.csv"))
+aggregated_deg_gsea
+```
+
+## Aggregate *ad hoc* pipeline DEGs **ED Table 6**
+
+```{r aggregate-ad-hoc, cache = FALSE}
+
+```

@@ -8,4 +8,62 @@ editor_options:
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+1. System requirements
+
+ - All software dependencies and operating systems (including version numbers) are available in the methods section of the manuscript
+ - Archived version of this repo has been tested on x86_64-pc-linux-gnu (64-bit) platform running under Ubuntu 22.04.[1,2] LTS with R version 4.2.2 and Python version 3.8.8
+ - GPU is required to run ambient RNA removal with CellBender and XBoost-based feature selection, which is crucial for the AstroTRAP method.
+
+2. Installation guide
+
+ - Installation is available via Snakemake framework infrastructure. The Snakefile pipeline is in the project root. Before run: 1) You need to edit path to the cellranger environment file on your computer ($CELLRANGER). 2) Be sure that Apptainer (former Singularity is installed and available in $PATH).
+ - Typical install time on a "normal" desktop computer should be within a hour that you need to install cellranger, Anaconda, Apptainer/Singularity, to create snakemake conda environment and to download all configured container-images.
+
+3. Demo
+
+ - We include code notebooks that one can use to reproduce panels of the figures related to (sn/sc)RNA-seq data from the manuscript.
+ - It is expected that output images can slightly differ due to random factor native to dimension reduction technics.
+ - Expected run time for demo on a "normal" desktop computer is within a several hours, except full Jupyter notebooks that includes training, cross-validation, testing and prediction using AstroTRAP models (implementation with direct feature selection for a priori known set of unlabeled datasets - `analysis/astrotrap_direct.ipynb`, and generalized implementation, which use ad hoc adjustment for provided dataset for anatomic region labels prediction - `analysis/astrotrap_adhoc.ipynb`), which might require from several days (in our case: 256 CPU cores, 2 TB RAM, and NVIDIA RTX A6000 GPU) and up to several weeks depending on available CPU and GPU resources.
+
+4. Instructions for use:
+
+ - To run the demo on preprocessed data you need to 
+    - 1) (optional) source/rerun rendering of Rmarkdown preprocessing notebooks for individual hypothalamic regions via workflowr package or use their corresponding `Snakefile`s;
+    - 2) source/rerun rendering of Quarto (Rmarkdown/Jupyter) analysis notebooks for figures:
+      - Conventional integration of all datasets for Figure 1b-c, ED Fig. 1b [plots][recap-plots-conventional-integration], [analysis/2022-11-23_pr.Rmd][RPCA-integration-all], [analysis/2022-11-24_pr.Rmd][CCA-integration-all];
+      - Transcriptional dynamic analysis based on RNA velocity and CellRank for Figure 1d-e, ED Fig. 1c [PRJNA779749/analysis/02A-velocity-astrocytes_dataset-fpr_0.001.qmd][hajdarovic-veloviz], for Figure 1f, ED Fig. 1d-f [PRJNA847050/analysis/02-velocity-signalling_hfd.qmd][lutomska-cellrank-and-liana], for ED Figure 1g-h [PRJNA679294/analysis/02-velocity-signalling_csds.qmd][lopez-scvelo-and-liana]
+      - Semi-supervised representation learning on paired integrations between astrocytes from Hajdarovic et al., 2022 and individual hypothalamic nucleus/area datasets for Figure 1k,m [][]
+      - AstroTRAP stratification of subregional heterogeneity for Figure 2a, 3c, 5f,k, ED Fig. 5a, 8, 10b [plots][plot_genes_on_predictions], [analysis/astrotrap_direct.ipynb][astrotrap_direct], and [analysis/astrotrap_adhoc.ipynb][astrotrap_adhoc]
+      - Altered gene expression in astrocytes for Figure 2b ARC (left) and PVN (right) upon exposure to high-fat high-sugar diet (HFHSD) [PRJNA847050/analysis/07-plot-de_induc.qmd][lutomska-hfd-induc] and chronic social defeat stress (CSDS) [PRJNA679294/analysis/07-plot-de_induc.qmd][lopez-csds-induc], respectively
+      - Hex-binned density of expression on supervised densMAP embedding of integrated regional hypthalamic datasets Figure 2d, 4a, ED Fig. 5b,c, 6a, 10a [plots][plot-de_region]
+      - Subgroups of astrocytes in the VMH for ED Fig. 7 [plots][grpr_region]
+      - SCENIC workflow for Figure 3a [PRJNA548917/analysis/04-de_test-dendrogram.qmd][PRJNA548917-de-regulons-dendrogram]
+      - CellChat signalling analysis of Arcuate Nucleus/Median Eminence applied to single-cell RNA-seq data reconstructed ligand-receptor interactions between subgroups of astrocytes, subset by being either Insr+ or Insr-, and Pomc+ vs. Agrp+ neurons for Figure 5b [plots][20-cellchatdb-insr-signalling-detailed], and DABEST comparison of signalling specificity 5c [tests][08-insr-signalling-summary]
+      - Relative densities of Ins+, Lxn+ and Ins+/Lxn+ astrocytes (normalized) in n = 8 hypothalamic areas with statistical goodness of fit and chi2 testing for Figure 5e, 6b, ED Fig. 11 [plots][plot-insr-lxn-association]
+      - Computational comparison of potential interactions between Lxn+ astrocytes (residing in ARC or PVN) and POMC+ neurons for Figure 5i using DABEST comparison of signalling specificity [tests][4-lxn-signalling-summary], and all ligand-receptor pairs that drives differential coupling [plots][21-cellchatdb-lxn-signalling-detailed]
+      - CellChat signalling analysis of Arcuate Nucleus/Median Eminence Lxn (+/-) astrocytes for Figure 6a [PRJNA847050/analysis/13-cellchat-lxn.qmd][lutomska-cellchat-lxn-hfd]
+      - Examine *Lxn*, *Gfap* and *Mfn2* correlation for Figure 6c [analysis/hfd.Rmd][correlation-arc-lxn-gfap-mfn2]
+ - To reproduce whole pipeline you would need to modify and run command `snakemake -f --use-singularity -prk --cores <FILL-IN-N-CORES> --resources nvidia_gpu=1 --singularity-args "--nv --bind <FILL-IN-PATH-TO-CLONED-REPO>" --rerun-incomplete --retries 1 --resources mem_mb=<FILL-IN-MEM>`
+
+[methods]: https://eugot.github.io/heteroAstrocytes/methods.html "Methods section of the analysis website"
+[recap-plots-conventional-integration]: https://eugot.github.io/heteroAstrocytes/plot-conv-integration-all-together-cloud.html "Conventional integration of all datasets produce functional state heterogeneity demonstrating cloud"
+[RPCA-integration-all]: https://github.com/EugOT/heteroAstrocytes/blob/main/analysis/2022-11-23_pr.Rmd "Seurat RPCA-integration using all datasets (all Hypomap datasets + Lutomska et al. 2022, Deng et al. 2021, Hajdarovic et al. 2022)"
+[CCA-integration-all]: https://github.com/EugOT/heteroAstrocytes/blob/main/analysis/2022-11-24_pr.Rmd "Seurat CCA-integration using all datasets (all Hypomap datasets + Lutomska et al. 2022, Deng et al. 2021, Hajdarovich et al. 2022)"
+[hajdarovic-veloviz]: https://github.com/EugOT/PRJNA779749/blob/main/analysis/02A-velocity-astrocytes_dataset-fpr_0.001.qmd "State change velocity analysis of Ageing Hypothalamus dataset from Hajdarovic KH et al 2022"
+[lutomska-cellrank-and-liana]: https://github.com/EugOT/PRJNA847050/blob/main/analysis/02-velocity-signalling_hfd.qmd "Dynamics of the hypothalamic arcuate nucleus response to hfd and signalling between astrocytic groups and Agrp or POMC neurons"
+[lopez-scvelo-and-liana]: https://github.com/EugOT/PRJNA679294/blob/main/analysis/02-velocity-signalling_csds.qmd "Dynamics of the hypothalamic paraventricular nucleus response to chronic stress and signalling between astrocytic groups and Agrp or POMC neurons"
+[plot_genes_on_predictions]: https://eugot.github.io/heteroAstrocytes/plot_genes_on_predictions.html "Plot AstroTRAP results"
+[astrotrap_direct]: https://github.com/EugOT/heteroAstrocytes/blob/main/analysis/astrotrap_direct.ipynb "AstroTRAP implementation with direct feature selection for a priori known set of unlabeled datasets"
+[astrotrap_adhoc]: https://github.com/EugOT/heteroAstrocytes/blob/main/analysis/astrotrap_adhoc.ipynb "Astrotrap generalized implementation, which use ad hoc adjustment for provided dataset for anatomic region labels prediction"
+[lutomska-hfd-induc]: https://eugot.github.io/PRJNA847050/07-plot-de_induc.html "Dynamics of the hypothalamic arcuate nucleus response to hfd and signalling between astrocytic groups and Agrp or POMC neurons"
+[lopez-csds-induc]: https://eugot.github.io/PRJNA679294/07-plot-de_induc.html "Dynamics of the hypothalamic paraventricular nucleus response to chronic stress and signalling between astrocytic groups and Agrp or POMC neurons"
+[plot-de_region]: https://eugot.github.io/heteroAstrocytes/plot-de_region.html#session-information "Plot results of Differential expression analysis for individual hypothalamic nuclei astrocytes evaluation dataset"
+[grpr_region]: https://eugot.github.io/heteroAstrocytes/grpr_region.html "Subgroups of astrocytes in the VMH"
+[08-insr-signalling-summary]: https://eugot.github.io/heteroAstrocytes/08-insr-signalling-summary.html "Signalling analysis of Insr positive vs. Insr negative astrocytes"
+[20-cellchatdb-insr-signalling-detailed]:  https://eugot.github.io/heteroAstrocytes/20-cellchatdb-insr-signalling-detailed.html "Detailed CellChat signalling specificity analysis of Insr positive vs. Insr negative astrocytes"
+[PRJNA548917-de-regulons-dendrogram]: https://eugot.github.io/PRJNA548917/04-de_test-dendrogram.html "Differential expression analysis across assigned regions for Hypothalamus astrocytes dataset from Romanov RA et al 2020"
+[plot-insr-lxn-association]: https://eugot.github.io/heteroAstrocytes/plot-insr-lxn-association.html#barplot-of-insr-and-lxn-expression-in-astrocytes-across-different-individual-hypothalamic-nuclei "Analysis of association between Insr and Lxn expression across different individual hypothalamic nuclei astrocytes evaluation datasets"
+[4-lxn-signalling-summary]: https://eugot.github.io/heteroAstrocytes/04-signalling-summary.html "Signalling analysis of Lxn positive vs. Lxn negative astrocytes"
+[21-cellchatdb-lxn-signalling-detailed]: https://eugot.github.io/heteroAstrocytes/21-cellchatdb-lxn-signalling-detailed.html "Detailed CellChat signalling specificity analysis of Lxn positive vs. Lxn negative astrocytes"
+[lutomska-cellchat-lxn-hfd]: https://eugot.github.io/PRJNA847050/13-cellchat-lxn.html "CellChat signalling analysis of Arcuate Nucleus/Median Eminence Lxn (+/-) astrocytes dataset from Lutomska LM et al 2022"
+[correlation-arc-lxn-gfap-mfn2]: https://github.com/EugOT/heteroAstrocytes/blob/main/analysis/hfd.Rmd "Deng 2021: Arcuate nucleus (HFD and chow)"

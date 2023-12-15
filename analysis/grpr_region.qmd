@@ -1,0 +1,480 @@
+---
+title: "Plot results of Differential expression analysis for individual hypothalamic nuclei astrocytes evaluation dataset"
+author: "Evgenii O. Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig-width: 9
+    fig-height: 12
+    fig-format: retina
+    fig-responsive: true
+    fig-dpi: 200
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+    fig.width: 14
+    fig.height: 12
+---
+
+```{r setup, include = FALSE}
+DOCNAME <- "plot-de-astrocytes-between-regions-on-evaluation-datasets"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("png", "pdf"),
+  timeit         = TRUE
+)
+```
+
+## Load data and setup parameters
+
+```{r libraries, cache=FALSE}
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(future)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(RColorBrewer)
+  library(viridis)
+})
+
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(patchwork)
+  library(ggstatsplot)
+  library(sceasy)
+  library(Seurat)
+  library(SeuratDisk)
+  library(SeuratWrappers)
+  library(schex)
+  library(scCustomize)
+})
+```
+
+### Set paths
+
+```{r paths}
+src_dir <- here("code/")
+data_dir <- here("data/")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures/")
+tables_dir <- here(output_dir, "tables/")
+```
+
+### Load helper functions and gene-sets
+
+```{r source, cache = FALSE}
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+```
+
+### Set fixed variables
+
+```{r params-computation, cache = FALSE}
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# Parameters for parallel execution
+n_cores <- 8
+plan("multisession", workers = n_cores)
+options(
+  future.globals.maxSize = 1999999 * 1024^2,
+  future.rng.onMisuse = "ignore"
+)
+plan()
+
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+```{r params}
+bioproject <- "individual_hypothalamic_nuclei_astrocytes_evaluation_dataset"
+cb_fpr <- 0.001
+connectivity_model <- "min_tree"
+k <- 10
+metric <- "euclidean"
+signature <- 100
+```
+
+## Load predicted astrocytes data
+
+```{r load-seurat}
+srt_path <- here(
+  data_dir,
+  sprintf("best_xgboost-subregional-astrocytes_dataset-msp_%s-metric_%s-k_%s-sign_%s-amb_%s.h5Seurat", connectivity_model, metric, k, signature, cb_fpr)
+)
+srt <- LoadH5Seurat(file = srt_path)
+
+srt <-
+  Store_Palette_Seurat(
+    seurat_object = srt,
+    palette = c(
+      "#ffff00", "#fae200", "#f4c500", "#eeab00", "#e99500",
+      "#e37f00", "#dd6b00", "#d75b00", "#d04c00", "#c93e00",
+      "#c33300", "#bc2800", "#b42003", "#ad1941", "#a41281",
+      "#9c0db7", "#9309dd", "#8906f7", "#7f04ff", "#7402f6",
+      "#6701db", "#5900b0", "#49007e", "#32003e", "#000000"
+    ),
+    palette_name = "expr_Colour_Palette_gnuplot_rette_gnuplot_r")
+
+srt <-
+  Store_Palette_Seurat(
+    seurat_object = srt,
+    palette = rev(brewer.pal(n = 11, name = "Spectral")),
+    palette_name = "div_Colour_Pal"
+  )
+
+colours_code <- c(
+  "0" = "grey30",
+  "1" = "blue",
+  "2" = "skyblue",
+  "3" = "forestgreen",
+  "4" = "greenyellow",
+  "5" = "yellow",
+  "6" = "orangered",
+  "7" = "grey70"
+)
+
+colours_region <- c(
+  "ARC" = "grey30",
+  "LHA" = "blue",
+  "MnPO" = "skyblue",
+  "POA" = "forestgreen",
+  "PVN" = "greenyellow",
+  "SCN" = "yellow",
+  "VMH" = "orangered",
+  "VPH" = "grey70"
+)
+
+print(srt)
+invisible(gc())
+```
+
+
+```{r scale-data}
+srt <- NormalizeData(srt)
+srt <- FindVariableFeatures(srt, selection.method = "vst", nfeatures = 5000)
+all.genes <- rownames(srt)
+srt <- ScaleData(srt, features = all.genes)
+```
+
+
+```{r save-markers-featureplots-at_genes}
+selected_genes <- c(
+  "Grpr", "Tbx3"
+)
+
+```
+
+
+
+```{r plot-density-grpr-tbx3}
+Plot_Density_Custom(seurat_object = srt, reduction = "densmap_xgboost", features = c("Grpr", "Tbx3"))
+```
+
+
+
+```{r plot-density-Grpr-Tbx3-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Grpr", "Tbx3"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Rax-Tbx3-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Rax", "Tbx3"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Grpr-Rax-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Grpr", "Rax"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Rax-Vim-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Rax", "Vim"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Rax-Col25a1-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Rax", "Col25a1"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Rax-Adm-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Rax", "Adm"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-Tbx3-Vim-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Tbx3", "Vim"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-chi2, fig.width=8, fig.height=24}
+sbs_mtx <- GetAssayData(object = srt, slot = "count", assay = "RNA") %>%
+  as.data.frame() %>%
+  t() %>%
+  as.data.frame() %>%
+  select(Grpr, Tbx3, Rax, Vim, Nes, Adm, Col25a1) %>%
+  dplyr::bind_cols(srt@meta.data) %>%
+  select(region, bioproject, project, Grpr, Tbx3, Rax, Vim, Nes, Adm, Col25a1) %>%
+  mutate(Grpr_pos = Grpr > 0,
+         Tbx3_pos  = Tbx3  > 0,
+         Rax_pos = Rax > 0,
+         Nes_pos = Nes > 0,
+         Vim_pos  = Vim  > 0)
+
+sbs_mtx %>% skimr::skim()
+
+
+# plot
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Grpr_pos,
+  y = Tbx3_pos,
+  grouping.var = region,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Grpr specification of Tbx3-positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Grpr_pos,
+  y = Tbx3_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Grpr specification of Tbx3-positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+```
+
+```{r plot-chi2-rax, fig.width=8, fig.height=24}
+# plot
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Grpr_pos,
+  y = Rax_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Grpr specification of Rax_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Tbx3_pos,
+  y = Rax_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Tbx3 specification of Rax_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+```
+
+```{r plot-chi2-vim, fig.width=8, fig.height=24}
+# plot
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Grpr_pos,
+  y = Vim_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Grpr specification of Vim_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Tbx3_pos,
+  y = Vim_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Tbx3 specification of Vim_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+```
+
+```{r plot-chi2-nes, fig.width=8, fig.height=24}
+# plot
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Grpr_pos,
+  y = Nes_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Grpr specification of Nes_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Tbx3_pos,
+  y = Nes_pos,
+  grouping.var = project,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "Tbx3 specification of Nes_positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+```
+
+```{r features-subset, fig.width=28, fig.height=24}
+srt2 <- subset(srt, subset = Grpr > 1 | Tbx3 > 1)
+FeaturePlot(srt2, c("Grpr", "Tbx3", "Rax", "Vim", "Nes", "Gfap"), reduction = "densmap_xgboost", ncol = 3, slot = "counts", order = TRUE)
+FeaturePlot_scCustom(srt2, c("Grpr", "Tbx3", "Rax", "Vim", "Nes", "Gfap"), reduction = "densmap_xgboost", num_columns = 3, slot = "data")
+
+FeaturePlot_scCustom(srt2, c("Grpr"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "project")
+FeaturePlot_scCustom(srt2, c("Tbx3"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "project")
+FeaturePlot_scCustom(srt2, c("Rax"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "project")
+FeaturePlot_scCustom(srt2, c("Vim"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "project")
+FeaturePlot_scCustom(srt2, c("Nes"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "project")
+
+FeaturePlot_scCustom(srt2, c("Grpr"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "region")
+FeaturePlot_scCustom(srt2, c("Tbx3"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "region")
+FeaturePlot_scCustom(srt2, c("Rax"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "region")
+FeaturePlot_scCustom(srt2, c("Vim"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "region")
+FeaturePlot_scCustom(srt2, c("Nes"), reduction = "densmap_xgboost", num_columns = 3, slot = "data", split.by = "region")
+
+FeatureScatter(srt2, "Grpr", "Tbx3")
+FeatureScatter(srt2, "Grpr", "Rax")
+FeatureScatter(srt2, "Rax", "Tbx3")
+FeatureScatter(srt2, "Grpr", "Vim")
+FeatureScatter(srt2, "Vim", "Tbx3")
+FeatureScatter(srt2, "Grpr", "Nes")
+FeatureScatter(srt2, "Nes", "Tbx3")
+
+FeatureScatter(srt2, "Vim", "Rax")
+FeatureScatter(srt2, "Rax", "Nes")
+FeatureScatter(srt2, "Vim", "Nes")
+```
+
+```{r features-subset2, fig.width=28, fig.height=24}
+mtx_export <- GetAssayData(object = srt, slot = "count", assay = "RNA") %>%
+  as.data.frame() %>%
+  t() %>%
+  as.data.frame() %>%
+  select(Grpr, Tbx3, Rax, Vim, Nes, Adm, Col25a1) %>%
+  dplyr::bind_cols(srt@meta.data) %>%
+  select(cell_name, region, bioproject, project,
+         Grpr, Tbx3, Rax, Vim, Nes, Adm, Col25a1) %>%
+  mutate(Grpr_pos = as.logical(Grpr),
+         Tbx3_pos  = as.logical(Tbx3),
+         Rax = as.logical(Rax),
+         Vim = as.logical(Vim),
+         Nes = as.logical(Nes),
+         Adm = as.logical(Adm),
+         Col25a1 = as.logical(Col25a1)) %>% 
+  filter((Grpr_pos & (Rax | Vim | Nes | Adm | Col25a1 | Tbx3_pos)) |
+           (Tbx3_pos & (Rax | Vim | Nes | Adm | Col25a1 | Grpr_pos)))
+skim(mtx_export)
+janitor::tabyl(mtx_export, region, Grpr_pos, Tbx3_pos)
+janitor::tabyl(mtx_export, region, Rax, Tbx3_pos)
+janitor::tabyl(mtx_export, region, Vim, Tbx3_pos)
+janitor::tabyl(mtx_export, region, Nes, Tbx3_pos)
+janitor::tabyl(mtx_export, region, Adm, Tbx3_pos)
+janitor::tabyl(mtx_export, region, Col25a1, Tbx3_pos)
+sbs_mtx_export <- 
+  mtx_export |> 
+  filter(Grpr_pos & Tbx3_pos) |> 
+  select(cell_name, region, bioproject, project)
+
+write_tsv(mtx_export,
+          file = here(data_dir, "data/PRJNA722418", "output/tables",
+                      "PRJNA722418-Grpr-Tbx3-astrocytes_dataset.tsv"))
+
+srt3 <- subset(srt, cells = sbs_mtx_export$cell_name)
+```
+
+```{r}
+Idents(object = srt, cells = mtx_export$cell_name) <- "Tbx3|Grpr"
+Idents(object = srt, cells = sbs_mtx_export$cell_name) <- "Tbx3&Grpr"
+
+Cluster_Highlight_Plot(
+  seurat_object = srt,
+  reduction = "densmap_xgboost",
+  cluster_name = c("Tbx3&Grpr", "Tbx3|Grpr"),
+  highlight_color = c("firebrick", "forestgreen"))
+```
+
+
+## Session information
+
+```{r session-info, cache = FALSE}
+sI <- sessioninfo::session_info()
+sI$loadedOnly <- NULL
+print(sI, locale = FALSE)
+```

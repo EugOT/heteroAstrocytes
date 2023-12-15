@@ -3,19 +3,37 @@ title: "License"
 output:
   workflowr::wflow_html:
     toc: false
+    theme: cosmo
+    highlight: textmate
+    code_folding: hide
+    df_print: paged
 editor_options:
   chunk_output_type: console
 ---
 
-What license are you using for your code? See [choosealicense.com][choose] for
-help deciding. It's a convention to save a file `LICENSE` in the root of your
-Git repo that contains the license text.
+This repository contains code and output of the analysis of single-nuclei
+RNA sequencing data for the article [Tretiakov E et al., 2023][publication].
 
-What license are you using for the written content on your site? It is
-traditional to choose a [Creative Commons][cc] license for this type of content.
 
-[choose]: https://choosealicense.com/
-[cc]: https://creativecommons.org/choose/
+Please see file `CITATION` in the root of your Git repo that contains 
+the citation information.
 
-How should others cite your work? It's a convention to save a file `CITATION`
-in the root of your Git repo that contains the citation information.
+
+To see the results of the analysis please visit 
+the [analysis website][website].
+
+
+The code in this analysis is covered by the
+[GNU General Public License v3.0][gpl] and the written content on this website
+is covered by a [Creative Commons CC-BY][cc] license.
+
+
+The publications mentioned and datasets used are covered by their respective 
+licenses and usage agreements. Please refer to those sources for details.
+
+
+
+[publication]: https://doi.org/ "Tretiakov E et al., "
+[website]: https://eugot.github.io/heteroAstrocytes/index.html "Analysis website"
+[gpl]: https://choosealicense.com/licenses/gpl-3.0/ "GPL-3.0 License"
+[cc]: https://creativecommons.org/licenses/by/4.0/ "CC-BY License"

@@ -7,4 +7,54 @@ editor_options:
   chunk_output_type: console
 ---
 
-Describe your project.
+# Molecularly stratified hypothalamic astrocytes are cellular foci for obesity
+
+This repository contains code and output of the analysis of single-nuclei/cells
+RNA sequencing data for the article [Tretiakov E et al., 2023][publication].
+
+Please see file `CITATION` in the root of your Git repo that contains
+the citation information.
+
+To see the results of the analysis please visit
+the [analysis website][website].
+
+## Purpose
+
+This research aimed to develop a novel computational approach, termed AstroTRAP, to uncover molecular heterogeneity among astrocytes in distinct anatomical regions of the mouse hypothalamus. Astrocytes are an important yet understudied class of glial cells that support neuronal function, but their diversity has been difficult to decipher using standard bioinformatic techniques designed for neurons. The hypothalamus was chosen as a model system due to its complex cytoarchitecture and involvement in many vital physiological processes. The researchers hypothesized that improving astrocyte classification would provide new insights into their specialized roles in modulating hypothalamic circuits and associated behaviors.
+
+The study had three main goals:
+
+1. Generate a consolidated dataset of single-cell RNA sequencing profiles for astrocytes across all hypothalamic nuclei, applying rigorous quality control.
+
+2. Develop AstroTRAP, a semi-supervised machine learning pipeline tailored to uncover stable molecular signatures of astrocytes despite their dynamic gene expression patterns. 
+
+3. Validate AstroTRAP's predictions of region-specific astrocyte subclasses by histological analysis and functional experiments on neuron-astrocyte interactions.
+
+Overall, this work demonstrates the power of specialized computational tools to reveal biological complexity hidden within large-scale transcriptomic data. The astrocyte diversity uncovered has important implications for understanding hypothalamic development, homeostasis, and disease.
+
+## Results  
+
+The researchers assembled and processed published scRNA-seq data on over 73,000 astrocytes from multiple hypothalamic nuclei. Standard unsupervised clustering methods, including principal component analysis, RNA velocity analysis, and differential gene expression, failed to identify stable molecular signatures that could delineate distinct astrocyte subclasses. The cells were grouped primarily by dynamic functional states rather than anatomical localization.
+
+To overcome this hurdle, the team developed AstroTRAP, a semi-supervised feature selection pipeline tailored to astrocyte heterogeneity. The key features included:
+
+- Iterative integration of regional datasets with whole hypothalamus references to subtract out variable functional markers
+- Use of original region-specific sample labels to guide selection of location-specific features with cross-validation to optimize model hyperparameters
+- The trained AstroTRAP model has the ability to stratify a heterogeneous mixture of hypothalamic astrocytes by predicting their anatomical origin region.
+
+Applying AstroTRAP to the curated astrocyte dataset uncovered distinct molecular profiles for cells in the paraventricular nucleus (PVN), arcuate nucleus/median eminence (ARC/ME), suprachiasmatic nucleus (SCN), ventromedial hypothalamus (VMH), ventroposterior hypothalamus (VPH), lateral hypothalamus (LH), preoptic area (POA), and median preoptic nucleus (MnPO). The signatures were enriched in transcription factors, cell surface receptors, and signaling components. 
+
+Notably, AstroTRAP retained information on dynamic functional markers like GFAP and FOS, while extracting stable location-specific features. Spatial segregation of astrocyte subclasses was confirmed by histological analysis of selected marker genes. 
+
+As a functional case study, the researchers focused on arcuate nucleus astrocytes expressing insulin receptors and the neuropeptides-processing protease inhibitor latexin. Computational modeling predicted preferential latexin release from these cells would modulate processing of the satiety peptide POMC in local neurons. Experiments in mice verified that disrupting mitochondrion-shaping protein *Mfn2* specifically in arcuate astrocytes led to POMC neuron changes and increased food intake resulting in diet-induced obesity.
+
+## Conclusions
+
+This study puts forth AstroTRAP as an effective computational strategy for dissecting molecular heterogeneity of dynamic cell populations from scRNA-seq data. It revealed that hypothalamic astrocytes have specialized, location-dependent transcriptional identities that likely coordinate their interactions with regional neuronal circuits. 
+
+The gene expression maps generated serve as an important reference resource for the field. The functional analyses demonstrate that astrocytes are not passive elements but active modulators of hypothalamic control over metabolism and other homeostatic programs with distinct agenda. More broadly, delineating astrocyte diversity across brain regions will provide crucial insight into their roles in development, neural coding, and disease susceptibility.
+
+By integrating cutting-edge bioinformatics with biological validation, this work significantly advances understanding of astrocyte biology and establishes a paradigm for unlocking complex cell populations masked within heterogeneous single-cell omics data.
+
+[publication]: https://doi.org/ "Tretiakov E et al., "
+[website]: https://eugot.github.io/heteroAstrocytes/index.html "Analysis website"

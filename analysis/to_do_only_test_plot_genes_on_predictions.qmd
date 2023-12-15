@@ -1,0 +1,4551 @@
+---
+jupyter: python3
+---
+
+
+```{python}
+import os
+import random
+import warnings
+import time
+import copy
+import heapq
+import joblib
+import numpy as np
+import pandas as pd
+import igraph as ig
+import matplotlib.pyplot as plt
+import matplotlib
+import scipy
+
+from watermark import watermark
+from natsort import natsorted
+from collections import Counter
+from sklearn.feature_selection import (
+    chi2,
+    f_classif,
+    mutual_info_classif,
+    RFECV,
+    SelectFromModel,
+    SelectKBest,
+)
+from sklearn.metrics import (
+    f1_score,
+    make_scorer,
+    matthews_corrcoef
+)
+from sklearn.model_selection import (
+    GridSearchCV,
+    RepeatedStratifiedKFold,
+    StratifiedGroupKFold,
+)
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.utils import check_random_state
+from pacmap import PaCMAP
+from umap import UMAP
+from umap.umap_ import (
+    find_ab_params,
+    nearest_neighbors,
+    fuzzy_simplicial_set,
+    simplicial_set_embedding,
+    dist,
+)
+from leidenalg import CPMVertexPartition, Optimiser
+from networkx import from_scipy_sparse_array
+
+import scanpy as sc
+from scanpy.experimental.pp import highly_variable_genes
+from anndata import concat
+```
+
+```{python}
+#################
+##### genes #####
+#################
+
+npr = [
+    "Adcyap1r1",
+    "Avpr1a",
+    "Calcr",
+    "Calcrl",
+    "Cckar",
+    "Cckbr",
+    "Cntfr",
+    "Crhr1",
+    "Crhr2",
+    "Esr1",
+    "Galr1",
+    "Galr2",
+    "Galr3",
+    "Ghr",
+    "Ghrhr",
+    "Ghsr",
+    "Glp1r",
+    "Gpr55",
+    "Gpr83",
+    "Gpr149",
+    "Grpr",
+    "Hcrtr1",
+    "Hcrtr2",
+    "Igf1r",
+    "Insr",
+    "Insrr",
+    "Kiss1r",
+    "Lepr",
+    "Mc1r",
+    "Mc3r",
+    "Mc4r",
+    "Mchr1",
+    "Nmbr",
+    "Nmur1",
+    "Nmur2",
+    "Npffr1",
+    "Npffr2",
+    "Npr1",
+    "Npr2",
+    "Npr3",
+    "Npsr1",
+    "Npsr2",
+    "Npy1r",
+    "Npy2r",
+    "Npy5r",
+    "Ntrk2",
+    "Ntsr1",
+    "Ntsr2",
+    "Oprd1",
+    "Oprk1",
+    "Oprl1",
+    "Oprm1",
+    "Oxtr",
+    "Prlhr",
+    "Prlr",
+    "Prokr2",
+    "Qrfpr",
+    "Rxfp1",
+    "Rxfp2",
+    "Sstr1",
+    "Sstr2",
+    "Sstr3",
+    "Tacr1",
+    "Tacr3",
+    "Trhr",
+    "Trhr2",
+    "Tshr",
+    "Vipr1",
+    "Vipr2",
+]
+
+npep = [
+    "Adcyap1",
+    "Agrp",
+    "Avp",
+    "Bdnf",
+    "Cartpt",
+    "Cck",
+    "Cntf",
+    "Crh",
+    "Gal",
+    "Ghrh",
+    "Ghrl",
+    "Grp",
+    "Hcrt",
+    "Kiss1",
+    "Lep",
+    "Nmb",
+    "Nms",
+    "Nmu",
+    "Npvf",
+    "Npw",
+    "Npy",
+    "Nts",
+    "Oxt",
+    "Pdyn",
+    "Penk",
+    "Pmch",
+    "Pnoc",
+    "Pomc",
+    "Qrfp",
+    "Reln",
+    "Rln1",
+    "Rln3",
+    "Sst",
+    "Tac1",
+    "Tac2",
+    "Trh",
+]
+
+genes_embed = [
+    "Abcd1",
+    "Abcd2",
+    "Abcd3",
+    "Acaa1",
+    "Acaa2",
+    "Acox1",
+    "Agt",
+    "Aldh1a1",
+    "Aldh1l1",
+    "Aldoc",
+    "Apoe",
+    "Aqp4",
+    "Caf4",
+    "Ckb",
+    "Cnr1",
+    "Cnr2",
+    "Cst3",
+    "Dagla",
+    "Daglb",
+    "Decr2",
+    "Dnm1",
+    "Drp1",
+    "Ech1",
+    "Egfr",
+    "Eno1",
+    "Faah",
+    "Fgfr3",
+    "Fis1",
+    "Fos",
+    "Fth1",
+    "Ftl1",
+    "Gfap",
+    "Gja1",
+    "Gli1",
+    "Glul",
+    "Hacd2",
+    "Hadhb",
+    "Hepacam",
+    "Hif1",
+    "Htra1",
+    "Lcat",
+    "Lpcat3",
+    "Lxn",
+    "Mdv1",
+    "Mfn1",
+    "Mfn2",
+    "Mgll",
+    "Mief1",
+    "Napepld",
+    "Ndrg2",
+    "Nfia",
+    "Opa1",
+    "Otp",
+    "Pex1",
+    "Pex10",
+    "Pex12",
+    "Pex13",
+    "Pex14",
+    "Pex16",
+    "Pex2",
+    "Pex26",
+    "Pex3",
+    "Pex6",
+    "Pla2g7",
+    "Plcb1",
+    "Pygb",
+    "S100a6",
+    "S100b",
+    "Scd2",
+    "Sgcd",
+    "Slc1a2",
+    "Slc1a3",
+    "Slc4a4",
+    "Slc6a11",
+    "Slc7a10",
+    "Slc38a1",
+    "Slit1",
+    "Slit2",
+    "Sox9",
+    "Tafa1",
+    "Tkt",
+    "Trpv1",
+]
+
+nmr = [
+    "Adra1a",
+    "Adra1b",
+    "Adra1d",
+    "Adra2a",
+    "Adra2b",
+    "Adra2c",
+    "Adrb1",
+    "Adrb2",
+    "Adrb3",
+    "Adrbk1",
+    "Adrbk2",
+    "Adrm1",  # adrenergic receptors
+    "Adora1",
+    "Adora2a",
+    "Adora2b",
+    "Adora3", # adenosine receptors
+    "Chrm1",
+    "Chrm2",
+    "Chrm3",
+    "Chrm4",
+    "Chrm5",
+    "Chrna1",
+    "Chrna2",
+    "Chrna3",
+    "Chrna4",
+    "Chrna5",
+    "Chrna6",
+    "Chrna7",
+    "Chrna9",
+    "Chrna10",
+    "Chrnb1",
+    "Chrnb2",
+    "Chrnb3",
+    "Chrnd",
+    "Chrng", # cholinergic receptors
+    "Gria1",
+    "Gria2",
+    "Gria3",
+    "Gria4",  # iGlu AMPA receptors
+    "Grid1",
+    "Grid2",  # iGlu delta receptors
+    "Grik1",
+    "Grik2",
+    "Grik3",
+    "Grik4",
+    "Grik5",  # iGlu kainate receptors
+    "Grin1",
+    "Grin2a",
+    "Grin2b",
+    "Grin2c",
+    "Grin2d",
+    "Grin3a",
+    "Grin3b",  # iGlu NMDA receptors
+    "Grm1",
+    "Grm5",  # mGluRs 1
+    "Grm2",
+    "Grm3",  # mGluRs 2
+    "Grm4",
+    "Grm6",
+    "Grm7",
+    "Grm8",  # mGluRs 3
+    "Gabra1",
+    "Gabra2",
+    "Gabra3",
+    "Gabra4",
+    "Gabra5",
+    "Gabra6",
+    "Gabrb1",
+    "Gabrb2",
+    "Gabrb3",
+    "Gabrg1",
+    "Gabrg2",
+    "Gabrg3",
+    "Gabrd",
+    "Gabre",
+    "Gabrp",
+    "Gabrq",
+    "Gabrr1",
+    "Gabrr2",
+    "Gabrr3",
+    "Gabbr1",
+    "Gabbr2", # GABA receptors
+    "Drd1",
+    "Drd2",
+    "Drd3",
+    "Drd4",
+    "Drd5", # dopamine receptors
+    "Htr1a",
+    "Htr1b",
+    "Htr1d",
+    "Htr1f",
+    "Htr2a",
+    "Htr2b",
+    "Htr2c",
+    "Htr3a",
+    "Htr3b",
+    "Htr4",
+    "Htr5a",
+    "Htr5b",
+    "Htr6",
+    "Htr7", # serotonin receptors
+    "Gnas",
+    "Gnai1",
+    "Gnai2",
+    "Gnai3",
+    "Gnao1",
+    "Gnao2",
+    "Gnaq",
+    "Gna11",
+    "Gna12",
+    "Gna13",
+    "Gnal",
+    "Gnasxl", # G protein alpha subunit
+    "Gnb1",
+    "Gnb2",
+    "Gnb3",
+    "Gnb4",
+    "Gnb5", # G protein beta subunit
+    "Gng2",
+    "Gng3",
+    "Gng4",
+    "Gng5",
+    "Gng7",
+    "Gng8",
+    "Gng10",
+    "Gng11",
+    "Gng12",
+    "Gng13",
+    "Gngt1",
+    "Gngt2", # G protein gamma subunit
+    "P2rx1",
+    "P2rx2",
+    "P2rx3",
+    "P2rx4",
+    "P2rx5",
+    "P2rx6",
+    "P2rx7",
+    "P2ry1",
+    "P2ry2",
+    "P2ry4",
+    "P2ry6",
+    "P2ry12",
+    "P2ry13",
+    "P2ry14", # purinergic receptors
+    "Ryr1",
+    "Ryr2",
+    "Ryr3", # ryanodine receptors
+]
+```
+
+### functions
+
+### parameters
+
+```{python}
+######################
+##### parameters #####
+######################
+
+# Distance Metric to Use
+# metric = snakemake.params["metric"]
+metric = "euclidean"
+# connectivity_model = snakemake.params["connectivity_model"]
+connectivity_model = "min_tree"
+PLOTS_DIR = os.path.join("output/figures/resolved_subregions_by_microclusters/")
+OUT_DIR = os.path.join("data/resolved_subregions_by_microclusters/")
+
+SMALL_SIZE = 7
+MEDIUM_SIZE = 8
+BIGGER_SIZE = 12
+
+plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
+plt.rc("axes", titlesize=SMALL_SIZE)  # fontsize of the axes title
+plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+plt.rc("xtick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc("ytick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+plt.rc("legend", fontsize=SMALL_SIZE)  # legend fontsize
+plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+matplotlib.rcParams["font.size"] = 11
+matplotlib.rcParams["pdf.use14corefonts"] = True
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["font.family"] = "sans-serif"
+matplotlib.rcParams["font.sans-serif"] = ["Helvetica"]
+matplotlib.rcParams["figure.max_open_warning"] = 20000
+
+
+reseed = 42
+random.seed(reseed)
+np.random.seed(reseed)
+random_state = check_random_state(reseed)
+
+verbose = True
+sc.settings.verbosity = 2  # verbosity: errors (0), warnings (1), info (2), hints (3)
+sc.settings.figdir = PLOTS_DIR
+sc.settings.writedir = OUT_DIR
+sc.settings.set_figure_params(
+    dpi=120,
+    dpi_save=600,
+    vector_friendly=True,
+    format="pdf",
+    transparent=True,
+    color_map="gnuplot_r",
+)
+sc.settings.autoshow = False
+sc.settings.autosave = True
+
+min_dist = 1.0
+a, b = find_ab_params(1.0, min_dist)
+n_components = 2
+negative_sample_rate = 10
+# k = int(snakemake.params["k"])
+k = 10
+ks = k + 10
+# signature = snakemake.params["substr_sign"]
+signature = 100
+# cb_fpr = snakemake.params["res"]
+cb_fpr = 0.001
+max_comm_size = int(2 * ks)
+max_comm_size_paga = int(k * ks)
+paga_threshold = 0.25
+spread = 2
+threads = 120
+svm_fit_strength = 100
+```
+
+### Load data
+
+```{python}
+genes_table = (
+    f"data/output/tables/shared_signature/astrocytes_genes-aggregated-{cb_fpr}.tsv"
+)
+housekeeping = f"data/data/housekeeping_mouse.tsv"
+tf_fname = f"/data/data/mm_tfs.csv"
+
+## OUT:
+h5ad_out_path = f"data/data/resolved_subregions/hypothalamic-astrocytes-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+picklefile = f"data/data/resolved_subregions/tntest_hypothalamic-astrocytes-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle"
+graph = f"data/data/resolved_subregions/graph_hypothalamic-astrocytes-k_{k}-sign_{signature}-amb_{cb_fpr}.graphml"
+
+# h5ad_out_path = snakemake.output["h5ad"]
+# picklefile = snakemake.output["picklefile"]
+# graph = snakemake.output["graph"]
+
+sign_genes = pd.read_table(genes_table)
+sign_genes = sign_genes.sort_values(["Score"], ascending=True).head(signature)
+
+hk_genes1 = []
+with open(housekeeping) as file:
+    while hk_genes := file.readline():
+        hk_genes1.append(hk_genes.rstrip())
+
+tf_genes = []
+with open(tf_fname) as file:
+    while tf := file.readline():
+        tf_genes.append(tf.rstrip())
+
+
+PRJNA779749_counts = sc.read_h5ad(
+    f"data/PRJNA779749/data/class_cello/PRJNA779749-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA847050_counts = sc.read_h5ad(
+    f"data/PRJNA847050/data/class_cello/PRJNA847050-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA815819_counts = sc.read_h5ad(
+    f"data/PRJNA815819/data/class_cello/PRJNA815819-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA798401_counts = sc.read_h5ad(
+    f"data/PRJNA798401/data/class_cello/PRJNA798401-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA723345_counts = sc.read_h5ad(
+    f"data/PRJNA723345/data/class_cello/PRJNA723345-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA722418_counts = sc.read_h5ad(
+    f"data/PRJNA722418/data/class_cello/PRJNA722418-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA705596_counts = sc.read_h5ad(
+    f"data/PRJNA705596/data/class_cello/PRJNA705596-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA679294_counts = sc.read_h5ad(
+    f"data/PRJNA679294/data/class_cello/PRJNA679294-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA611624_counts = sc.read_h5ad(
+    f"data/PRJNA611624/data/class_cello/PRJNA611624-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA604055_counts = sc.read_h5ad(
+    f"data/PRJNA604055/data/class_cello/PRJNA604055-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA548532_counts = sc.read_h5ad(
+    f"data/PRJNA548532/data/class_cello/PRJNA548532-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA515063_counts = sc.read_h5ad(
+    f"data/PRJNA515063/data/class_cello/PRJNA515063-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+PRJNA453138_counts = sc.read_h5ad(
+    f"data/PRJNA453138/data/class_cello/PRJNA453138-astrocytes_dataset-{cb_fpr}-initial_selection.h5ad"
+)
+
+PRJNA779749_counts = PRJNA779749_counts[PRJNA779749_counts.obs["condit"] == 0]
+PRJNA847050_counts = PRJNA847050_counts[PRJNA847050_counts.obs["condit"] == 0]
+PRJNA815819_counts = PRJNA815819_counts[PRJNA815819_counts.obs["condit"] == 0]
+PRJNA798401_counts = PRJNA798401_counts[PRJNA798401_counts.obs["condit"] == 0]
+PRJNA723345_counts = PRJNA723345_counts[PRJNA723345_counts.obs["condit"] == 0]
+PRJNA722418_counts = PRJNA722418_counts[PRJNA722418_counts.obs["condit"] == 0]
+PRJNA705596_counts = PRJNA705596_counts[PRJNA705596_counts.obs["condit"] == 0]
+PRJNA679294_counts = PRJNA679294_counts[PRJNA679294_counts.obs["condit"] == 0]
+PRJNA611624_counts = PRJNA611624_counts[PRJNA611624_counts.obs["condit"] == 0]
+PRJNA604055_counts = PRJNA604055_counts[PRJNA604055_counts.obs["condit"] == 0]
+PRJNA548532_counts = PRJNA548532_counts[PRJNA548532_counts.obs["condit"] == 0]
+PRJNA515063_counts = PRJNA515063_counts[PRJNA515063_counts.obs["condit"] == 0]
+PRJNA453138_counts = PRJNA453138_counts[PRJNA453138_counts.obs["condit"] == 0]
+```
+
+
+```{python}
+uni_fs = np.array(['0610005C13Rik', 'Lpl', 'Lpp', 'Lrat', 'Lrba', 'Lrch3', '0610043K17Rik', 'Lrguk', 'Lrig1', '1110008P14Rik', 'Lrmda', '1110015O18Rik', 'Lrp1', '1110019D14Rik', 'Lrp1b', '1110051M20Rik', '1110065P20Rik', '1190005I06Rik', 'Lrp8os2', '1300017J02Rik', '1500004A13Rik', 'Lrrc19', 'Lrrc18', '1500011B03Rik', '1500015L24Rik', 'Lrrc36', '1520401A03Rik', '1600010M07Rik', '1600012H06Rik', 'Lrrc43', 'Lrrc45', 'Lrrc4c', '1700001K19Rik', 'Lrrc52', '1700001L05Rik', '1700001L19Rik', 'Lrrc57', 'Lrrc6', '1700003D09Rik', '1700003G18Rik', 'Lrrc7', '1700003M07Rik', 'Lrrc71', '1700003I16Rik', 'Lrrc8a', '1700008C04Rik', 'Lrrc9', '1700011D18Rik', 'Lrrd1', '1700012C14Rik', '1700012D14Rik', 'Lrriq1', 'Lrrk1', '1700012I11Rik', '1700015C15Rik', 'Lrrn3', '1700016D06Rik', 'Lrrtm1', 'Lsamp', 'Lsm10', 'Lsm4', 'Lsm8', 'Lsmem1', '1700022H01Rik', 'Lsp1', '1700024B05Rik', 'Ltb4r1', 'Ltbp1', '1700024I08Rik', '1700025F22Rik', 'Ltf', '1700026J12Rik', 'Luc7l2', 'Luc7l3', 'Lum', '1700026N04Rik', '1700027A15Rik', '1700027I24Rik', 'Luzp2', '1700028E10Rik', 'Lxn', '1700028P14Rik', '1700029H14Rik', '1700029I15Rik', 'Ly6g6d', 'Ly6h', '1700030F04Rik', 'Ly86', '1700030L22Rik', '1700030N03Rik', '1700034I23Rik', '1700037H04Rik', 'Lysmd4', '1700045H11Rik', 'M1ap', '1700054A03Rik', 'Maats1', 'Mab21l2', 'Macf1', '1700060O08Rik', 'Macrod1', 'Macrod2', '1700061G19Rik', 'Mad2l1bp', '1700064H15Rik', 'Maff', 'Mafb', 'Mageb18', '1700081N11Rik', '1700084C06Rik', 'Magi1', 'Magi2', 'Magel2', 'Majin', 'Mal', 'Malat1', '1700095A13Rik', '1700095A21Rik', '1700095J03Rik', '1700095J07Rik', 'Mamdc2', 'Mamdc4', 'Maml2', 'Maml3', '1700102P08Rik', '1700108F19Rik', '1700108J01Rik', 'Mannr', 'Maob', 'Map1a', 'Map1b', 'Map1lc3a', 'Map1lc3b', 'Map2', '1700125G22Rik', 'Map2k4', 'Map2k5', 'Map2k6', 'Map3k11', '1810020O05Rik', 'Map3k21', '1810030O07Rik', 'Map3k5', '1810037I17Rik', '1810049J17Rik', 'Map4', '1810058I24Rik', 'Map4k3', '2010001A14Rik', '2010001K21Rik', 'Map7', '2010007H06Rik', 'Mapk10', '2010204K13Rik', 'Mapk13', 'Mapk15', 'Mapk4', '2010310C07Rik', '2210011C24Rik', 'Mapk8ip2', '2210016F16Rik', '2210408F21Rik', '2210408I21Rik', 'Mapre2', 'Mapt', 'Marc2', 'March10', '2310022B05Rik', '2310030A07Rik', 'Marcks', 'Marcksl1', 'Marf1', '2310030G06Rik', '2310039L15Rik', 'Mark3', 'Masp1', '2310068J16Rik', 'Masp2', 'Mast4', 'Matk', '2410006H16Rik', 'Maz', 'Mbd5', '2510009E07Rik', 'Mbnl1', 'Mbnl2', '2610001J05Rik', '2600006K01Rik', '2610008E11Rik', 'Mboat2', 'Mboat4', 'Mbp', '2610035D17Rik', 'Mbtd1', '2610028H24Rik', 'Mc4r', 'Mcc', '2610307P16Rik', 'Mccc1os', '2610318N02Rik', '2700033N17Rik', 'Mcm10', '2700097O09Rik', 'Mcm6', '2810030D12Rik', '2810410L24Rik', 'Mcu', 'Mcur1', 'Mdfi', 'Mdga2', '2810459M11Rik', 'Mdh1', 'Mdh2', '2900005J15Rik', 'Mdm4', '2900052L18Rik', '2900052N01Rik', 'Mdp1', 'Mea1', 'Mecp2', '2900097C17Rik', '3010003L21Rik', '3110021N24Rik', '3110039M20Rik', 'Med12l', '3110056K07Rik', '3200001D21Rik', '3222401L13Rik', '3300002A11Rik', 'Med28', 'Medag', 'Mef2c', 'Meg3', 'Megf10', 'Megf11', '4632427E13Rik', '4731419I09Rik', 'Meig1', 'Meikin', 'Meis1', 'Meis2', '4732471J01Rik', '4732496C06Rik', 'Meox1', 'Mepce', 'Mertk', 'Met', '4833422C13Rik', 'Metap1d', '4833427G06Rik', 'Metrn', '4833423E24Rik', 'Mettl11b', 'Mettl17', '4921507P07Rik', '4921511C10Rik', 'Mettl24', '4921524L21Rik', '4921536K21Rik', '4921539E11Rik', '4921539H07Rik', 'Mex3a', '4930402H24Rik', '4930404A12Rik', '4930404I05Rik', '4930404N11Rik', 'Mfap5', 'Mfge8', 'Mfhas1', 'Mfn1', '4930405A21Rik', '4930405D11Rik', 'Mfng', 'Mfsd14b', 'Mfsd2a', 'Mfsd3', '4930415C11Rik', '4930415O20Rik', 'Mfsd7a', 'Mga', '4930422M22Rik', '4930425P05Rik', 'Mgam', 'Mgam2-ps', 'Ttll13', 'Mgat4c', 'Mgat5', 'Mgll', '4930432B10Rik', 'Mgst1', 'Mgst3', '4930435F18Rik', '4930439D14Rik', '4930440I19Rik', '4930441H08Rik', 'Mical2', '4930443O20Rik', '4930444A19Rik', '4930445B16Rik', 'Micos10', 'Micos13', '4930445N06Rik', '4930447C04Rik', 'Micu3', 'Mid1', 'Mid1ip1', 'Mien1', '4930451E10Rik', 'Miip', 'Mill2', '4930455B14Rik', '4930467D21Rik', '4930467E23Rik', '4930470G03Rik', 'Mir100hg', 'Mir124-2hg', '4930473A02Rik', 'Mir9-3hg', 'Mir99ahg', 'Mitf', '4930483O08Rik', 'Mkln1', '4930486I03Rik', 'Mlc1', 'Mlf2', '4930502E18Rik', 'Mlh3', 'Mllt10', 'Mllt11', 'Mllt3', '4930512B01Rik', 'Mmd2', '4930517E14Rik', '4930517O19Rik', '4930518C09Rik', 'Mmp11', 'Mmp14', '4930519K11Rik', 'Mmp23', 'Mmp24', 'Mmp25', '4930527E20Rik', 'Mmrn2', '4930529K09Rik', '4930533N22Rik', '4930535L15Rik', 'Mobp', '4930540M05Rik', 'Mogat1', '4930545L23Rik', 'Mok', '4930549C15Rik', 'Morn1', 'Morf4l2', 'Morn2', 'Morn3', '4930554G24Rik', 'Morrbid', '4930554H23Rik', '4930555B11Rik', 'Morn5', '4930556G01Rik', '4930556J24Rik', '4930556N13Rik', 'Mpc1', 'Mpc2', 'Moxd1', '4930558K02Rik', 'Mpg', 'Mphosph9', '4930567K12Rik', 'Mpp4', '4930570B17Rik', 'Mpp6', 'Mpped1', 'Mpped2', '4930578M07Rik', '4930579C12Rik', 'Mpz', '4930579G24Rik', '4930579H20Rik', '4930581F22Rik', 'Mras', '4930589L23Rik', 'Mrgpra6', 'Mrgprx1', '4930594M22Rik.1', '4930599N23Rik', '4931403E22Rik', 'Mroh7', '4931413K12Rik', '4932411K12Rik', 'Mrpl28', 'Mrpl34', '4932416K20Rik', '4932435O22Rik', '4932438A13Rik', '4932438H23Rik', 'Mrpl41', '4932443L11Rik', 'Mrpl42', '4933402D24Rik', 'Mrpl54', '4933403O08Rik', '4933405D12Rik', 'Mrps14', '4933406F09Rik', 'Mrps18b', 'Mrps33', '4933407L21Rik', 'Mrps6', '4933408J17Rik', 'Mrtfb', 'Mrvi1', '4933421A08Rik', 'Ms4a6d', 'Msantd2', '4933426B08Rik', 'Msh6', 'Msi2', '4933430I17Rik', '4933431E20Rik', 'Msmo1', 'Msn', 'Msl3', '4933431K23Rik', 'Msrb1', '4933433H22Rik', '4933436E23Rik', 'Msx2', 'Mt1', 'Mt2', 'Mt3', 'Mta1', '5031425E22Rik', 'Mta3', '5031439G07Rik', '5031434O11Rik', 'Mtch1', '5033417F24Rik', 'Mtcp1', '5033426O07Rik', '5033430I15Rik', 'Mtf2', 'Mtfp1', '5330438D12Rik', 'Mtfr2', 'Mtg1', '5430416N02Rik', 'Mthfs', '5430427M07Rik', '5430431A17Rik', 'Mtmr3', '5730419F03Rik', 'Mtmr4', '5730522E02Rik', '5830444B04Rik', 'Mtss2', 'Mttp', 'Mtus1', '5930435M05Rik', '6030443J06Rik', '6030498E09Rik', '6330403K07Rik', 'Mucl2', 'Mus81', 'Mvd', '6430503K07Rik', '6330576A10Rik', '6430531B16Rik', '6430553K19Rik', 'Mxra7', '6430571L13Rik', 'Myadm', '6430628N08Rik', '6530402F18Rik', '6530403H02Rik', '6530409C15Rik', '6530411M01Rik', 'Mybpc2', 'Myc', '6720427I07Rik', 'Mycbp', 'Mycbpap', 'Mycl', 'Mycn', '6820408C15Rik', '7420701I03Rik', '8030453O22Rik', 'Myh6', 'Myh7', 'Myl12a', 'Myl12b', 'Myl6', 'Myl7', 'Mylip', '9130008F23Rik', 'Mylk', 'Mylk2', '9130017K11Rik', 'Mylk4', '9130024F11Rik', 'Myo18a', '9130221H12Rik', '9130409I23Rik', 'Myo1f', '9230105E05Rik', 'Myo5b', '9230112E08Rik', 'Myo6', 'Myo7a', 'Myo7b', 'Myo9a', 'Myoc', 'Myof', 'Myorg', '9330158H04Rik', '9330159F19Rik', 'Myrfl', 'Myrip', '9330199G10Rik', 'Naa10', '9430041J12Rik', 'Naa16', 'Naa38', '9530026P05Rik', '9530053A07Rik', 'Naca', 'Nacad', '9630001P10Rik', '9630014M24Rik', 'Naip1', '9630028H03Rik', 'Nalcn', 'Nanos2', '9930021J03Rik', '9930111J21Rik2', 'Nap1l5', 'A130051J06Rik', 'Napb', 'A1bg', 'A230001M10Rik', 'A230020J21Rik', 'A230051N06Rik', 'A230057D06Rik', 'A230059L01Rik', 'Nat8f1', 'Nat8f3', 'Nat8f7', 'Nat8l', 'Nav2', 'Nav3', 'A2m', 'Naxe', 'A230108P19Rik', 'Nbdy', 'A330023F24Rik', 'Nbea', 'Nbl1', 'Ncald', 'Ncam1', 'Ncam2', 'Ncan', 'A330076C08Rik', 'Ncaph', 'A330087D11Rik', 'A330094K24Rik', 'Ncdn', 'Nckap5', 'A430108G06Rik', 'Ncoa1', 'A4galt', 'Ncoa2', 'A530001N23Rik', 'Ncoa6', 'Ncoa7', 'Ncor2', 'Ncs1', 'A530053G22Rik', 'Ndn', 'Ndnf', 'A630001O12Rik', 'A630012P03Rik', 'Ndrg2', 'A630023A22Rik', 'A630023P12Rik', 'A630089N07Rik', 'Ndufa11', 'Ndufa12', 'Ndufa13', 'Ndufa3', 'Ndufa4', 'A730017L22Rik', 'Ndufa6', 'A730020M07Rik', 'Ndufa7', 'Ndufab1', 'A730049H05Rik', 'Ndufaf4', 'A730063M14Rik', 'Ndufb1-ps', 'Ndufb11', 'Ndufb2', 'Ndufb3', 'Ndufb5', 'Ndufb9', 'Ndufc2', 'A730085K08Rik', 'Ndufs7', 'A830035A12Rik', 'Ndufv3', 'Nebl', 'Necab3', 'Necap1', 'A930002C04Rik', 'Nectin1', 'A930006K02Rik', 'Nedd4', 'Nedd4l', 'Nedd8', 'Nefh', 'Nefl', 'Negr1', 'Nek11', 'A930033M14Rik', 'A930037H05Rik', 'A930038B10Rik', 'Nek5', 'Nek2', 'Nek6', 'Nek8', 'AA465934', 'AB124611', 'Nell2', 'AC113595.1', 'AC125149.3', 'Nenf', 'Neo1', 'AC142100.1', 'AC149090.1', 'AC163638.2', 'Neurl1a', 'Neurl1b', 'AC171003.1', 'AI413582', 'Nfat5', 'AI429214', 'Nfatc2', 'AI463229', 'AI480526', 'Nfatc3', 'AI504432', 'AI506816', 'Nfia', 'Nfib', 'Nfic', 'AI849053', 'AK157302', 'Nfkbia', 'Nfkbib', 'Nfkbid', 'Nfkbie', 'Nfkbil1', 'Nfkbiz', 'Nfyc', 'AU023762', 'Ngb', 'Ngef', 'AW047730', 'Nhlh2', 'AW146154', 'Nhs', 'Nhsl1', 'AW554918', 'AY036118', 'Nifk', 'Nim1k', 'Aak1', 'Nipal3', 'Nipbl', 'Aarsd1', 'Aasdhppt', 'Aass', 'Aatk', 'Abat', 'Nipsnap1', 'Nkain1', 'Nkain2', 'Nkain4', 'Nkd1', 'Nkg7', 'Nktr', 'Nkx2-1', 'Nkx2-2', 'Nkx2-2os', 'Nkx2-4', 'Abca9', 'Abcb1a', 'Nkx6-2', 'Nlgn1', 'Nkx6-1', 'Abcb9', 'Nlk', 'Nlgn2', 'Abcc10', 'Abcc12', 'Abcc2', 'Abcc5', 'Nlrp1b', 'Abcd2', 'Abcf2', 'Nme1', 'Nme2', 'Nme3', 'Nme9', 'Abhd14b', 'Abhd15', 'Nmnat2', 'Nmral1', 'Abhd18', 'Abhd3', 'Abhd4', 'Nmur1', 'Nmur2', 'Abi1', 'Nnat', 'Nnt', 'Abl1', 'Abl2', 'Ablim1', 'Ablim2', 'Abo', 'Abr', 'Nol3', 'Nol4', 'Abt1', 'Acaca', 'Nos1ap', 'Notch1', 'Acap1', 'Acap3', 'Notum', 'Acat2', 'Acat3', 'Nova1', 'Nox1', 'Acbd7', 'Npas2', 'Npas3', 'Npas4', 'Ache', 'Npb', 'Ackr3', 'Npc2', 'Ackr4', 'Acot11', 'Nphs1', 'Acot4', 'Nphs2', 'Acot7', 'Npm1', 'Acp1', 'Acsbg1', 'Acsbg2', 'Nptx1', 'Nptx2', 'Acsl3', 'Nptxr', 'Npy', 'Acsm3', 'Acss1', 'Acss2', 'Acss3', 'Nr1d1', 'Nr1d2', 'Actb', 'Actg1', 'Acta1', 'Nr1i2', 'Actn1', 'Nr2f2', 'Nr3c1', 'Nr3c2', 'Nr4a1', 'Actr3b', 'Nr4a2', 'Nr4a3', 'Acvr1c', 'Nrarp', 'Acy3', 'Nrbp2', 'Nrcam', 'Adam11', 'Nrf1', 'Nrg2', 'Adam18', 'Nrgn', 'Adam22', 'Adam23', 'Nrip3', 'Nrk', 'Nrp1', 'Adam5', 'Nrsn1', 'Nrsn2', 'Adamts1', 'Nrxn1', 'Adamts12', 'Nrxn3', 'Nsd2', 'Nsdhl', 'Nsf', 'Adamts2', 'Adamts20', 'Nsmce1', 'Nsmce2', 'Adamts6', 'Adamts5', 'Nsmce3', 'Adamtsl4', 'Nt5c2', 'Adarb1', 'Nt5dc1', 'Nt5dc2', 'Adat2', 'Ntm', 'Adcy2', 'Ntn1', 'Ntn3', 'Adcy5', 'Ntn5', 'Ntng1', 'Adcy8', 'Ntng2', 'Ntrk2', 'Adcyap1r1', 'Ntrk3', 'Nts', 'Adgb', 'Ntsr2', 'Nuak2', 'Adgrb1', 'Adgrb2', 'Adgrb3', 'Adgre4', 'Nudc', 'Adgrf4', 'Adgrf5', 'Adgrg1', 'Adgrg2', 'Adgrg3', 'Adgrl1', 'Adgrl2', 'Adgrl3', 'Nudt15', 'Adgrv1', 'Nudt16l1', 'Adig', 'Nudt4', 'Adm', 'Adra1b', 'Adra2a', 'Adrb1', 'Nup210l', 'Aebp1', 'Nupr1', 'Nupr1l', 'Afdn', 'Aff3', 'Nwd1', 'Nwd2', 'Afm', 'Nxn', 'Agap1', 'Agap2', 'Nxpe4', 'Agbl1', 'Nxpe5', 'Agbl4', 'Agl', 'Agmo', 'Oacyl', 'Oat', 'Agt', 'Obox3', 'Ahctf1', 'Ahcyl1', 'Ahcyl2', 'Ahdc1', 'Ahi1', 'Ocrl', 'Odf2', 'Odf3b', 'Ahnak', 'Odf3', 'Ahsa1', 'Ogdhl', 'Aifm3', 'Ogfod2', 'Ogfod3', 'Ogn', 'Ogt', 'Aip', 'Ajm1', 'Olfm1', 'Olfm2', 'Ak5', 'Ak7', 'Olfml1', 'Ak9', 'Olfm4', 'Olfml2b', 'Akap10', 'Akap11', 'Akap12', 'Akap14', 'Olfr1348', 'Akap6', 'Akap9', 'Olfr1507', 'Olfr1508', 'Akr1a1', 'Olfr1511', 'Akr1b3', 'Olfr1512', 'Akr1c13', 'Olfr275', 'Olfr455', 'Akt2', 'Akt3', 'Alcam', 'Olfr653', 'Aldh1a1', 'Olfr655', 'Olfr656', 'Olfr658', 'Olfr66', 'Olfr731', 'Olfr90', 'Aldoa', 'Olig1', 'Olig2', 'Aldoc', 'Omd', 'Omg', 'Onecut2', 'Opa1', 'Opcml', 'Alkal1', 'Alkal2', 'Opn3', 'Alkbh7', 'Alms1', 'Oprd1', 'Alpl', 'Alyref2', 'Ambra1', 'Amdhd2', 'Amelx', 'Amer2', 'Osbpl9', 'Ammecr1', 'Osmr', 'Amot', 'Osr1', 'Ost4', 'Otc', 'Otoa', 'Amy1', 'Anapc11', 'Anapc13', 'Otud1', 'Otud7a', 'Ang', 'Angel1', 'Otx1', 'Otx2', 'Otx2os1', 'Ovca2', 'Angptl4', 'Ank', 'Ank2', 'Ank3', 'Oxt', 'Ankfn1', 'Ankhd1', 'P2rx3', 'P2ry1', 'P2ry12', 'P2ry13', 'P2ry14', 'Ankrd12', 'P2ry6', 'Ankrd2', 'Ankrd22', 'P3h4', 'Ankrd34a', 'Pabpn1', 'Pacrg', 'Pacsin1', 'Pacsin2', 'Padi2', 'Paf1', 'Ankrd55', 'Ankrd6', 'Anks1', 'Anks1b', 'Pak3', 'Ankub1', 'Ankzf1', 'Anln', 'Pam16', 'Pan3', 'Pank1', 'Antxr1', 'Pantr1', 'Pantr2', 'Panx1', 'Panx2', 'Paox', 'Anxa13', 'Anxa2', 'Anxa4', 'Anxa5', 'Pappa', 'Anxa9', 'Aopep', 'Aox1', 'Paqr6', 'Paqr8', 'Aox2', 'Pard3', 'Pard3b', 'Pard3bos1', 'Ap1s2', 'Parm1', 'Ap2s1', 'Parp8', 'Parvb', 'Ap5s1', 'Apba2', 'Apbb2', 'Apc', 'Apc2', 'Pawr', 'Pax1', 'Pax5', 'Paxbp1', 'Apln', 'Pbk', 'Aplp1', 'Apmap', 'Pbx1', 'Apob', 'Apobec2', 'Apobec4', 'Apoc1', 'Pcca', 'Apod', 'Apoe', 'Pcdh11x', 'Apoh', 'Pcdh17', 'Pcdh18', 'Pcdh7', 'Pcdh9', 'App', 'Appl2', 'Aqp4', 'Aqp5', 'Pcdhb2', 'Aqp9', 'Ar', 'Araf', 'Pcdhb22', 'Arap2', 'Arc', 'Arf2', 'Arf3', 'Pced1b', 'Arf5', 'Arf6', 'Pcgf1', 'Arfgef1', 'Pck2', 'Arfgef3', 'Pclo', 'Pcm1', 'Arg2', 'Arglu1', 'Arhgap17', 'Arhgap21', 'Pcp4', 'Arhgap23', 'Pcp4l1', 'Pcsk1n', 'Arhgap26', 'Pcsk2', 'Pcsk2os1', 'Arhgap27os2', 'Pcsk4', 'Arhgap29', 'Arhgap31', 'Arhgap32', 'Pcsk9', 'Pcx', 'Arhgap35', 'Arhgap33', 'Arhgap36', 'Pcyt2', 'Arhgap40', 'Arhgap5', 'Arhgap6', 'Pdcd1lg2', 'Arhgdib', 'Arhgdig', 'Arhgef10', 'Arhgef10l', 'Arhgef11', 'Arhgef12', 'Pde10a', 'Pde1b', 'Arhgef18', 'Pde3a', 'Arhgef26', 'Arhgef28', 'Pde4d', 'Pde4b', 'Arhgef4', 'Pde6g', 'Pde7b', 'Arhgef9', 'Arid1a', 'Pde8b', 'Pde9a', 'Arid3a', 'Pdgfb', 'Pdgfd', 'Pdgfrb', 'Arl13a', 'Arl15', 'Pdia4', 'Arl4aos', 'Arl4d', 'Pdlim1', 'Arl6ip1', 'Pdlim4', 'Pdlim7', 'Armc2', 'Armc3', 'Armc4', 'Armc9', 'Pdss2', 'Pdxp', 'Armcx4', 'Pdyn', 'Pdzd7', 'Arnt2', 'Arntl', 'Pdzph1', 'Arpc1a', 'Pdzk1ip1', 'Arpc2', 'Peak1', 'Arpc3', 'Pea15a', 'Pebp1', 'Arpc1b', 'Arpp19', 'Arpp21', 'Peak1os', 'Pebp4', 'Peg13', 'Peg3', 'Arsj', 'Per2', 'Per3', 'Art2b', 'Arx', 'Arvcf', 'Asap1', 'Asb14', 'Pfdn1', 'Pfdn2', 'Asb17os', 'Asb2', 'Pfkfb4', 'Pfn1', 'Pfn2', 'Ascl4', 'Pgam1', 'Asic1', 'Asic2', 'Asic3', 'Asic4', 'Asna1', 'Pgk1', 'Asns', 'Pglyrp1', 'Pgm1', 'Pgp', 'Pgpep1l', 'Astn1', 'Astn2', 'Pgrmc1', 'Phactr1', 'Phactr2', 'Phactr3', 'Pgs1', 'Atad2b', 'Ate1', 'Phf10', 'Atf3', 'Atf7', 'Atf7ip', 'Phf21a', 'Phf21b', 'Phf23', 'Phf24', 'Phf3', 'Phgdh', 'Phka1', 'Phkb', 'Phkg1', 'Atic', 'Phlda1', 'Atl2', 'Phldb2', 'Atoh7', 'Phlpp1', 'Atox1', 'Phpt1', 'Atp13a4', 'Atp13a5', 'Phyhipl', 'Atp1a2', 'Atp1a3', 'Atp1a1', 'Atp1b1', 'Atp1b2', 'Pi15', 'Pi16', 'Pianp', 'Atp2a2', 'Atp23', 'Pid1', 'Atp2b2', 'Piezo1', 'Piezo2', 'Atp5b', 'Atp5d', 'Atp5e', 'Atp5f1', 'Atp5g1', 'Atp5g2', 'Atp5g3', 'Atp5h', 'Atp5j', 'Atp5j2', 'Atp5k', 'Atp5l', 'Atp5md', 'Atp5mpl', 'Atp5o', 'Atp6v0a1', 'Pih1h3b', 'Atp6v0b', 'Atp6v0c', 'Pik3c2g', 'Atp6v0e', 'Atp6v1b2', 'Pik3r1', 'Atp6v1c2', 'Atp6v1e2', 'Atp6v1g1', 'Atp6v1g2', 'Atp8a1', 'Pink1', 'Pip4k2a', 'Atp8b4', 'Atp9b', 'Pip5k1b', 'Atpif1', 'Pipox', 'Atr', 'Atraid', 'Atrnl1', 'Atxn1', 'Atxn2', 'Atxn2l', 'Pitpnc1', 'Pitpnm2', 'Pitpnm2os1', 'Pitpnm3', 'Pitpnm2os2', 'Atxn7l2', 'Pitx2', 'Atxn7l3', 'Piwil4', 'Pja2', 'Auts2', 'Avil', 'Pkd1l2', 'Avp', 'Avpi1', 'Pkd1l3', 'Pkdcc', 'Pkhd1', 'Pkib', 'B130024G19Rik', 'Pknox2', 'Pla1a', 'Pla2g10', 'Pla2g2c', 'B230216N24Rik', 'Pla2g4a', 'B230307C23Rik', 'Pla2g7', 'Pla2r1', 'B230323A14Rik', 'Plac8l1', 'Plac9a', 'B2m', 'B3galnt1', 'Plat', 'B3galt1', 'B3galt2', 'Platr27', 'Platr8', 'Plb1', 'Plbd1', 'Plcb1', 'B430010I23Rik', 'Plcb3', 'Plcb4', 'Plce1', 'B4galnt1', 'Plch2', 'Plcl1', 'Plcl2', 'Plcxd3', 'B630019K06Rik', 'Pld5', 'B830042I05Rik', 'B930036N10Rik', 'Plek2', 'Plekha6', 'BB365896', 'Plekhb1', 'BB557941', 'Plekhg1', 'Plekhg2', 'BC017158', 'Plekhg4', 'Plekhm2', 'BC031181', 'BC034090', 'Plekho2', 'BC037032', 'Plin3', 'Plk2', 'BC049715', 'Pllp', 'BC050972', 'BC051019', 'Plp1', 'BC051226', 'BC065397', 'BX470216.1', 'Plppr2', 'Baalc', 'Plppr3', 'Plppr5', 'Plppr4', 'Bach2', 'Plscr4', 'Bach2os', 'Bag1', 'Plut', 'Bag3', 'Plxdc2', 'Bahcc1', 'Baiap2', 'Plxna4', 'Baiap3', 'Plxnb1', 'Bambi', 'Plxnc1', 'Plxnd1', 'Pmch', 'Basp1', 'Pmepa1', 'Barx2', 'Batf3', 'Bax', 'Pmepa1os', 'Bbc3', 'Bbof1', 'Bbox1', 'Pnck', 'Pnisr', 'Bbs1', 'Bbs9', 'Pnmal1', 'Bc1', 'Pnmal2', 'Bcan', 'Bcam', 'Bcar3', 'Bcas1', 'Pnpla2', 'Bcas3', 'Pnrc1', 'Bcas3os1', 'Podn', 'Podnl1', 'Bckdhb', 'Podxl2', 'Bcl11b', 'Bcl2', 'Pogk', 'Bcl2a1b', 'Poglut1', 'Poglut2', 'Pold2', 'Bcl2l2', 'Bcl9', 'Polr1c', 'Polr1d', 'Bdkrb1', 'Bdnf', 'Becn1', 'Begain', 'Polr2f', 'Polr2l', 'Bet1l', 'Bex1', 'Bex2', 'Bex3', 'Polr3h', 'Bgn', 'Pomp', 'Bhmt2', 'Bicd1', 'Bicd2', 'Bicra', 'Bicral', 'Bin1', 'Postn', 'Pot1b', 'Pou2f1', 'Birc5', 'Blcap', 'Pou3f2', 'Pou3f3', 'Pou3f4', 'Bloc1s1', 'Bloc1s2', 'Ppargc1a', 'Bmerb1', 'Bmf', 'Bmi1', 'Ppdpf', 'Bmp5', 'Ppfia4', 'Bmp7', 'Ppia', 'Ppib', 'Ppic', 'Bmpr1b', 'Bmx', 'Bnip2', 'Ppil6', 'Boc', 'Ppip5k2', 'Bod1l', 'Bola2', 'Bola3', 'Ppm1e', 'Ppm1f', 'Bpifb1', 'Ppp1r11', 'Bpifb9b', 'Ppp1r12b', 'Ppp1r12c', 'Ppp1r13b', 'Brd1', 'Ppp1r15a', 'Ppp1r16b', 'Brd3os', 'Ppp1r18', 'Ppp1r1a', 'Ppp1r1b', 'Bri3', 'Ppp1r1c', 'Ppp1r26', 'Brinp3', 'Brip1', 'Brip1os', 'Ppp1r3a', 'Brk1', 'Ppp1r3c', 'Ppp1r3d', 'Ppp1r42', 'Ppp1r9a', 'Ppp1r9b', 'Bsg', 'Ppp2r2b', 'Ppp2r2c', 'Bst1', 'Btaf1', 'Ppp2r3a', 'Bsx', 'Btbd11', 'Btbd17', 'Ppp3ca', 'Btbd3', 'Ppp3r1', 'Btf3', 'Btg2', 'Btg3', 'Ppp6r3', 'Ppp6r1', 'Btk', 'Btrc', 'Pqlc3', 'Bves', 'Prag1', 'Bvht', 'C030005K06Rik', 'Prcd', 'C030007H22Rik', 'Prdm1', 'Prdm12', 'C030018K13Rik', 'Prdm16', 'C030032O16Rik', 'C030034L19Rik', 'Prdm5', 'Prdm8', 'Prdx1', 'Prdx2', 'Prdx4', 'Prdx5', 'Prdx6', 'C130040N14Rik', 'C130071C03Rik', 'Prelid3a', 'C130073E24Rik', 'Prelp', 'Prex1', 'Prex2', 'C1galt1c1', 'Prickle1', 'Prickle2', 'C1qc', 'C1ql3', 'C1qtnf1', 'C1qtnf4', 'Prkaa2', 'C1qtnf6', 'Prkacb', 'C1s1', 'Prkag2os1', 'C2', 'Prkar1b', 'Prkag3', 'Prkca', 'Prkcb', 'Prkcd', 'Prkce', 'C230034O21Rik', 'C230072F16Rik', 'Prkcz', 'C2cd3', 'Prkd1', 'C2cd4c', 'C2cd4d', 'C2cd5', 'Prkn', 'C2cd6', 'C330002G04Rik', 'Prkx', 'C330013E15Rik', 'C430014B12Rik', 'C4b', 'C530008M17Rik', 'C530025M09Rik', 'C530044C16Rik', 'C5ar1', 'Prodh', 'C5ar2', 'C630028M04Rik', 'Prom2', 'C78334', 'Prox2', 'C8g', 'C9', 'Prpf31', 'Prpf39', 'Cab39l', 'Cabcoco1', 'Cabin1', 'Cables1', 'Prr11', 'Prr16', 'Prr19', 'Cacna1a', 'Cacna1d', 'Prr5l', 'Prrc2b', 'Prrc2c', 'Cacna1g', 'Cacna1h', 'Cacna2d1', 'Cacna2d2', 'Cacna2d3', 'Prrt1', 'Prrt2', 'Cacnb2', 'Prrg3', 'Prrx2', 'Prrt3', 'Cacng2', 'Prss22', 'Prss23', 'Cacng5', 'Prss27', 'Prss36', 'Prss41', 'Cadm1', 'Cadm2', 'Prss45', 'Cadm4', 'Cadps', 'Prtg', 'Calb1', 'Calb2', 'Calcr', 'Psap', 'Psd', 'Psd2', 'Calm3', 'Psd3', 'Caln1', 'Calr', 'Psenen', 'Calm1', 'Calml4', 'Caly', 'Psd4', 'Camk1d', 'Psma2', 'Camk2a', 'Camk2b', 'Camk2d', 'Camk2g', 'Camk2n1', 'Camk2n2', 'Psmb1', 'Psmb2', 'Psmb3', 'Camkmt', 'Camkv', 'Psmb5', 'Psmb6', 'Camk4', 'Psmb8', 'Camta1', 'Cap2', 'Capg', 'Psme2', 'Psme2b', 'Psors1c2', 'Psrc1', 'Capns1', 'Capsl', 'Capzb', 'Ptch1', 'Car10', 'Ptch2', 'Ptchd4', 'Ptchd1', 'Car15', 'Car3', 'Ptgds', 'Ptger3', 'Car7', 'Car8', 'Ptgr1', 'Ptgs1', 'Carhsp1', 'Ptgs2', 'Ptgs2os', 'Carmil1', 'Pth1r', 'Ptk2', 'Carmil2', 'Ptma', 'Ptms', 'Cask', 'Casp12', 'Ptpn13', 'Casp6', 'Ptpn20', 'Ptpn4', 'Ptpn5', 'Ptpn7', 'Ptpn9', 'Ptprd', 'Ptpre', 'Ptprg', 'Catsperb', 'Ptprj', 'Catsper4', 'Ptprm', 'Ptprh', 'Catspere1', 'Ptpro', 'Cav2', 'Cavin1', 'Ptprt', 'Cavin3', 'Ptprz1', 'Cbfa2t3', 'Cbln1', 'Cbln2', 'Cbln3', 'Purg', 'Pvalb', 'Cc2d2a', 'Ccbe1', 'Ccdc103', 'Pxylp1', 'Ccdc114', 'Pygm', 'Qdpr', 'Qk', 'Ccdc134', 'Ccdc141', 'Ccdc146', 'Ccdc148', 'Ccdc150', 'Ccdc152', 'Ccdc153', 'R3hdm1', 'Ccdc155', 'Ccdc158', 'Ccdc162', 'Rab11fip2', 'Ccdc166', 'Rab11fip4', 'Ccdc169', 'Rab11fip4os1', 'Ccdc170', 'Ccdc171', 'Rab20', 'Ccdc180', 'Rab26os', 'Ccdc190', 'Ccdc191', 'Rab30', 'Ccdc22', 'Ccdc24', 'Rab32', 'Rab33b', 'Ccdc30', 'Rab3a', 'Ccdc34os', 'Rab3c', 'Ccdc39', 'Ccdc38', 'Ccdc60', 'Rab5c', 'Rab5if', 'Rab6b', 'Ccdc78', 'Rab9b', 'Rabac1', 'Rabep1', 'Rabgap1l', 'Ccdc84', 'Ccdc85a', 'Rabggtb', 'Ccdc85c', 'Ccdc86', 'Ccdc88a', 'Ccdc88b', 'Ccdc88c', 'Ccdc89', 'Ccdc92', 'Rad21l', 'Ccl22', 'Ccl27a', 'Ccn1', 'Ralgapa1', 'Ralgapa2', 'Ralgapb', 'Ccn4', 'Ralgps2', 'Ccn6', 'Ralyl', 'Ramac', 'Ramp1', 'Ccnb1', 'Ran', 'Rap1gap', 'Ccno', 'Rapgef5', 'Rara', 'Ccser1', 'Rarres2', 'Cd109', 'Rasgef1a', 'Cd164l2', 'Rasgef1c', 'Rasgrf1', 'Rasgrf2', 'Rasgrp2', 'Cd200r3', 'Cd200r4', 'Rasl11a', 'Rasl11b', 'Cd24a', 'Cd27', 'Rassf2', 'Cd2ap', 'Rassf9', 'Raver2', 'Rax', 'Cd36', 'Cd38', 'Cd44', 'Cd46', 'Cd47', 'Rbfox2', 'Rbis', 'Cd63', 'Rbm26', 'Cd79a', 'Cd81', 'Cd82', 'Rbm33', 'Cd83', 'Cd9', 'Rbm42', 'Cd96', 'Rbm44', 'Cda', 'Rbm4b', 'Rbm5', 'Rbm6', 'Rbms2', 'Rbms3', 'Rbmxl1', 'Rbp1', 'Cdc42bpa', 'Cdc42ep1', 'Rbpms', 'Cdc42ep4', 'Rbx1', 'Rbsn', 'Cdc42ep5', 'Cdc73', 'Cdca8', 'Rcn1', 'Cdh1', 'Cdh10', 'Cdh11', 'Rcor2', 'Rcsd1', 'Rcvrn', 'Cdh19', 'Cdh2', 'Cdh20', 'Cdh23', 'Reck', 'Cdhr3', 'Cdhr4', 'Recql5os1', 'Cdk1', 'Cdk10', 'Cdk12', 'Cdk13', 'Cdk14', 'Relch', 'Cdk18', 'Rell2', 'Reps1', 'Cdk5r1', 'Resp18', 'Cdk8', 'Cdkal1', 'Cdkl3', 'Cdkl4', 'Rev1', 'Rev3l', 'Rex1bd', 'Cdo1', 'Cdr1', 'Cdr1os', 'Rfx3', 'Rfx4', 'Cdsn', 'Ceacam1', 'Rfxap', 'Cebpb', 'Rgl1', 'Cecr2', 'Rgl2', 'Rgma', 'Celf2', 'Cela1', 'Celf4', 'Celf3', 'Celf5', 'Celrr', 'Celf6', 'Cemip', 'Rgs2', 'Rgs20', 'Rgs19', 'Rgs22', 'Cenpa', 'Rgs4', 'Rgs6', 'Rgs7', 'Rgs7bp', 'Cenph', 'Rgs8', 'Cenpt', 'Rhcg', 'Rhd', 'Cep112', 'Rheb', 'Cep126', 'Cep128', 'Rhoa', 'Rhobtb1', 'Rhobtb2', 'Rhob', 'Rhoc', 'Cep170b', 'Rhoq', 'Rhou', 'Cep350', 'Rian', 'Ribc2', 'Rida', 'Rif1', 'Cep85l', 'Rimbp2', 'Rims2', 'Ces1d', 'Ces5a', 'Ripor2', 'Cfap100', 'Rit2', 'Cfap161', 'Cfap206', 'Cfap299', 'Rmdn1', 'Rmi1', 'Cfap43', 'Cfap44', 'Rmnd5a', 'Cfap46', 'Rmst', 'Cfap52', 'Rnd1', 'Cfap54', 'Cfap58', 'Cfap61', 'Cfap65', 'Cfap69', 'Cfap70', 'Rnf121', 'Cfap74', 'Cfap77', 'Rnf122', 'Cfap73', 'Cfap97d2', 'Cfap99', 'Rnf128', 'Cfh', 'Cfap97d1', 'Cfb', 'Cfl1', 'Cfp', 'Rnf152', 'Rnf165', 'Cgnl1', 'Cgref1', 'Rnf169', 'Rnf19b', 'Chchd10', 'Rnf216', 'Chd2', 'Chd3', 'Chd5', 'Chd6', 'Chd7', 'Rnf24', 'Rnf227', 'Chga', 'Rnf5', 'Chil1', 'Chil5', 'Rngtt', 'Chl1', 'Rnpc3', 'Robo1', 'Robo2', 'Chn1', 'Rogdi', 'Romo1', 'Ropn1l', 'Ror1', 'Ror2', 'Rora', 'Rorb', 'Chrac1', 'Chrdl1', 'Rp1', 'Rpe65', 'Chst1', 'Chst10', 'Chst2', 'Chst3', 'Rptor', 'Rrad', 'Rreb1', 'Rrm1', 'Ciart', 'Cib1', 'Rrm2', 'Rrnad1', 'Cic', 'Rrp15', 'Cip2a', 'Cipc', 'Rsf1os1', 'Rsf1os2', 'Cisd1', 'Rsad2', 'Cit', 'Cited1', 'Rslcan18', 'Ckap2', 'Ckb', 'Cklf', 'Ckmt1', 'Ckmt2', 'Rsph6a', 'Rspo2', 'Clasp1', 'Clasp2', 'Rsrp1', 'Clba1', 'Clcf1', 'Rtl4', 'Rtl8a', 'Clcn6', 'Rtl8b', 'Rtn1', 'Clcnka', 'Cldn10', 'Rtp3', 'Cldn18', 'Cldn2', 'Rubie', 'Rufy2', 'Rufy3', 'Rundc3a', 'Runx1t1', 'Clec3b', 'Rxrg', 'Clic1', 'Clic3', 'Clic4', 'Ryr1', 'Clic6', 'Clip1', 'S100a1', 'S100a10', 'S100a11', 'Clk1', 'S100a13', 'S100a16', 'Clmn', 'S100a4', 'S100a6', 'S100a7a', 'S100b', 'S100g', 'S100pbp', 'S1pr1', 'S1pr3', 'S1pr5', 'Sall2', 'Sall3', 'Clstn3', 'Clu', 'Clta', 'Cltb', 'Samd12', 'Samd11', 'Samd4', 'Cmip', 'Cmss1', 'Cmtm2a', 'Sap30bpos', 'Sap30l', 'Saraf', 'Cmtr2', 'Sardhos', 'Pigm', 'Sash1', 'Cndp2', 'Sat1', 'Cnga4', 'Cnih2', 'Saxo1', 'Cnn1', 'Cnn3', 'Sbno2', 'Cnnm2', 'Cnnm3', 'Cnnm1', 'Cnot2', 'Scaf8', 'Cnp', 'Scaper', 'Cnpy2', 'Scara5', 'Scd1', 'Cntf', 'Cntfr', 'Scd2', 'Cntn1', 'Scfd2', 'Scg2', 'Cntd1', 'Scg5', 'Cntn2', 'Cntnap1', 'Scgn', 'Scin', 'Sclt1', 'Scly', 'Scmh1', 'Cntnap5c', 'Coa3', 'Scn2a', 'Scn2b', 'Scn3b', 'Scn5a', 'Scn8a', 'Scn9a', 'Scpep1os', 'Scrg1', 'Scrib', 'Col1a1', 'Col1a2', 'Scrt1', 'Scube1', 'Col23a1', 'Scrt2', 'Col25a1', 'Col3a1', 'Sdc4', 'Sdcbp', 'Sdccag8', 'Col4a3', 'Col4a6', 'Col6a1', 'Col6a2', 'Sdhb', 'Sdk2', 'Col8a2', 'Sds', 'Col9a2', 'Sec1', 'Colec12', 'Sec14l5', 'Sec61b', 'Sec61g', 'Sec62', 'Cops9', 'Selenbp1', 'Selenof', 'Coq10b', 'Selenoh', 'Selenok', 'Selenbp2', 'Selenom', 'Coq6', 'Selenop', 'Selenos', 'Corin', 'Coro1a', 'Selenow', 'Selenov', 'Coro2b', 'Sem1', 'Cotl1', 'Sema3c', 'Cox14', 'Cox17', 'Sema3b', 'Sema3d', 'Sema4a', 'Cox4i1', 'Sema3f', 'Cox5a', 'Cox5b', 'Cox6a1', 'Sema4f', 'Cox6a2', 'Cox6c', 'Cox7a1', 'Cox7a2', 'Cox7b', 'Sema6d', 'Cox8a', 'Sema5a', 'Sema5b', 'Sema7a', 'Senp7', 'Cpe', 'Sept11', 'Cpeb3', 'Cpeb4', 'Cped1', 'Cplane1', 'Sept4', 'Sept2', 'Sept7', 'Sept6', 'Sept9', 'Cpn1', 'Serf2', 'Cpne6', 'Cpne8', 'Serp2', 'Serpina3c', 'Serpina3n', 'Cpq', 'Serpinb5', 'Cpsf4l', 'Serpinb8', 'Serpinb9', 'Serpine1', 'Serpine2', 'Serpine3', 'Cpxm1', 'Cr2', 'Serpinf1', 'Serpinh1', 'Crabp2', 'Serpini2', 'Setbp1', 'Crebbp', 'Crebrf', 'Crebzf', 'Setd2', 'Creg2', 'Creld2', 'Sez6l', 'Sez6l2', 'Crhbp', 'Crim1', 'Sf3b1', 'Crip2', 'Sf3b4', 'Sf3b6', 'Sfi1', 'Sfmbt1', 'Sfn', 'Sfr1', 'Crlf3', 'Crlf2', 'Sfrp1', 'Sfrp5', 'Crocc', 'Crocc2', 'Crmp1', 'Sft2d2', 'Crp', 'Sfta3-ps', 'Sfxn2', 'Crtc3', 'Sfxn5', 'Cry2', 'Sgcd', 'Cryab', 'Sgcz', 'Crybg1', 'Sgip1', 'Crybg2', 'Sgms1', 'Crym', 'Sgsm1', 'Sh2b1', 'Csgalnact1', 'Csmd2', 'Csmd3', 'Sh3bgrl3', 'Cspg5', 'Cspp1', 'Csrnp1', 'Sh3bp5', 'Csrnp3', 'Csrp2', 'Cst3', 'Sh3gl2', 'Sh3glb2', 'Sh3kbp1', 'Cstb', 'Sh3pxd2b', 'Cstdc2', 'Sh3rf2', 'Sh3rf3', 'Sh3tc2', 'Shank1', 'Shank2', 'Shbg', 'Ctdspl', 'Shc3', 'Ctif', 'Shh', 'Ctnna2', 'Shisa3', 'Ctnnb1', 'Shisa6', 'Ctnnd2', 'Shisa9', 'Ctsd', 'Shmt1', 'Ctsh', 'Ctsk', 'Ctsl', 'Shmt2', 'Shprh', 'Shroom2', 'Shroom3', 'Shroom4', 'Ctxn2', 'Siah2', 'Siglec15', 'Sik1', 'Sik3', 'Cutal', 'Cux1', 'Sim2', 'Sipa1l1', 'Sipa1l3', 'Sirpa', 'Cxcl12', 'Cxcl14', 'Cxcl16', 'Cxcr4', 'Cxcr5', 'Sirt7', 'Six3', 'Six3os1', 'Six4', 'Cyb561', 'Cyb561d1', 'Cyb5a', 'Skida1', 'Cyb5r3', 'Cycs', 'Cyfip1', 'Cyfip2', 'Cygb', 'Cyld', 'Cyp27a1', 'Slc12a5', 'Slc12a6', 'Cyp2c50', 'Cyp2c55', 'Slc13a1', 'Slc13a3', 'Cyp2c69', 'Slc13a5', 'Slc14a2', 'Slc15a1', 'Slc15a2', 'Cyp2j6', 'Slc16a11', 'Slc16a2', 'Cyp4f15', 'Slc17a6', 'Slc17a9', 'Cyp4x1', 'Cyp51', 'Slc18a3', 'Slc1a2', 'Slc1a3', 'Cystm1', 'Cyth1', 'Slc1a4', 'Slc20a1', 'Slc20a2', 'Cyyr1', 'Slc22a12', 'Slc22a13', 'D030046N08Rik', 'D030047H15Rik', 'Slc22a2', 'Slc22a20', 'D030068K23Rik', 'Slc22a27', 'Slc22a3', 'D130040H23Rik', 'D130062J10Rik', 'D130079A08Rik', 'D230022J07Rik', 'Slc24a2', 'Slc24a3', 'Slc24a4', 'Slc25a10', 'Slc25a12', 'D3Ertd751e', 'D430019H16Rik', 'Slc25a19', 'Slc25a22', 'D430042O09Rik', 'D5Ertd579e', 'D630003M21Rik', 'Slc25a29', 'Slc25a3', 'D630039A03Rik', 'D630044L22Rik', 'Slc25a4', 'D830024N08Rik', 'Slc25a47', 'Slc25a5', 'D830039M14Rik', 'D830044D21Rik', 'Slc26a1', 'Slc26a2', 'Slc26a3', 'D930048N14Rik', 'Daam2', 'Dab2', 'Dach1', 'Dact1', 'Slc28a3', 'Dact3', 'Dad1', 'Dagla', 'Dalrd3', 'Dancr', 'Slc2a5', 'Dapk1', 'Dapk2', 'Daw1', 'Dazap2', 'Slc30a4', 'Dbi', 'Dbil5', 'Slc30a8', 'Dbndd2', 'Slc32a1', 'Dbp', 'Dbx2', 'Dcaf17', 'Dcaf6', 'Dcc', 'Dcdc2a', 'Dcdc2b', 'Dclk1', 'Slc36a4', 'Dcn', 'Slc38a1', 'Dctn3', 'Slc38a9', 'Slc39a1', 'Slc39a12', 'Dcx', 'Slc3a2', 'Slc40a1', 'Ddhd1', 'Slc41a1', 'Slc41a2', 'Ddias', 'Ddit4', 'Ddn', 'Ddo', 'Ddr1', 'Slc44a4', 'Slc45a3', 'Ddx17', 'Slc46a3', 'Slc4a10', 'Ddx3y', 'Slc4a4', 'Ddx43', 'Ddx5', 'Slc5a1', 'Slc5a11', 'Slc5a3', 'Slc5a7', 'Dedd2', 'Slc6a1', 'Slc6a11', 'Slc6a13', 'Slc6a15', 'Defb39', 'Defb40', 'Degs1', 'Slc6a20a', 'Slc6a2', 'Dennd1a', 'Dennd1b', 'Slc6a7', 'Slc6a9', 'Slc7a10', 'Slc7a11', 'Slc7a2', 'Slc7a3', 'Depdc5', 'Deptor', 'Derl3', 'Desi2', 'Slc9a3r1', 'Dgat2', 'Dgkb', 'Slc9a9', 'Slc9b1', 'Dgkg', 'Dgki', 'Slco1c1', 'Slco2a1', 'Slco2b1', 'Dhcr24', 'Dhcr7', 'Slf1', 'Dhrs1', 'Dhrs3', 'Slit2', 'Slitrk2', 'Slitrk3', 'Slitrk4', 'Slmap', 'Slpi', 'Dhx58os', 'Slx1b', 'Diaph2', 'Diaph3', 'Dicer1', 'Dido1', 'Smad3', 'Dio2', 'Dio3os', 'Dip2c', 'Diras2', 'Dis3l2', 'Disc1', 'Dixdc1', 'Dkk3', 'Smco2', 'Dlec1', 'Smdt1', 'Smg1', 'Dlg2', 'Dlg4', 'Smg8', 'Dlgap1', 'Dlgap3', 'Dlk1', 'Dlk2', 'Dll1', 'Dll3', 'Smim18', 'Smim22', 'Dlx2', 'Smim26', 'Dlx4', 'Dmd', 'Dmp1', 'Dmrta1', 'Dmrta2', 'Dmtf1', 'Dmtn', 'Dmxl1', 'Smpdl3a', 'Sms', 'Dnaaf3', 'Smtnl2', 'Dnah11', 'Dnah12', 'Smyd1', 'Smyd3', 'Dnah2', 'Dnah3', 'Snap25', 'Dnah6', 'Dnah7a', 'Dnah7b', 'Dnah14', 'Snap91', 'Dnah9', 'Dnaic1', 'Sncb', 'Snca', 'Dnaja4', 'Dnajb13', 'Snhg11', 'Dnajb9', 'Dnajc1', 'Snhg20', 'Snhg3', 'Snhg4', 'Snhg8', 'Snhg9', 'Dnajc27', 'Snrk', 'Dnajc30', 'Snrnp200', 'Dnajc6', 'Dnal1', 'Snrpg', 'Snrpn', 'Dnd1', 'Dnm1', 'Sntg1', 'Dnm3', 'Sntn', 'Snu13', 'Dnmt3a', 'Dnmt3c', 'Doc2a', 'Snx20', 'Dock1', 'Dock10', 'Dock11', 'Snx25', 'Dock3', 'Dock4', 'Dock5', 'Snx29', 'Snx3', 'Snx30', 'Dok6', 'Dok7', 'Sobp', 'Dolpp1', 'Dop1a', 'Sod3', 'Dpf3', 'Son', 'Sorbs1', 'Sorbs2', 'Sorbs2os', 'Dpm3', 'Sorcs2', 'Sorcs3', 'Dpp10', 'Dpp6', 'Sorl1', 'Sos2', 'Sorcs1', 'Dpp4', 'Dppa2', 'Dppa5a', 'Sowaha', 'Sox13', 'Dpyd', 'Sox2', 'Sox2ot', 'Sox4', 'Sox5', 'Drc1', 'Sox5os4', 'Sox6', 'Sox8', 'Sox9', 'Drd3', 'Dsc2', 'Sp5', 'Spa17', 'Dst', 'Spaca6', 'Spaca3', 'Dthd1', 'Dtna', 'Dtnb', 'Spag16', 'Spag17', 'Dtnbos', 'Dtx1', 'Spag9', 'Dtx3', 'Sparc', 'Sparcl1', 'Dubr', 'Spata17', 'Spata16', 'Spata18', 'Spata19', 'Dusp1', 'Dusp14', 'Dusp26', 'Dusp27', 'Spata7', 'Dusp5', 'Dusp6', 'Dusp7', 'Spatc1l', 'Spc24', 'Spc25', 'Spcs1', 'Spcs2', 'Dydc1', 'Spdef', 'Dync1i1', 'Specc1', 'Specc1l', 'Dync2h1', 'Dynll1', 'Spef2', 'Dynll2', 'Dynlt1b', 'Spg20', 'Sphk1', 'Dytn', 'Dzank1', 'Spin4', 'Dzip1l', 'Spink2', 'E030037K01Rik', 'E030042O20Rik', 'E030044B06Rik', 'E130006D01Rik', 'E130102H24Rik', 'Spns2', 'E130307A14Rik', 'Spock2', 'Spock1', 'Spon1', 'Spock3', 'E230013L22Rik', 'Spred1', 'E230032D23Rik', 'E230034D01Rik', 'Spsb4', 'Sptlc3', 'Sptssa', 'Ebi3', 'Sqle', 'Ece1', 'Ecel1', 'Ech1', 'Echdc2', 'Srcap', 'Srcin1', 'Srd5a3', 'Srebf2', 'Srek1', 'Ecpas', 'Srgap1', 'Srgap3', 'Ect2l', 'Edil3', 'Ednrb', 'Edrf1', 'Srrm3', 'Eef1a1', 'Eef1a2', 'Srsf1', 'Eef1akmt3', 'Eef1akmt4', 'Srsf2', 'Eef1b2', 'Eef1d', 'Eef1g', 'Eef2', 'Ssbp2', 'Ssbp3', 'Ssbp4', 'Efcab10', 'Ssc4d', 'Sspo', 'Efcc1', 'Efemp1', 'Efhb', 'Ssr4', 'Sst', 'Efhd1', 'Efhd2', 'Ssx2ip', 'Efna2', 'Efna5', 'St3gal2', 'St3gal4', 'Efr3b', 'St5', 'Eftud2', 'St6gal2', 'Egfem1', 'Egfl6', 'St6galnac3', 'St6galnac5', 'St6galnac1', 'Egfr', 'Egln3', 'Egr1', 'Egr2', 'Egr3', 'St8sia3', 'St8sia3os', 'St8sia4', 'Ehd2', 'Ehd3', 'Stab2', 'Ehmt1', 'Stag1', 'Eif1', 'Stambpl1', 'Stard13', 'Eif3f', 'Eif3h', 'Stat3', 'Eif4a2', 'Stat4', 'Stau2', 'Stbd1', 'Eif4g3', 'Stc2', 'Eif5a', 'Steap4', 'Stim1', 'Stimate', 'Elavl3', 'Elavl4', 'Eldr', 'Elfn2', 'Stk32a', 'Elmo1', 'Elmo2', 'Stk32c', 'Elmod1', 'Stk39', 'Elob', 'Stmn1', 'Stmn2', 'Elof1', 'Stmn3', 'Elovl2', 'Stom', 'Stmn4', 'Elovl5', 'Elovl6', 'Ston2', 'Elp4', 'Stox2', 'Emb', 'Strbp', 'Emc4', 'Emc7', 'Emc8', 'Stx16', 'Eml2', 'Eml5', 'Eml6', 'Stx1b', 'Emp1', 'Emp3', 'Emsy', 'Emx2', 'Emx2os', 'Stxbp1', 'Stxbp4', 'Enah', 'Stxbp5l', 'Sub1', 'Enho', 'Enkd1', 'Enkur', 'Eno1', 'Eno2', 'Eno4', 'Enoph1', 'Enpep', 'Sulf2', 'Enpp2', 'Enpp1', 'Sult1a1', 'Sult2a6', 'Ensa', 'Enthd1', 'Entpd1', 'Sult4a1', 'Entpd3', 'Sumo2', 'Epb41l1', 'Supt3', 'Epb41l3', 'Epc1', 'Susd4', 'Epcam', 'Epha10', 'Epha3', 'Sv2c', 'Epha5', 'Svil', 'Svop', 'Ephb3', 'Swap70', 'Swi5', 'Swsap1', 'Ephx3', 'Syce2', 'Epn2', 'Sycp2', 'Sycp3', 'Eps15', 'Syn2', 'Eps8', 'Syn3', 'Sync', 'Eps8l1', 'Syne1', 'Syndig1l', 'Syne4', 'Syngap1', 'Erbb4', 'Syngr3', 'Synj1', 'Synj2bp', 'Ercc3', 'Synpo', 'Synpo2', 'Ercc6l2', 'Synrg', 'Syp', 'Ergic3', 'Erh', 'Syt10', 'Sys1', 'Syt1', 'Syt11', 'Syt3', 'Syt4', 'Syt7', 'Sytl2', 'Sytl4', 'Sytl5', 'Erv3', 'T2', 'Tac1', 'Esrrb', 'Esrrg', 'Ess2', 'Tada1', 'Etfb', 'Taf10', 'Taf13', 'Etnppl', 'Taf15', 'Etv4', 'Etv5', 'Taf7l', 'Eva1b', 'Tafa1', 'Tafa3', 'Tafa5', 'Exd1', 'Tagln2', 'Tagln3', 'Taldo1', 'Exoc2', 'Tanc2', 'Exoc3l2', 'Exoc6b', 'Ext1', 'Extl1', 'Extl3', 'Eya1', 'Tasor', 'Eya4', 'Tasp1', 'Ezr', 'Tbata', 'F2', 'Tbc1d10c', 'F3', 'F5', 'F630206G17Rik', 'F730035M05Rik', 'Tbc1d22bos', 'F830208F22Rik', 'F930017D23Rik', 'Tbc1d32', 'Tbc1d5', 'Fabp12', 'Fabp5', 'Fabp7', 'Tbcb', 'Fads2', 'Fads3', 'Tbce', 'Faim2', 'Fam107a', 'Fam110a', 'Tbx18', 'Fam114a1', 'Fam120c', 'Fam122b', 'Tcaf1', 'Fam126b', 'Tcaf2', 'Fam129b', 'Fam135a', 'Tceal9', 'Fam155a', 'Tcf20', 'Tcf4', 'Tcf7l1', 'Fam163a', 'Fam163b', 'Fam166b', 'Fam169b', 'Tcp11', 'Fam171a2', 'Fam177a', 'Tctex1d1', 'Tctex1d4', 'Fam181a', 'Fam181b', 'Fam184a', 'Tdgf1', 'Tdrd3', 'Fam193a', 'Fam193b', 'Tdrd9', 'Tead1', 'Fam20a', 'Fam214a', 'Tecr', 'Fam216b', 'Tef', 'Tek', 'Fam222b', 'Tekt3', 'Fam227b', 'Fam228a', 'Fam228b', 'Fam229a', 'Tenm2', 'Tenm3', 'Tenm4', 'Tenm1', 'Tent5c', 'Fam3c', 'Fam43b', 'Tes3-ps', 'Fam57b', 'Tet1', 'Tet2', 'Tex22', 'Fam83d', 'Fam92b', 'Tex9', 'Fanci', 'Fap', 'Tfec', 'Far1os', 'Farp1', 'Fars2', 'Tgfa', 'Fas', 'Fasn', 'Tgfb1i1', 'Fat3', 'Tgfbr3', 'Fau', 'Tgfbr3l', 'Tgif1', 'Fbll1', 'Fbln1', 'Fbln5', 'Thada', 'Fbn2', 'Fbp1', 'Fbrsl1', 'Fbxl13', 'Fbxl14', 'Fbxl16', 'Fbxl17', 'Thbs4', 'Fbxl20', 'Themis2', 'Fbxo15', 'Thoc1', 'Fbxo2', 'Thoc3', 'Thra', 'Thrb', 'Thrsp', 'Tia1', 'Tiam2', 'Ticam2', 'Fbxo9', 'Fbxw10', 'Fbxw18', 'Fbxw4', 'Fcgr2b', 'Fcgr3', 'Timp1', 'Timp3', 'Timp4', 'Fcrls', 'Fdft1', 'Tjp1', 'Tjp3', 'Tlcd1', 'Fem1a', 'Tle2', 'Fez1', 'Tlnrd1', 'Fgd2', 'Fgd4', 'Fgd6', 'Fgf1', 'Fgf10', 'Fgf12', 'Fgf13', 'Fgf14', 'Fgf20', 'Tma7', 'Fgf5', 'Tmbim6', 'Fgf9', 'Tmc2', 'Fgfr1', 'Fgfr3', 'Tmc7', 'Fgfr4', 'Tmcc1', 'Fggy', 'Tmcc2', 'Tmcc3', 'Tmco1', 'Fgl2', 'Fhad1', 'Fhitos', 'Fhl1', 'Fhl2', 'Tmeff1', 'Tmeff2', 'Fibp', 'Tmem100', 'Ficd', 'Filip1l', 'Firre', 'Fis1', 'Tmem117', 'Fjx1', 'Tmem123', 'Fkbp1a', 'Tmem125', 'Fkbp3', 'Tmem130', 'Tmem132b', 'Tmem132cos', 'Tmem140', 'Flnc', 'Flrt1', 'Flrt2', 'Flt3l', 'Flvcr1', 'Tmem151a', 'Fmc1', 'Fmn2', 'Tmem161b', 'Fmo1', 'Tmem164', 'Fmod', 'Fn3krp', 'Fnbp1', 'Tmem173', 'Fnbp4', 'Tmem176a', 'Tmem176b', 'Tmem178b', 'Tmem179', 'Fndc3b', 'Fndc5', 'Tmem181a', 'Tmem191c', 'Folr1', 'Folr2', 'Fos', 'Fosb', 'Fosl2', 'Foxa1', 'Foxa3', 'Tmem202', 'Foxc1', 'Tmem204', 'Foxd1', 'Foxd2os', 'Tmem208', 'Foxg1', 'Tmem212', 'Tmem203', 'Tmem216', 'Foxl2', 'Foxn3', 'Foxo1', 'Tmem229a', 'Foxo4', 'Foxp1', 'Tmem232', 'Tmem245', 'Frat2', 'Frem1', 'Frmd4a', 'Tmem256', 'Tmem258', 'Tmem262', 'Frmpd1', 'Frmpd1os', 'Frmpd2', 'Frmpd3', 'Frmpd4', 'Tmem269', 'Frrs1l', 'Fry', 'Fryl', 'Frzb', 'Tmem35a', 'Tmem37', 'Fscn1', 'Fstl1', 'Tmem44', 'Fstl4', 'Fth1', 'Tmem50a', 'Ftl1', 'Ftx', 'Fuca1', 'Tmem59', 'Tmem59l', 'Fuca2', 'Tmem61', 'Tmem63a', 'Tmem64', 'Fut4', 'Fut8', 'Fut9', 'Fxr1', 'Fxyd1', 'Tmem86a', 'Fxyd5', 'Tmem87a', 'Fxyd7', 'Fxyd6', 'Tmem88', 'Fyn', 'Fzd10', 'Fzd10os', 'Fzd2', 'Fzd3', 'Fzd4', 'Tmem9b', 'Tmem95', 'Tmem98', 'Fzd5', 'G0s2', 'Tmppe', 'Tmprss12', 'G630016G05Rik', 'Tmprss6', 'G630093K05Rik', 'Tmsb10', 'Tmsb15b1', 'Tmsb15b2', 'Tmsb4x', 'Tmtc2', 'Gab2', 'Gabarap', 'Gabarapl2', 'Gabbr1', 'Gabbr2', 'Tmx4', 'Tnc', 'Gabra1', 'Gabra2', 'Gabra3', 'Gabra6', 'Gabrb1', 'Gabrb3', 'Tnfrsf12a', 'Gabrg1', 'Gabrg3', 'Tnfrsf19', 'Gabrq', 'Gabrr2', 'Gad1', 'Tnfrsf26', 'Gad2', 'Gadd45a', 'Gadd45b', 'Gadd45g', 'Tnfsf11', 'Gal', 'Gal3st1', 'Tnfsf12', 'Tnfsf4', 'Tnfsf8', 'Tnik', 'Galnt10', 'Tnk2', 'Galnt16', 'Tnmd', 'Galnt18', 'Galnt2', 'Galnt5', 'Tnni3', 'Tnni3k', 'Galnt9', 'Tnnt3', 'Tnrc18', 'Tnrc6a', 'Tnrc6b', 'Tnrc6c', 'Tns1', 'Gapdh', 'Gap43', 'Garem1', 'Gars', 'Gas1', 'Togaram2', 'Gas2l2', 'Gas5', 'Tom1l1', 'Tom1l2', 'Tomm5', 'Tomm6os', 'Tomm7', 'Gata3', 'Gata4', 'Top1mt', 'Gatc', 'Top2a', 'Gatd3a', 'Tor1b', 'Gbf1', 'Tox', 'Tox2', 'Gbp2', 'Gbp3', 'Tpcn1', 'Gbp6', 'Tpd52', 'Tpd52l1', 'Gbx2', 'Gc', 'Gch1', 'Tpm3-rs7', 'Gcnt1', 'Tppp', 'Gcnt4', 'Gcnt7', 'Tppp3', 'Gda', 'Gdap1', 'Tprn', 'Gdf10', 'Tpt1', 'Trac', 'Gdpd3', 'Tradd', 'Traf1', 'Gem', 'Gfap', 'Gfm1', 'Traj27', 'Traj33', 'Gfra1', 'Trank1', 'Trappc2l', 'Ggnbp1', 'Gh', 'Trcg1', 'Ghr', 'Trdn', 'Gigyf1', 'Trhde', 'Gimap9', 'Triap1', 'Trib2', 'Tril', 'Gins4', 'Trim17', 'Trim2', 'Gja1', 'Gjb1', 'Gjb2', 'Gjb6', 'Gjc2', 'Gjc3', 'Gk', 'Trim34b', 'Gldnos', 'Gle1', 'Glg1', 'Gli1', 'Gli2', 'Gli3', 'Trim47', 'Trim59', 'Glipr1l3', 'Glipr2', 'Glis1', 'Glis3', 'Glmp', 'Trim67', 'Glp2r', 'Trim8', 'Trim9', 'Glrb', 'Trip11', 'Trip12', 'Trip6', 'Glt8d1', 'Glt8d2', 'Glul', 'Glycam1', 'Gnai1', 'Trmt61a', 'Trmt9b', 'Gnao1', 'Gnaq', 'Gnas', 'Trmu', 'Tro', 'Gnb2', 'Gnb5', 'Trp63', 'Gng13', 'Trpa1', 'Gng3', 'Gng5', 'Trpm1', 'Trpm3', 'Gnmt', 'Gnpda2', 'Gnpnat1', 'Trpm7', 'Trps1', 'Trpv2', 'Golga4', 'Tsc22d1', 'Tsc22d3', 'Tsc22d4', 'Got1', 'Got2', 'Tshr', 'Gpam', 'Tshz2', 'Tsix', 'Gpatch2', 'Tsnaxip1', 'Gpatch4', 'Gpc3', 'Tspan15', 'Gpc5', 'Gpc6', 'Gpcpd1', 'Tspan17', 'Gpd2', 'Gphn', 'Tspan5', 'Tspan4', 'Gpld1', 'Gpm6a', 'Tspan7', 'Tspan9', 'Gpm6b', 'Gpnmb', 'Tspoap1', 'Tspyl3', 'Tspyl5', 'Gpr141', 'Tst', 'Gpr146', 'Gpr143', 'Gpr153', 'Gpr155', 'Gpr158', 'Ttc12', 'Gpr160', 'Gpr162', 'Ttc17', 'Gpr161', 'Ttc21a', 'Gpr17', 'Gpr176', 'Ttc23', 'Gpr18', 'Ttc28', 'Ttc29', 'Ttc3', 'Gpr27', 'Gpr37', 'Gpr37l1', 'Ttc34', 'Ttc36', 'Gpr55', 'Gpr6', 'Ttc39d', 'Ttc7b', 'Gpr83', 'Gpr84', 'Ttc9', 'Gpr87', 'Ttc9b', 'Gprasp1', 'Gprasp2', 'Gprc5a', 'Gprc5b', 'Ttll1', 'Gprc5c', 'Ttll10', 'Gprin1', 'Ttll3', 'Ttll4', 'Ttll5', 'Ttll6', 'Gpt2', 'Gpx1', 'Ttll8', 'Gprin2', 'Gpx8', 'Gramd1b', 'Ttyh1', 'Gramd3', 'Gramd4', 'Tuba1a', 'Tuba1b', 'Grasp', 'Grb10', 'Tuba1c', 'Grcc10', 'Tubb2a', 'Tubb2b', 'Tubb3', 'Tubal3', 'Tubb4b', 'Tubb5', 'Tubb6', 'Gria1', 'Gria2', 'Gria3', 'Gria4', 'Grid1', 'Grid2', 'Tubg2', 'Grid2ip', 'Grifin', 'Grik2', 'Grik3', 'Grik4', 'Grik5', 'Tusc1', 'Grin2b', 'Grin2c', 'Tut4', 'Grin3a', 'Grin3b', 'Grip1', 'Grip2', 'Grk3', 'Grk4', 'Grm3', 'Grm4', 'Grm7', 'Grrp1', 'Gsdmd', 'Gsdme', 'Gse1', 'U2surp', 'Uaca', 'Uap1', 'Gsg1l2', 'Gsk3b', 'Uba52', 'Gsn', 'Uba7', 'Gssos1', 'Gsta1', 'Gsta4', 'Ubash3b', 'Gstm1', 'Gstm2', 'Gstm5', 'Ube2e2', 'Gsto1', 'Gstp1', 'Gstt2', 'Ube2l6', 'Gstz1', 'Ube2t', 'Ube3c', 'Gtf2ird1', 'Ube4bos1', 'Ubfd1', 'Gtpbp2', 'Ubr1', 'Ubr3', 'Ubqln4', 'Ubr5', 'Gtsf1', 'Ubtd1', 'Ubxn1', 'Gucy1a2', 'Ubxn11', 'Guk1', 'Uchl1', 'Gulp1', 'Gyg', 'Uckl1os', 'Ucma', 'Gypc', 'Gzmc', 'Ucp3', 'H1f0', 'Uggt2', 'Ugt1a-all', 'H2-K1', 'Uhrf1', 'Ulbp1', 'Ulk4', 'Umad1', 'H2-T23', 'H2afj', 'Unc13c', 'H2afz', 'H3f3a', 'H3f3b', 'Unc45bos', 'Haao', 'Habp4', 'Unc5b', 'Unc5cl', 'Unc80', 'Uncx', 'Hadhb', 'Hal', 'Upf1', 'Hao2', 'Hap1', 'Hapln1', 'Upp2', 'Hapln4', 'Uqcc2', 'Uqcc3', 'Uqcr10', 'Uqcr11', 'Uqcrb', 'Uqcrc1', 'Uqcrfs1', 'Uqcrh', 'Uqcrq', 'Urgcp', 'Haus8', 'Hccs', 'Ush2a', 'Hcfc1r1', 'Usp15', 'Hdac11', 'Hdac4', 'Hdac9', 'Usp29', 'Hdc', 'Usp34', 'Hdhd5', 'Usp45', 'Usp46os2', 'Hebp2', 'Hectd4', 'Usp53', 'Usp54', 'Heg1', 'Usp6nl', 'Hemk1', 'Hepacam', 'Utrn', 'Herc1', 'Herc2', 'Uty', 'Uvssa', 'Herpud1', 'Hes1', 'Hes5', 'Vamp1', 'Hesx1', 'Hexa', 'Heyl', 'Vash1', 'Vasn', 'Vasp', 'Vat1', 'Vat1l', 'Hgh1', 'Vav3', 'Vcl', 'Hif3a', 'Higd1a', 'Higd1b', 'Higd1c', 'Vegfa', 'Hint1', 'Hip1', 'Hipk2', 'Vill', 'Vim', 'Vip', 'Hist1h1t', 'Hist1h2ad', 'Hist1h2bb', 'Hist1h2bc', 'Vmn2r15', 'Vmn2r18', 'Vmn2r28', 'Vmn2r29', 'Vmn2r30', 'Hist1h3g', 'Hist1h4j', 'Hist1h4m', 'Hist2h2aa1', 'Hist2h2bb', 'Vps13a', 'Vps13b', 'Vps13c', 'Vps13d', 'Hivep3', 'Hivep2', 'Hk2', 'Hlf', 'Hmcn1', 'Hmga1b', 'Vps54', 'Hmgb1', 'Hmgb2', 'Hmgcr', 'Hmgcs1', 'Hmgcs2', 'Hmgn1', 'Hmgn2', 'Vsnl1', 'Vsig4', 'Hmgn5', 'Vstm2l', 'Vstm4', 'Hmox1', 'Vti1a', 'Hnf4aos', 'Vtn', 'Vwa3a', 'Vwa3b', 'Hnrnpa2b1', 'Hnrnpf', 'Vwa8', 'Vwa7', 'Wars2', 'Wasf3', 'Washc2', 'Hook3', 'Hopx', 'Hoxa1', 'Hpcal1', 'Hpcal4', 'Wdfy3', 'Wdpcp', 'Hprt', 'Wdr1', 'Hpn', 'Wdr17', 'Hpse', 'Hpse2', 'Hr', 'Hras', 'Wdr33', 'Hrh1', 'Hrh4', 'Wdr45', 'Wdr49', 'Wdr63', 'Hsbp1', 'Wdr66', 'Wdr7', 'Hsd11b1', 'Wdr72', 'Wdr76', 'Wdr78', 'Wdr81', 'Wdr86', 'Hsd17b6', 'Wdr93', 'Wdr95', 'Hsf3', 'Wfdc15a', 'Hsp90aa1', 'Hsp90ab1', 'Hspa12a', 'Wfdc6a', 'Wfikkn1', 'Wfikkn2', 'Whamm', 'Hspa2', 'Wipf1', 'Hspa8', 'Hspb1', 'Wls', 'Wnk1', 'Wnk2', 'Hspb6', 'Hspb8', 'Hspb3', 'Wnt2', 'Hspe1', 'Hspg2', 'Wnt6', 'Wnt7a', 'Htr1f', 'Wnt9a', 'Htr2b', 'Wsb1', 'Htr5a', 'Htr6', 'Htra1', 'Wwc1', 'Wwox', 'Hus1b', 'Hydin', 'Hyou1', 'Xist', 'Hypk', 'Xkr6', 'Xkr9', 'Icam1', 'Icosl', 'Id1', 'Id2', 'Id3', 'Id4', 'Xpr1', 'Ide', 'Xrn1', 'Idi1', 'Xylt1', 'Ier2', 'Ier3', 'Ier3ip1', 'Ybx1', 'Yif1a', 'Ifi27', 'Ifi27l2a', 'Ifi47', 'Ifit2', 'Ypel3', 'Ypel4', 'Ifitm2', 'Ywhab', 'Ywhag', 'Ywhah', 'Ywhaz', 'Yy2', 'Zap70', 'Zbbx', 'Zbtb16', 'Ift81', 'Ift88', 'Zbtb20', 'Igdcc3', 'Igf1r', 'Igf2', 'Zbtb3', 'Igf2bp2', 'Igf2bp3', 'Igfbp2', 'Igfbp7', 'Zbtb7c', 'Igfbpl1', 'Zbtb8b', 'Igsf1', 'Igsf10', 'Igsf21', 'Zc3h12b', 'Igsf8', 'Zc3hav1', 'Zcchc12', 'Il10rb', 'Zcwpw2', 'Il15', 'Il16', 'Il17c', 'Il18', 'Zeb1', 'Il1r1', 'Il1rapl1', 'Il1rapl2', 'Zfand2a', 'Zfas1', 'Il20rb', 'Il21r', 'Il22ra1', 'Zfhx3', 'Zfhx4', 'Il31ra', 'Il33', 'Zfp110', 'Il6', 'Il6ra', 'Ildr2', 'Zfp14', 'Zfp157', 'Zfp160', 'Zfp185', 'Impact', 'Impdh2', 'Zfp217', 'Zfp263', 'Inhbc', 'Inka1', 'Ino80', 'Ino80d', 'Ino80dos', 'Zfp296', 'Inpp4b', 'Zfp319', 'Zfp329', 'Zfp330', 'Zfp335', 'Insig1', 'Zfp335os', 'Insl3-Jak3', 'Insl6', 'Insr', 'Zfp36', 'Insyn2a', 'Insyn2b', 'Zfp365', 'Zfp385a', 'Zfp398', 'Zfp407', 'Zfp414', 'Iqca', 'Iqcc', 'Iqcd', 'Zfp423', 'Iqch', 'Zfp451', 'Iqsec1', 'Iqsec3', 'Iqub', 'Zfp462', 'Irak2', 'Irak4', 'Zfp474', 'Irf2', 'Zfp503', 'Zfp513', 'Zfp516', 'Irf7', 'Zfp521', 'Zfp524', 'Irs2', 'Zfp532', 'Zfp536', 'Irx3', 'Irx5', 'Zfp575', 'Iscu', 'Zfp592', 'Ism1', 'Zfp608', 'Isyna1', 'Zfp629', 'Itga6', 'Zfp638', 'Zfp641', 'Zfp644', 'Itgam', 'Zfp655', 'Itgb2', 'Itgbl1', 'Itih3', 'Zfp692', 'Itm2b', 'Itm2c', 'Zfp708', 'Itpka', 'Itpkb', 'Itpr1', 'Itpr2', 'Itsn2', 'Ivd', 'Izumo4', 'Zfp772', 'Zfp773', 'Jag1', 'Jak3', 'Jakmip1', 'Zfp799', 'Jaml', 'Jarid2', 'Zfp808', 'Jazf1', 'Zfp811', 'Jhy', 'Zfp827', 'Jph2', 'Jph3', 'Jph4', 'Jpt1', 'Zfp85', 'Jpx', 'Zfp853', 'Jun', 'Junb', 'Kalrn', 'Kank1', 'Kansl1', 'Kansl1l', 'Kantr', 'Kat2a', 'Zfp936', 'Kat6b', 'Kat8', 'Katnal2', 'Kbtbd12', 'Zfp950', 'Kcna2', 'Kcna6', 'Kcnab1', 'Kcnab3', 'Kcnb2', 'Kcnc1', 'Kcnc4', 'Kcnd2', 'Zfp981', 'Kcng1', 'Kcng2', 'Kcng3', 'Kcng4', 'Zfp991', 'Kcnh3', 'Zfpm2', 'Kcnip1', 'Kcnip3', 'Kcnip4', 'Kcnj10', 'Kcnj11', 'Kcnj16', 'Zhx2', 'Kcnj3', 'Zic1', 'Zic2', 'Kcnj2', 'Zic4', 'Kcnj4', 'Kcnk1', 'Zic3', 'Zim3', 'Kcnk3', 'Kcnk5', 'Kcnma1', 'Kcnmb1', 'Kcnn2', 'Kcnn3', 'Zmynd10', 'Kcnq1', 'Kcnq1ot1', 'Kcnn4', 'Kcnq3', 'Kcns2', 'Kcns3', 'Kcnt1', 'Znrf3', 'Kcnt2', 'Kctd12b', 'Kctd17', 'Zscan26', 'Zswim5', 'Zswim6', 'Zup1', 'Zwint', 'Zzef1', 'a', 'Kdm5d', 'Kdm8', 'Khdrbs3', 'Kidins220', 'Kif13a', 'Kif13b', 'Kif19a', 'Kif1b', 'Kif22', 'Kif23', 'Kif27', 'Kif2c', 'Kif3c', 'Kif5a', 'Kif5c', 'Kif6', 'Kif9', 'Kifc5b', 'Kirrel2', 'Kirrel3', 'Kiss1', 'Kit', 'Kiz', 'Klb', 'Klc1', 'Klc2', 'Klc3', 'Klf10', 'Klf12', 'Klf2', 'Klf4', 'Klf5', 'Klf6', 'Klf7', 'Klf9', 'Klhdc10', 'Klhdc7a', 'Klhl10', 'Klhl25', 'Klhl29', 'Klhl32', 'Klra8', 'Klre1', 'Klri1', 'Kmt2a', 'Kmt2c', 'Kmt2e', 'Kmt5b', 'Kpna2', 'Krt19', 'Krt25', 'Krt8', 'Krtcap2', 'Ktn1', 'Ky', 'L1cam', 'L3hypdh', 'L3mbtl4', 'Lad1', 'Lama2', 'Lamb1', 'Lamb3', 'Lamp1', 'Lamtor2', 'Lao1', 'Laptm4a', 'Large1', 'Larp1', 'Lars2', 'Layn', 'Lbp', 'Lca5l', 'Lck', 'Lcorl', 'Lctl', 'Ldb2', 'Ldc1', 'Ldha', 'Ldhb', 'Ldhc', 'Ldlr', 'Ldlrad4', 'Lenep', 'Leng8', 'Leprot', 'Lfng', 'Lgals1', 'Lgals12', 'Lgals2', 'Lgals3', 'Lgi1', 'Lgi3', 'Lgmn', 'Lgr6', 'Lgsn', 'Lhfp', 'Lhfpl2', 'Lhfpl3', 'Lhx2', 'Lhx5', 'Limch1', 'Limk2', 'Lingo2', 'Lipm', 'Lipo3', 'Lix1', 'Lmntd1', 'Lmo3', 'Lmod1', 'Lncbate6', 'Lncpint', 'Lnpep', 'Lonrf2', 'Lor', 'Loxhd1', 'Loxl2', 'Lpar1', 'Lpar3', 'Lpgat1', 'Lpin2'])
+```
+
+```{python}
+subregional_model = joblib.load(
+    f"models/svm/best-logit-subregional_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+subregional_model
+```
+
+```{python}
+print(uni_fs[np.array(subregional_model[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+```{python}
+subregional_model2 = joblib.load(
+    f"models/svm/best-xgboost-subregional_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+subregional_model2
+```
+
+```{python}
+
+print(uni_fs[np.array(subregional_model2[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+## Evaluate model on test parts of the datasets
+
+```{python}
+PRJNA847050_etest = PRJNA847050_counts[PRJNA847050_counts.obs["test"]]
+PRJNA815819_etest = PRJNA815819_counts[PRJNA815819_counts.obs["test"]]
+PRJNA798401_etest = PRJNA798401_counts[PRJNA798401_counts.obs["test"]]
+PRJNA723345_etest = PRJNA723345_counts[PRJNA723345_counts.obs["test"]]
+PRJNA722418_etest = PRJNA722418_counts[PRJNA722418_counts.obs["test"]]
+PRJNA705596_etest = PRJNA705596_counts[PRJNA705596_counts.obs["test"]]
+PRJNA679294_etest = PRJNA679294_counts[PRJNA679294_counts.obs["test"]]
+PRJNA611624_etest = PRJNA611624_counts[PRJNA611624_counts.obs["test"]]
+PRJNA604055_etest = PRJNA604055_counts[PRJNA604055_counts.obs["test"]]
+PRJNA548532_etest = PRJNA548532_counts[PRJNA548532_counts.obs["test"]]
+PRJNA515063_etest = PRJNA515063_counts[PRJNA515063_counts.obs["test"]]
+PRJNA453138_etest = PRJNA453138_counts[PRJNA453138_counts.obs["test"]]
+
+adata_eval = concat(
+    [
+        PRJNA847050_etest,
+        PRJNA815819_etest,
+        PRJNA798401_etest,
+        PRJNA722418_etest,
+        PRJNA705596_etest,
+        PRJNA679294_etest,
+        PRJNA611624_etest,
+        PRJNA604055_etest,
+        PRJNA548532_etest,
+        PRJNA515063_etest,
+        PRJNA453138_etest,
+    ],
+    join="outer",
+)
+
+sc.pp.normalize_total(adata_eval, target_sum=1e4)
+sc.pp.log1p(adata_eval)
+sc.pp.regress_out(adata_eval, ["nCount_RNA", "percent_mito_ribo"])
+
+y_eval = adata_eval.obs["region"]
+df_eval = pd.DataFrame(
+    adata_eval.X, columns=adata_eval.var_names, index=adata_eval.obs_names
+)
+```
+
+```{python}
+df_eval = df_eval.loc[
+    :, uni_fs
+]
+
+df_eval.head()
+```
+
+```{python}
+# Compute the proportion of each category
+prop_eval = y_eval.value_counts(normalize=True)
+
+# Sort the categories by their proportion
+cat_eval = pd.Categorical(y_eval, categories=prop_eval.index.sort_values(), ordered=True)
+
+# Get the integer codes of the categories
+codes_eval = cat_eval.codes
+
+adata_eval.obs["codes_eval"] = adata_eval.obs["region"]
+adata_eval.obs["codes_eval"] = pd.Categorical(codes_eval, ordered=True)
+```
+
+## Logistic regression based feature selection
+
+```{python}
+
+predictions_logit_eval = subregional_model.predict(df_eval)
+
+print("Matthews correlation coefficient: {}".format(matthews_corrcoef(codes_eval, predictions_logit_eval)))
+print("F-measure: {}".format(f1_score(codes_eval, predictions_logit_eval, average="weighted")))
+```
+
+```{python}
+
+adata_eval.obs["predictions_logit_eval"] = adata_eval.obs["region"]
+adata_eval.obs["predictions_logit_eval"] = predictions_logit_eval
+adata_eval.obs["predictions_logit_eval"] = pd.Categorical(
+    values=adata_eval.obs["predictions_logit_eval"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval.obs["predictions_logit_eval"].astype(str)))
+    ),
+)
+
+reducer_eval = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_eval.fit(
+    adata_eval.obsm["X_pca"], adata_eval.obs["predictions_logit_eval"].astype(str)
+)
+adata_eval.obsm["X_umap_logit"] = reducer_eval.transform(adata_eval.obsm["X_pca"])
+```
+
+```{python}
+save_PRJNA779749 = f"-replic2-best-subregional_supervised-logit-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval,
+    basis="X_pacmap",
+    color=["predictions_logit_eval", "codes_eval", "region"],
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval,
+    basis="X_umap_logit",
+    color=["predictions_logit_eval"],
+    title=f"UMAP: supervised predictions, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_subregion" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval,
+    basis="X_umap_logit",
+    color=["region"],
+    title=f"UMAP: supervised subregion, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_loc="on data",
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-region" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval,
+    basis="X_umap_logit",
+    color=["codes_eval"],
+    title=f"UMAP: supervised subregion-codes, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_loc="on data",
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-region" + save_PRJNA779749,
+)
+```
+
+## XGBoost based feature selection
+
+```{python}
+predictions_xgboost_eval = subregional_model2.predict(df_eval)
+print("Matthews correlation coefficient: {}".format(matthews_corrcoef(codes_eval, predictions_xgboost_eval)))
+print("F-measure: {}".format(f1_score(codes_eval, predictions_xgboost_eval, average="weighted")))
+```
+
+```{python}
+
+adata_eval.obs["predictions_xgboost_eval"] = adata_eval.obs["region"]
+adata_eval.obs["predictions_xgboost_eval"] = predictions_xgboost_eval
+adata_eval.obs["predictions_xgboost_eval"] = pd.Categorical(
+    values=adata_eval.obs["predictions_xgboost_eval"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval.obs["predictions_xgboost_eval"].astype(str)))
+    ),
+)
+
+reducer_eval2 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_eval2.fit(
+    adata_eval.obsm["X_pca"], adata_eval.obs["predictions_xgboost_eval"].astype(str)
+)
+adata_eval.obsm["X_umap"] = reducer_eval2.transform(adata_eval.obsm["X_pca"])
+```
+
+```{python}
+save_PRJNA779749 = f"-replic2-best-subregional_supervised-xgboost-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval,
+    basis="X_pacmap",
+    color=["predictions_xgboost_eval", "codes_eval", "region"],
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=["predictions_xgboost_eval"],
+    title=f"UMAP: supervised predictions, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_subregion" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=["region"],
+    title=f"UMAP: supervised subregion, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_loc="on data",
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-region" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=["codes_eval"],
+    title=f"UMAP: supervised subregion-codes, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_loc="on data",
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-region" + save_PRJNA779749,
+)
+```
+
+```{python}
+adata_eval.write(
+    f"/data/data/resolved_subregions_by_microclusters/replic2-best-subregional_supervised-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+pd.DataFrame(adata_eval.obsm["X_umap_logit"], index=adata_eval.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/replic2-best-subregional_supervised-xgboost-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-logit.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval.obsm["X_pacmap"], index=adata_eval.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/replic2-best-subregional_supervised-xgboost-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-pacmap-subfunct.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval.obsm["X_umap"], index=adata_eval.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/replic2-best-subregional_supervised-evaluation-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-xgboost.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+## Plot genes on the evaluation test set
+
+```{python}
+nprdf = pd.DataFrame(adata_eval.raw.X.todense(), columns=adata_eval.var_names, index=adata_eval.obs_names).loc[:, np.array([g for g in npr if g in adata_eval.var_names])]
+nprdf.describe()
+```
+
+```{python}
+nprdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+nprcols = [col for col in nprdf.columns if nprdf[col].quantile(0.985) > 1]
+nprcols3 = [col for col in nprdf.columns if col not in nprcols and nprdf[col].max() == 1]
+nprcols2 = [col for col in nprdf.columns if col not in nprcols and col not in nprcols3]
+print(nprcols)
+print(nprcols2)
+print(nprcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nprcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-npr2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nprcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    na_color="#9A9FB080",
+    save="-npr3" + save_PRJNA779749,
+)
+```
+
+```{python}
+nmrdf = pd.DataFrame(adata_eval.raw.X.todense(), columns=adata_eval.var_names, index=adata_eval.obs_names).loc[:, np.array([g for g in nmr if g in adata_eval.var_names])]
+nmrdf.describe()
+```
+
+```{python}
+nmrcols = [col for col in nmrdf.columns if nmrdf[col].quantile(0.985) > 1]
+nmrcols3 = [col for col in nmrdf.columns if col not in nmrcols and nmrdf[col].max() == 1]
+nmrcols2 = [col for col in nmrdf.columns if col not in nmrcols and col not in nmrcols3]
+print(nmrcols)
+print(nmrcols2)
+print(nmrcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nmrcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=nmrcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr3" + save_PRJNA779749,
+)
+```
+
+```{python}
+adddf = pd.DataFrame(adata_eval.raw.X.todense(), columns=adata_eval.var_names, index=adata_eval.obs_names).loc[:, np.array([g for g in genes_embed if g in adata_eval.var_names])]
+adddf.describe()
+```
+
+```{python}
+agcols = [col for col in adddf.columns if adddf[col].quantile(0.985) > 1]
+agcols3 = [col for col in adddf.columns if col not in agcols and adddf[col].max() == 1]
+agcols2 = [col for col in adddf.columns if col not in agcols and col not in agcols3]
+print(agcols)
+print(agcols2)
+print(agcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=agcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval,
+    color=agcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen3" + save_PRJNA779749,
+)
+```
+
+
+```{python}
+tfdf = pd.DataFrame(adata_eval.raw.X.todense(), columns=adata_eval.var_names, index=adata_eval.obs_names).loc[:, np.array([g for g in tf_genes if g in adata_eval.var_names])]
+tfdf.describe()
+```
+
+```{python}
+tfcols = [col for col in tfdf.columns if tfdf[col].quantile(0.9) > 3]
+tfcols3 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() == 1]
+tfcols2 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() > 1]
+
+print(tfcols)
+print(tfcols2)
+print(tfcols3)
+```
+
+```{python}
+for gene in tfcols:
+    sc.pl.umap(
+        adata_eval,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p90.0",
+        na_color="#9A9FB080",
+        save="-tf1-" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+for gene in tfcols2:
+    sc.pl.umap(
+        adata_eval,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf2" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+for gene in tfcols3:
+    sc.pl.umap(
+        adata_eval,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf3" + gene + save_PRJNA779749,
+)
+```
+
+
+## Additional validation of whole hypothalamus predictions
+
+```{python}
+PRJNA847050_etr = PRJNA847050_counts[PRJNA847050_counts.obs["train"]]
+PRJNA815819_etr = PRJNA815819_counts[PRJNA815819_counts.obs["train"]]
+PRJNA798401_etr = PRJNA798401_counts[PRJNA798401_counts.obs["train"]]
+PRJNA723345_etr = PRJNA723345_counts[PRJNA723345_counts.obs["train"]]
+PRJNA722418_etr = PRJNA722418_counts[PRJNA722418_counts.obs["train"]]
+PRJNA705596_etr = PRJNA705596_counts[PRJNA705596_counts.obs["train"]]
+PRJNA679294_etr = PRJNA679294_counts[PRJNA679294_counts.obs["train"]]
+PRJNA611624_etr = PRJNA611624_counts[PRJNA611624_counts.obs["train"]]
+PRJNA604055_etr = PRJNA604055_counts[PRJNA604055_counts.obs["train"]]
+PRJNA548532_etr = PRJNA548532_counts[PRJNA548532_counts.obs["train"]]
+PRJNA515063_etr = PRJNA515063_counts[PRJNA515063_counts.obs["train"]]
+PRJNA453138_etr = PRJNA453138_counts[PRJNA453138_counts.obs["train"]]
+
+traindata = concat(
+    [
+        PRJNA847050_etr,
+        PRJNA815819_etr,
+        PRJNA798401_etr,
+        PRJNA722418_etr,
+        PRJNA705596_etr,
+        PRJNA679294_etr,
+        PRJNA611624_etr,
+        PRJNA604055_etr,
+        PRJNA548532_etr,
+        PRJNA515063_etr,
+        PRJNA453138_etr,
+    ],
+    join="outer",
+)
+
+traindata = traindata[
+    :,
+    ~traindata.var_names.str.match(r"(^Hla-|^Ig[hjkl]|^Rna|^mt-|^Rp[sl]|^Hb[^(p)]|^Gm)"),
+]
+traindata = traindata[:, ~traindata.var_names.isin(hk_genes1)]
+
+sc.pp.filter_genes(traindata, min_cells=3)
+sc.pp.normalize_total(traindata, target_sum=1e4)
+sc.pp.log1p(traindata)
+sc.pp.regress_out(traindata, ["nCount_RNA", "percent_mito_ribo"])
+
+
+X = pd.DataFrame(
+    traindata.X, columns=traindata.var_names, index=traindata.obs_names
+)
+
+X_uni = X.loc[:, uni_fs]
+X_uni
+```
+
+```{python}
+y = traindata.obs["region"]
+
+# Compute the proportion of each category
+prop = y.value_counts(normalize=True)
+
+# Sort the categories by their proportion
+cat = pd.Categorical(y, categories=prop.index.sort_values(), ordered=True)
+
+# Get the integer codes of the categories
+codes = cat.codes
+```
+
+### Hajdarovic et al. 2021
+
+```{python}
+PRJNA779749_counts = sc.read_h5ad(
+    f"data/PRJNA779749/data/PRJNA779749-astrocytes_dataset-{cb_fpr}-scenic_plus.h5ad"
+)
+
+PRJNA779749_regulons = sc.read_h5ad(
+    f"data/PRJNA779749/data/PRJNA779749-astrocytes_dataset-{cb_fpr}-regulons.h5ad"
+)
+```
+
+```{python}
+adata_eval2 = PRJNA779749_counts.copy()
+# sc.pp.filter_genes(adata_eval2, min_cells=5) # filter genes should be matched with training set
+sc.pp.normalize_total(adata_eval2, target_sum=1e4)
+sc.pp.log1p(adata_eval2)
+sc.pp.regress_out(adata_eval2, ["nCount_RNA", "percent_mito_ribo"])
+```
+
+```{python}
+df_eval2 = pd.DataFrame(
+    adata_eval2.X, columns=adata_eval2.var_names, index=adata_eval2.obs_names
+)
+```
+
+```{python}
+
+df_eval2 = df_eval2.loc[
+    :, [g for g in uni_fs if g in adata_eval2.var_names]
+]
+df_eval2.head()
+```
+
+```{python}
+X_uni_to_PRJNA779749 = X_uni.loc[:, [g for g in uni_fs if g in adata_eval2.var_names]]
+subregional_model.fit(X_uni_to_PRJNA779749, codes)
+
+joblib.dump(
+    subregional_model,
+    f"models/svm/best-logit-subregional_PRJNA779749_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA779749.columns[np.array(subregional_model[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+```{python}
+subregional_model2.fit(X_uni_to_PRJNA779749, codes)
+
+joblib.dump(
+    subregional_model2,
+    f"models/svm/best-xgboost-subregional_PRJNA779749_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA779749.columns[np.array(subregional_model2[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+#### Logit
+
+```{python}
+
+# Generate labels for whole hypothalamus reference dataset
+predictions_logit_PRJNA779749 = subregional_model.predict(df_eval2)
+adata_eval2.obs["predict_logit_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_logit_subregion"] = predictions_logit_PRJNA779749
+adata_eval2.obs["predict_logit_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_logit_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_logit_subregion"].astype(str)))
+    ),
+)
+
+PRJNA779749_regulons.obs["predict_logit_subregion"] = adata_eval2.obs["predict_logit_subregion"]
+```
+
+```{python}
+adata_eval2.obsm["X_umap_subfunct"] = adata_eval2.obsm["X_umap"]
+
+reducer_PRJNA779749 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA779749.fit(
+    adata_eval2.obsm["X_aucell"], adata_eval2.obs["predict_logit_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap_logit"] = reducer_PRJNA779749.transform(adata_eval2.obsm["X_aucell"])
+PRJNA779749_regulons.obsm["X_umap_logit"] = adata_eval2.obsm["X_umap_logit"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_logit"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-logit.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_subfunct"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-subfunct.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA779749 = f"-best_logit-subregional_supervised-PRJNA779749-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA779749 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA779749)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised density logit prediction: PRJNA779749 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_logit_subregion" + save_PRJNA779749,
+)
+```
+
+#### XGBoost
+
+```{python}
+# Generate labels for whole hypothalamus reference dataset
+predictions_xgboost_PRJNA779749 = subregional_model2.predict(df_eval2)
+adata_eval2.obs["predict_xgboost_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_xgboost_subregion"] = predictions_xgboost_PRJNA779749
+adata_eval2.obs["predict_xgboost_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_xgboost_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_xgboost_subregion"].astype(str)))
+    ),
+)
+
+PRJNA779749_regulons.obs["predict_xgboost_subregion"] = adata_eval2.obs["predict_xgboost_subregion"]
+```
+
+```{python}
+reducer_PRJNA779749 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA779749.fit(
+    adata_eval2.obsm["X_aucell"],
+    adata_eval2.obs["predict_xgboost_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap"] = reducer_PRJNA779749.transform(adata_eval2.obsm["X_aucell"])
+PRJNA779749_regulons.obsm["X_umap_xgboost"] = adata_eval2.obsm["X_umap"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA779749-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-xgboost.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA779749 = f"-best_xgboost-subregional_supervised-PRJNA779749-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_xgboost_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA779749 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=["predict_xgboost_subregion"],
+    title=f"UMAP: supervised density XGBoost, PRJNA779749 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_xgboost_subregion" + save_PRJNA779749,
+)
+```
+
+```{python}
+npepdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npep if g in adata_eval2.var_names])]
+npepdf.describe()
+npepcols = [col for col in npepdf.columns if npepdf[col].quantile(0.985) > 1]
+
+for gene in npepcols:
+    sc.pl.umap(
+        adata_eval2,
+        color=npepcols,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p98.5",
+        na_color="#9A9FB080",
+        save="-npep-" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+nprdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npr if g in adata_eval2.var_names])]
+nprdf.describe()
+```
+
+```{python}
+nprdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+nprcols = [col for col in nprdf.columns if nprdf[col].quantile(0.985) > 1]
+nprcols3 = [col for col in nprdf.columns if col not in nprcols and nprdf[col].max() == 1]
+nprcols2 = [col for col in nprdf.columns if col not in nprcols and col not in nprcols3]
+print(nprcols)
+print(nprcols2)
+print(nprcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-npr2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    na_color="#9A9FB080",
+    save="-npr3" + save_PRJNA779749,
+)
+```
+
+```{python}
+nmrdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in nmr if g in adata_eval2.var_names])]
+nmrdf.describe()
+```
+
+```{python}
+nmrcols = [col for col in nmrdf.columns if nmrdf[col].quantile(0.985) > 1]
+nmrcols3 = [col for col in nmrdf.columns if col not in nmrcols and nmrdf[col].max() == 1]
+nmrcols2 = [col for col in nmrdf.columns if col not in nmrcols and col not in nmrcols3]
+print(nmrcols)
+print(nmrcols2)
+print(nmrcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr3" + save_PRJNA779749,
+)
+```
+
+```{python}
+adddf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in genes_embed if g in adata_eval2.var_names])]
+adddf.describe()
+```
+
+```{python}
+agcols = [col for col in adddf.columns if adddf[col].quantile(0.985) > 1]
+agcols3 = [col for col in adddf.columns if col not in agcols and adddf[col].max() == 1]
+agcols2 = [col for col in adddf.columns if col not in agcols and col not in agcols3]
+print(agcols)
+print(agcols2)
+print(agcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen2" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen3" + save_PRJNA779749,
+)
+```
+
+```{python}
+tfdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in tf_genes if g in adata_eval2.var_names])]
+tfdf.describe()
+```
+
+```{python}
+tfdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+tfcols = [col for col in tfdf.columns if tfdf[col].quantile(0.9) > 3]
+tfcols3 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() == 1]
+tfcols2 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() > 1]
+
+print(tfcols)
+print(tfcols2)
+print(tfcols3)
+```
+
+```{python}
+for gene in tfcols:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p90.0",
+        na_color="#9A9FB080",
+        save="-tf1-" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+for gene in tfcols2:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf2" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+for gene in tfcols3:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf3" + gene + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA779749,
+)
+```
+
+
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    adata_eval2,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=adata_eval2.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    adata_eval2,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    PRJNA779749_regulons,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=PRJNA779749_regulons.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-regulons_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    PRJNA779749_regulons,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA779749_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-regulons_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+
+### Romanov et al. 2020
+
+```{python}
+PRJNA548917_counts = sc.read_h5ad(
+    f"data/PRJNA548917/data/PRJNA548917-astrocytes_dataset-{cb_fpr}-scenic_plus.h5ad"
+)
+
+PRJNA548917_regulons = sc.read_h5ad(
+    f"data/PRJNA548917/data/PRJNA548917-astrocytes_dataset-{cb_fpr}-regulons.h5ad"
+)
+```
+
+```{python}
+adata_eval2 = PRJNA548917_counts.copy()
+# sc.pp.filter_genes(adata_eval2, min_cells=5) # filter genes should be matched with training set
+sc.pp.normalize_total(adata_eval2, target_sum=1e4)
+sc.pp.log1p(adata_eval2)
+sc.pp.regress_out(adata_eval2, ["nCount_RNA", "percent_mito_ribo"])
+```
+
+```{python}
+df_eval2 = pd.DataFrame(
+    adata_eval2.X, columns=adata_eval2.var_names, index=adata_eval2.obs_names
+)
+```
+
+```{python}
+
+df_eval2 = df_eval2.loc[
+    :, [g for g in uni_fs if g in adata_eval2.var_names]
+]
+df_eval2.head()
+```
+
+```{python}
+X_uni_to_PRJNA548917 = X_uni.loc[:, [g for g in uni_fs if g in adata_eval2.var_names]]
+subregional_model.fit(X_uni_to_PRJNA548917, codes)
+
+joblib.dump(
+    subregional_model,
+    f"models/svm/best-logit-subregional_PRJNA548917_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA548917.columns[np.array(subregional_model[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+```{python}
+subregional_model2.fit(X_uni_to_PRJNA548917, codes)
+
+joblib.dump(
+    subregional_model2,
+    f"models/svm/best-xgboost-subregional_PRJNA548917_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA548917.columns[np.array(subregional_model2[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+#### Logit
+
+```{python}
+
+# Generate labels for whole hypothalamus reference dataset
+predictions_logit_PRJNA548917 = subregional_model.predict(df_eval2)
+adata_eval2.obs["predict_logit_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_logit_subregion"] = predictions_logit_PRJNA548917
+adata_eval2.obs["predict_logit_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_logit_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_logit_subregion"].astype(str)))
+    ),
+)
+
+PRJNA548917_regulons.obs["predict_logit_subregion"] = adata_eval2.obs["predict_logit_subregion"]
+```
+
+```{python}
+adata_eval2.obsm["X_umap_subfunct"] = adata_eval2.obsm["X_umap"]
+
+reducer_PRJNA548917 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA548917.fit(
+    adata_eval2.obsm["X_aucell"], adata_eval2.obs["predict_logit_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap_logit"] = reducer_PRJNA548917.transform(adata_eval2.obsm["X_aucell"])
+PRJNA548917_regulons.obsm["X_umap_logit"] = adata_eval2.obsm["X_umap_logit"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_logit"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-logit.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_subfunct"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-subfunct.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA548917 = f"-best_logit-subregional_supervised-PRJNA548917-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA548917 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA548917)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised density logit prediction: PRJNA548917 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_logit_subregion" + save_PRJNA548917,
+)
+```
+
+#### XGBoost
+
+```{python}
+# Generate labels for whole hypothalamus reference dataset
+predictions_xgboost_PRJNA548917 = subregional_model2.predict(df_eval2)
+adata_eval2.obs["predict_xgboost_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_xgboost_subregion"] = predictions_xgboost_PRJNA548917
+adata_eval2.obs["predict_xgboost_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_xgboost_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_xgboost_subregion"].astype(str)))
+    ),
+)
+
+PRJNA548917_regulons.obs["predict_xgboost_subregion"] = adata_eval2.obs["predict_xgboost_subregion"]
+```
+
+```{python}
+reducer_PRJNA548917 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA548917.fit(
+    adata_eval2.obsm["X_aucell"],
+    adata_eval2.obs["predict_xgboost_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap"] = reducer_PRJNA548917.transform(adata_eval2.obsm["X_aucell"])
+PRJNA548917_regulons.obsm["X_umap_xgboost"] = adata_eval2.obsm["X_umap"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA548917-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-xgboost.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA548917 = f"-best_xgboost-subregional_supervised-PRJNA548917-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_xgboost_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA548917 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=["predict_xgboost_subregion"],
+    title=f"UMAP: supervised density XGBoost, PRJNA548917 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_xgboost_subregion" + save_PRJNA548917,
+)
+```
+
+```{python}
+npepdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npep if g in adata_eval2.var_names])]
+npepdf.describe()
+npepcols = [col for col in npepdf.columns if npepdf[col].quantile(0.985) > 1]
+
+sc.pl.umap(
+    adata_eval2,
+    color=npepcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npep" + save_PRJNA548917,
+)
+```
+
+```{python}
+nprdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npr if g in adata_eval2.var_names])]
+nprdf.describe()
+```
+
+```{python}
+nprdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+nprcols = [col for col in nprdf.columns if nprdf[col].quantile(0.985) > 1]
+nprcols3 = [col for col in nprdf.columns if col not in nprcols and nprdf[col].max() == 1]
+nprcols2 = [col for col in nprdf.columns if col not in nprcols and col not in nprcols3]
+print(nprcols)
+print(nprcols2)
+print(nprcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-npr2" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    na_color="#9A9FB080",
+    save="-npr3" + save_PRJNA548917,
+)
+```
+
+```{python}
+nmrdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in nmr if g in adata_eval2.var_names])]
+nmrdf.describe()
+```
+
+```{python}
+nmrcols = [col for col in nmrdf.columns if nmrdf[col].quantile(0.985) > 1]
+nmrcols3 = [col for col in nmrdf.columns if col not in nmrcols and nmrdf[col].max() == 1]
+nmrcols2 = [col for col in nmrdf.columns if col not in nmrcols and col not in nmrcols3]
+print(nmrcols)
+print(nmrcols2)
+print(nmrcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr2" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr3" + save_PRJNA548917,
+)
+```
+
+```{python}
+adddf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in genes_embed if g in adata_eval2.var_names])]
+adddf.describe()
+```
+
+```{python}
+agcols = [col for col in adddf.columns if adddf[col].quantile(0.985) > 1]
+agcols3 = [col for col in adddf.columns if col not in agcols and adddf[col].max() == 1]
+agcols2 = [col for col in adddf.columns if col not in agcols and col not in agcols3]
+print(agcols)
+print(agcols2)
+print(agcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen2" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen3" + save_PRJNA548917,
+)
+```
+
+```{python}
+tfdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in tf_genes if g in adata_eval2.var_names])]
+tfdf.describe()
+```
+
+```{python}
+tfdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+tfcols = [col for col in tfdf.columns if tfdf[col].quantile(0.9) > 3]
+tfcols3 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() == 1]
+tfcols2 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() > 1]
+
+print(tfcols)
+print(tfcols2)
+print(tfcols3)
+```
+
+```{python}
+for gene in tfcols:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p90.0",
+        na_color="#9A9FB080",
+        save="-tf1-" + gene + save_PRJNA548917,
+)
+```
+
+```{python}
+for gene in tfcols2:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf2" + gene + save_PRJNA548917,
+)
+```
+
+```{python}
+for gene in tfcols3:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf3" + gene + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA548917,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    adata_eval2,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=adata_eval2.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    adata_eval2,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    PRJNA548917_regulons,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=PRJNA548917_regulons.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_4-scores" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_15-scores" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-regulons_15-logfoldchanges" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    PRJNA548917_regulons,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_4-scores" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_15-scores" + save_PRJNA548917,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA548917_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-regulons_15-logfoldchanges" + save_PRJNA548917,
+)
+```
+
+### Kim et al 2020
+
+```{python}
+PRJNA547712_counts = sc.read_h5ad(
+    f"data/PRJNA547712/data/PRJNA547712-astrocytes_dataset-{cb_fpr}-scenic_plus.h5ad"
+)
+
+PRJNA547712_regulons = sc.read_h5ad(
+    f"data/PRJNA547712/data/PRJNA547712-astrocytes_dataset-{cb_fpr}-regulons.h5ad"
+)
+```
+
+```{python}
+adata_eval2 = PRJNA547712_counts.copy()
+# sc.pp.filter_genes(adata_eval2, min_cells=5) # filter genes should be matched with training set
+sc.pp.normalize_total(adata_eval2, target_sum=1e4)
+sc.pp.log1p(adata_eval2)
+sc.pp.regress_out(adata_eval2, ["nCount_RNA", "percent_mito_ribo"])
+```
+
+```{python}
+df_eval2 = pd.DataFrame(
+    adata_eval2.X, columns=adata_eval2.var_names, index=adata_eval2.obs_names
+)
+```
+
+```{python}
+
+df_eval2 = df_eval2.loc[
+    :, [g for g in uni_fs if g in adata_eval2.var_names]
+]
+df_eval2.head()
+```
+
+```{python}
+X_uni_to_PRJNA547712 = X_uni.loc[:, [g for g in uni_fs if g in adata_eval2.var_names]]
+subregional_model.fit(X_uni_to_PRJNA547712, codes)
+
+joblib.dump(
+    subregional_model,
+    f"models/svm/best-logit-subregional_PRJNA547712_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA547712.columns[np.array(subregional_model[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+```{python}
+subregional_model2.fit(X_uni_to_PRJNA547712, codes)
+
+joblib.dump(
+    subregional_model2,
+    f"models/svm/best-xgboost-subregional_PRJNA547712_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA547712.columns[np.array(subregional_model2[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+#### Logit
+
+```{python}
+
+# Generate labels for whole hypothalamus reference dataset
+predictions_logit_PRJNA547712 = subregional_model.predict(df_eval2)
+adata_eval2.obs["predict_logit_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_logit_subregion"] = predictions_logit_PRJNA547712
+adata_eval2.obs["predict_logit_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_logit_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_logit_subregion"].astype(str)))
+    ),
+)
+
+PRJNA547712_regulons.obs["predict_logit_subregion"] = adata_eval2.obs["predict_logit_subregion"]
+```
+
+```{python}
+adata_eval2.obsm["X_umap_subfunct"] = adata_eval2.obsm["X_umap"]
+
+reducer_PRJNA547712 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA547712.fit(
+    adata_eval2.obsm["X_aucell"], adata_eval2.obs["predict_logit_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap_logit"] = reducer_PRJNA547712.transform(adata_eval2.obsm["X_aucell"])
+PRJNA547712_regulons.obsm["X_umap_logit"] = adata_eval2.obsm["X_umap_logit"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_logit"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-logit.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_subfunct"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-subfunct.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA547712 = f"-best_logit-subregional_supervised-PRJNA547712-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA547712 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA547712)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised density logit prediction: PRJNA547712 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_logit_subregion" + save_PRJNA547712,
+)
+```
+
+#### XGBoost
+
+```{python}
+# Generate labels for whole hypothalamus reference dataset
+predictions_xgboost_PRJNA547712 = subregional_model2.predict(df_eval2)
+adata_eval2.obs["predict_xgboost_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_xgboost_subregion"] = predictions_xgboost_PRJNA547712
+adata_eval2.obs["predict_xgboost_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_xgboost_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_xgboost_subregion"].astype(str)))
+    ),
+)
+
+PRJNA547712_regulons.obs["predict_xgboost_subregion"] = adata_eval2.obs["predict_xgboost_subregion"]
+```
+
+```{python}
+reducer_PRJNA547712 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA547712.fit(
+    adata_eval2.obsm["X_aucell"],
+    adata_eval2.obs["predict_xgboost_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap"] = reducer_PRJNA547712.transform(adata_eval2.obsm["X_aucell"])
+PRJNA547712_regulons.obsm["X_umap_xgboost"] = adata_eval2.obsm["X_umap"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA547712-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-xgboost.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA547712 = f"-best_xgboost-subregional_supervised-PRJNA547712-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_xgboost_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA547712 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=["predict_xgboost_subregion"],
+    title=f"UMAP: supervised density XGBoost, PRJNA547712 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_xgboost_subregion" + save_PRJNA547712,
+)
+```
+
+```{python}
+npepdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npep if g in adata_eval2.var_names])]
+npepdf.describe()
+npepcols = [col for col in npepdf.columns if npepdf[col].quantile(0.985) > 1]
+
+sc.pl.umap(
+    adata_eval2,
+    color=npepcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npep" + save_PRJNA547712,
+)
+```
+
+```{python}
+nprdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npr if g in adata_eval2.var_names])]
+nprdf.describe()
+```
+
+```{python}
+nprdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+nprcols = [col for col in nprdf.columns if nprdf[col].quantile(0.985) > 1]
+nprcols3 = [col for col in nprdf.columns if col not in nprcols and nprdf[col].max() == 1]
+nprcols2 = [col for col in nprdf.columns if col not in nprcols and col not in nprcols3]
+print(nprcols)
+print(nprcols2)
+print(nprcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-npr2" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    na_color="#9A9FB080",
+    save="-npr3" + save_PRJNA547712,
+)
+```
+
+```{python}
+nmrdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in nmr if g in adata_eval2.var_names])]
+nmrdf.describe()
+```
+
+```{python}
+nmrcols = [col for col in nmrdf.columns if nmrdf[col].quantile(0.985) > 1]
+nmrcols3 = [col for col in nmrdf.columns if col not in nmrcols and nmrdf[col].max() == 1]
+nmrcols2 = [col for col in nmrdf.columns if col not in nmrcols and col not in nmrcols3]
+print(nmrcols)
+print(nmrcols2)
+print(nmrcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr2" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr3" + save_PRJNA547712,
+)
+```
+
+```{python}
+adddf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in genes_embed if g in adata_eval2.var_names])]
+adddf.describe()
+```
+
+```{python}
+agcols = [col for col in adddf.columns if adddf[col].quantile(0.985) > 1]
+agcols3 = [col for col in adddf.columns if col not in agcols and adddf[col].max() == 1]
+agcols2 = [col for col in adddf.columns if col not in agcols and col not in agcols3]
+print(agcols)
+print(agcols2)
+print(agcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen2" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen3" + save_PRJNA547712,
+)
+```
+
+```{python}
+tfdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in tf_genes if g in adata_eval2.var_names])]
+tfdf.describe()
+```
+
+```{python}
+tfdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+tfcols = [col for col in tfdf.columns if tfdf[col].quantile(0.9) > 3]
+tfcols3 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() == 1]
+tfcols2 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() > 1]
+
+print(tfcols)
+print(tfcols2)
+print(tfcols3)
+```
+
+```{python}
+for gene in tfcols:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p90.0",
+        na_color="#9A9FB080",
+        save="-tf1-" + gene + save_PRJNA547712,
+)
+```
+
+```{python}
+for gene in tfcols2:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf2" + gene + save_PRJNA547712,
+)
+```
+
+```{python}
+for gene in tfcols3:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf3" + gene + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA547712,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    adata_eval2,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=adata_eval2.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    adata_eval2,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    PRJNA547712_regulons,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=PRJNA547712_regulons.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_4-scores" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_15-scores" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-regulons_15-logfoldchanges" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    PRJNA547712_regulons,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_4-scores" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_15-scores" + save_PRJNA547712,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA547712_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-regulons_15-logfoldchanges" + save_PRJNA547712,
+)
+```
+
+### Zeisel et al. 2018
+
+```{python}
+PRJNA438862_counts = sc.read_h5ad(
+    f"data/PRJNA438862/data/PRJNA438862-astrocytes_dataset-{cb_fpr}-scenic_plus.h5ad"
+)
+
+PRJNA438862_regulons = sc.read_h5ad(
+    f"data/PRJNA438862/data/PRJNA438862-astrocytes_dataset-{cb_fpr}-regulons.h5ad"
+)
+```
+
+```{python}
+adata_eval2 = PRJNA438862_counts.copy()
+# sc.pp.filter_genes(adata_eval2, min_cells=5) # filter genes should be matched with training set
+sc.pp.normalize_total(adata_eval2, target_sum=1e4)
+sc.pp.log1p(adata_eval2)
+sc.pp.regress_out(adata_eval2, ["nCount_RNA", "percent_mito_ribo"])
+```
+
+```{python}
+df_eval2 = pd.DataFrame(
+    adata_eval2.X, columns=adata_eval2.var_names, index=adata_eval2.obs_names
+)
+```
+
+```{python}
+
+df_eval2 = df_eval2.loc[
+    :, [g for g in uni_fs if g in adata_eval2.var_names]
+]
+df_eval2.head()
+```
+
+```{python}
+X_uni_to_PRJNA438862 = X_uni.loc[:, [g for g in uni_fs if g in adata_eval2.var_names]]
+subregional_model.fit(X_uni_to_PRJNA438862, codes)
+
+joblib.dump(
+    subregional_model,
+    f"models/svm/best-logit-subregional_PRJNA438862_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA438862.columns[np.array(subregional_model[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+```{python}
+subregional_model2.fit(X_uni_to_PRJNA438862, codes)
+
+joblib.dump(
+    subregional_model2,
+    f"models/svm/best-xgboost-subregional_PRJNA438862_astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pickle",
+)
+
+print(X_uni_to_PRJNA438862.columns[np.array(subregional_model2[1].get_support(indices=True), dtype=int)].tolist())
+```
+
+#### Logit
+
+```{python}
+
+# Generate labels for whole hypothalamus reference dataset
+predictions_logit_PRJNA438862 = subregional_model.predict(df_eval2)
+adata_eval2.obs["predict_logit_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_logit_subregion"] = predictions_logit_PRJNA438862
+adata_eval2.obs["predict_logit_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_logit_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_logit_subregion"].astype(str)))
+    ),
+)
+
+PRJNA438862_regulons.obs["predict_logit_subregion"] = adata_eval2.obs["predict_logit_subregion"]
+```
+
+```{python}
+adata_eval2.obsm["X_umap_subfunct"] = adata_eval2.obsm["X_umap"]
+
+reducer_PRJNA438862 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA438862.fit(
+    adata_eval2.obsm["X_aucell"], adata_eval2.obs["predict_logit_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap_logit"] = reducer_PRJNA438862.transform(adata_eval2.obsm["X_aucell"])
+PRJNA438862_regulons.obsm["X_umap_logit"] = adata_eval2.obsm["X_umap_logit"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_logit"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_logit-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-logit.tsv",
+    sep="\t",
+    header=True,
+)
+pd.DataFrame(adata_eval2.obsm["X_umap_subfunct"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-subfunct.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA438862 = f"-best_logit-subregional_supervised-PRJNA438862-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA438862 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA438862)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=["predict_logit_subregion", "k_tree"],
+    title=f"UMAP supervised density logit prediction: PRJNA438862 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_logit_subregion" + save_PRJNA438862,
+)
+```
+
+#### XGBoost
+
+```{python}
+# Generate labels for whole hypothalamus reference dataset
+predictions_xgboost_PRJNA438862 = subregional_model2.predict(df_eval2)
+adata_eval2.obs["predict_xgboost_subregion"] = adata_eval2.obs["condit"]
+adata_eval2.obs["predict_xgboost_subregion"] = predictions_xgboost_PRJNA438862
+adata_eval2.obs["predict_xgboost_subregion"] = pd.Categorical(
+    values=adata_eval2.obs["predict_xgboost_subregion"].astype(str),
+    categories=natsorted(
+        map(str, np.unique(adata_eval2.obs["predict_xgboost_subregion"].astype(str)))
+    ),
+)
+
+PRJNA438862_regulons.obs["predict_xgboost_subregion"] = adata_eval2.obs["predict_xgboost_subregion"]
+```
+
+```{python}
+reducer_PRJNA438862 = UMAP(
+    n_neighbors=ks,
+    n_epochs=1000,
+    init="spectral",
+    learning_rate=0.1,
+    min_dist=min_dist,
+    spread=spread,
+    repulsion_strength=2.0,
+    negative_sample_rate=negative_sample_rate,
+    densmap=True,
+    n_components=2,
+    random_state=reseed,
+    verbose=False,
+)
+reducer_PRJNA438862.fit(
+    adata_eval2.obsm["X_aucell"],
+    adata_eval2.obs["predict_xgboost_subregion"].astype(str)
+)
+```
+
+```{python}
+adata_eval2.obsm["X_umap"] = reducer_PRJNA438862.transform(adata_eval2.obsm["X_aucell"])
+PRJNA438862_regulons.obsm["X_umap_xgboost"] = adata_eval2.obsm["X_umap"]
+```
+
+```{python}
+adata_eval2.write(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+adata_eval2.write_loom(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.loom"
+)
+pd.DataFrame(adata_eval2.obsm["X_umap"], index=adata_eval2.obs_names).to_csv(
+    f"/data/data/resolved_subregions_by_microclusters/best_xgboost-subregional_PRJNA438862-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}-umap-xgboost.tsv",
+    sep="\t",
+    header=True,
+)
+```
+
+```{python}
+save_PRJNA438862 = f"-best_xgboost-subregional_supervised-PRJNA438862-astrocytes_datasets-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.pdf"
+
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=["predict_xgboost_subregion", "k_tree"],
+    title=f"UMAP supervised subfunction: PRJNA438862 (amb.FPR={cb_fpr}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save=save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=["predict_xgboost_subregion"],
+    title=f"UMAP: supervised density XGBoost, PRJNA438862 \n(amb.FPR={cb_fpr}, k={k}, MSP={connectivity_model}, \nmetric={metric}, n_genes_excluded={signature})",
+    add_outline=True,
+    legend_fontsize=12,
+    legend_fontoutline=2,
+    frameon=False,
+    palette="nipy_spectral",
+    show=True,
+    save="-predict_xgboost_subregion" + save_PRJNA438862,
+)
+```
+
+```{python}
+npepdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npep if g in adata_eval2.var_names])]
+npepdf.describe()
+npepcols = [col for col in npepdf.columns if npepdf[col].quantile(0.985) > 1]
+
+sc.pl.umap(
+    adata_eval2,
+    color=npepcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npep" + save_PRJNA438862,
+)
+```
+
+```{python}
+nprdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in npr if g in adata_eval2.var_names])]
+nprdf.describe()
+```
+
+```{python}
+nprdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+nprcols = [col for col in nprdf.columns if nprdf[col].quantile(0.985) > 1]
+nprcols3 = [col for col in nprdf.columns if col not in nprcols and nprdf[col].max() == 1]
+nprcols2 = [col for col in nprdf.columns if col not in nprcols and col not in nprcols3]
+print(nprcols)
+print(nprcols2)
+print(nprcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-npr2" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nprcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    na_color="#9A9FB080",
+    save="-npr3" + save_PRJNA438862,
+)
+```
+
+```{python}
+nmrdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in nmr if g in adata_eval2.var_names])]
+nmrdf.describe()
+```
+
+```{python}
+nmrcols = [col for col in nmrdf.columns if nmrdf[col].quantile(0.985) > 1]
+nmrcols3 = [col for col in nmrdf.columns if col not in nmrcols and nmrdf[col].max() == 1]
+nmrcols2 = [col for col in nmrdf.columns if col not in nmrcols and col not in nmrcols3]
+print(nmrcols)
+print(nmrcols2)
+print(nmrcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr2" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=nmrcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-nmr3" + save_PRJNA438862,
+)
+```
+
+```{python}
+adddf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in genes_embed if g in adata_eval2.var_names])]
+adddf.describe()
+```
+
+```{python}
+agcols = [col for col in adddf.columns if adddf[col].quantile(0.985) > 1]
+agcols3 = [col for col in adddf.columns if col not in agcols and adddf[col].max() == 1]
+agcols2 = [col for col in adddf.columns if col not in agcols and col not in agcols3]
+print(agcols)
+print(agcols2)
+print(agcols3)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols2,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen2" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.umap(
+    adata_eval2,
+    color=agcols3,
+    frameon=False,
+    show=True,
+    size=40,
+    cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+    vmin=0.0,
+    na_color="#9A9FB080",
+    save="-adgen3" + save_PRJNA438862,
+)
+```
+
+```{python}
+tfdf = pd.DataFrame(adata_eval2.raw.X.todense(), columns=adata_eval2.var_names, index=adata_eval2.obs_names).loc[:, np.array([g for g in tf_genes if g in adata_eval2.var_names])]
+tfdf.describe()
+```
+
+```{python}
+tfdf.quantile(q=[0.5, 0.9, 0.985, 1.0], axis=0)
+```
+
+```{python}
+tfcols = [col for col in tfdf.columns if tfdf[col].quantile(0.9) > 3]
+tfcols3 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() == 1]
+tfcols2 = [col for col in tfdf.columns if col not in tfcols and tfdf[col].max() > 1]
+
+print(tfcols)
+print(tfcols2)
+print(tfcols3)
+```
+
+```{python}
+for gene in tfcols:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        vmax="p90.0",
+        na_color="#9A9FB080",
+        save="-tf1-" + gene + save_PRJNA438862,
+)
+```
+
+```{python}
+for gene in tfcols2:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf2" + gene + save_PRJNA438862,
+)
+```
+
+```{python}
+for gene in tfcols3:
+    sc.pl.umap(
+        adata_eval2,
+        color=gene,
+        frameon=False,
+        show=True,
+        size=40,
+        cmap=matplotlib.colors.LinearSegmentedColormap.from_list("YlBk", ["yellow", "black"], N=2),
+        vmin=0.0,
+        na_color="#9A9FB080",
+        save="-tf3" + gene + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_logit",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nprcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-npr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=nmrcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-nmr" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=agcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-adgen" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.embedding(
+    adata_eval2,
+    basis="X_umap_subfunct",
+    color=tfcols,
+    frameon=False,
+    show=True,
+    size=40,
+    vmin=0.0,
+    vmax="p98.5",
+    na_color="#9A9FB080",
+    save="-tf" + save_PRJNA438862,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    adata_eval2,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=adata_eval2.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    adata_eval2,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_4-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-DGE_15-scores" + save_PRJNA779749,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    adata_eval2,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-DGE_15-logfoldchanges" + save_PRJNA779749,
+)
+```
+
+
+```{python}
+sc.tl.rank_genes_groups(
+    PRJNA438862_regulons,
+    groupby="predict_xgboost_subregion",
+    method="logreg",
+    n_genes=PRJNA438862_regulons.raw.shape[1]
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_4-scores" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-regulons_15-scores" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    vmin=-4,
+    vmax=4,
+    min_logfoldchange=1.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-regulons_15-logfoldchanges" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.tl.filter_rank_genes_groups(
+    PRJNA438862_regulons,
+    key='rank_genes_groups',
+    use_raw=False,
+    min_in_group_fraction=0.85,
+    max_out_group_fraction=0.45,
+    min_fold_change=2
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=4,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_4-scores" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=15,
+    groupby='predict_xgboost_subregion',
+    key='rank_genes_groups_filtered',
+    values_to_plot='scores',
+    standard_scale='var',
+    dendrogram=True,
+    use_raw=False,
+    show=True,
+    save="-filtered-regulons_15-scores" + save_PRJNA438862,
+)
+```
+
+```{python}
+sc.pl.rank_genes_groups_dotplot(
+    PRJNA438862_regulons,
+    n_genes=15,
+    values_to_plot="logfoldchanges", cmap='bwr',
+    key='rank_genes_groups_filtered',
+    vmin=-10,
+    vmax=10,
+    min_logfoldchange=2.5,
+    colorbar_title='log fold change'
+    show=True,
+    save="-filtered-regulons_15-logfoldchanges" + save_PRJNA438862,
+)
+```
+
+# Save Differential Expression Results
+
+```{python}
+PRJNA779749_regulons.write(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA779749_regulons-DER-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+
+PRJNA548917_regulons.write(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA548917_regulons-DER-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+
+PRJNA547712_regulons.write(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA547712_regulons-DER-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+
+PRJNA438862_regulons.write(
+    f"/data/data/resolved_subregions_by_microclusters/PRJNA438862_regulons-DER-astrocytes_dataset-msp_{connectivity_model}-metric_{metric}-k_{k}-sign_{signature}-amb_{cb_fpr}.h5ad"
+)
+```
+
+# Session info:
+
+```{python}
+print(watermark())
+print(watermark(iversions=True, globals_=globals()))
+```

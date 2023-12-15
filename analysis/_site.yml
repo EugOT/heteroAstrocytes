@@ -1,19 +1,91 @@
-name: "heteroAstrocytes"
+name: "AstroTRAP"
 output_dir: ../docs
 navbar:
-  title: "heteroAstrocytes"
+  title: "AstroTRAP"
   left:
-  - text: Home
-    href: index.html
-  - text: HFD
-    href: hfd.html
-  - text: About
-    href: about.html
-  - text: License
-    href: license.html
+    - text: "Home"
+      href: index.html
+    - text: "About"
+      href: about.html
+    - text: "Analysis for figures"
+      menu:
+        - text: "Conventional integration of all datasets produce functional state heterogeneity demonstrating cloud"
+          href: plot-conv-integration-all-together-cloud.html
+        - text: "Plot AstroTRAP results"
+          href: plot_genes_on_predictions.html
+        - text: "Dynamics of the hypothalamic arcuate nucleus response to hfd and signalling between astrocytic groups and Agrp or POMC neurons"
+          href: https://eugot.github.io/PRJNA847050/07-plot-de_induc.html
+        - text: "Dynamics of the hypothalamic paraventricular nucleus response to chronic stress and signalling between astrocytic groups and Agrp or POMC neurons"
+          href: https://eugot.github.io/PRJNA679294/07-plot-de_induc.html
+        - text: "Plot results of Differential expression analysis for individual hypothalamic nuclei astrocytes evaluation dataset"
+          href: plot-de_region.html
+        - text: "Subgroups of astrocytes in the VMH"
+          href: grpr_region.html
+        - text: "Signalling analysis of Insr positive vs. Insr negative astrocytes"
+          href: 08-insr-signalling-summary.html
+        - text: "Detailed CellChat signalling specificity analysis of Insr positive vs. Insr negative astrocytes"
+          href: 20-cellchatdb-insr-signalling-detailed.html
+        - text: "Differential expression analysis across assigned regions for Hypothalamus astrocytes dataset from Romanov RA et al 2020"
+          href: https://eugot.github.io/PRJNA548917/04-de_test-dendrogram.html
+        - text: "Analysis of association between Insr and Lxn expression across different individual hypothalamic nuclei astrocytes evaluation datasets"
+          href: plot-insr-lxn-association.html
+        - text: "Signalling analysis of Lxn positive vs. Lxn negative astrocytes"
+          href: 04-signalling-summary.html
+        - text: "Detailed CellChat signalling specificity analysis of Lxn positive vs. Lxn negative astrocytes"
+          href: 21-cellchatdb-lxn-signalling-detailed.html
+        - text: "CellChat signalling analysis of Arcuate Nucleus/Median Eminence Lxn (+/-) astrocytes dataset from Lutomska LM et al 2022"
+          href: https://eugot.github.io/PRJNA847050/13-cellchat-lxn.html
+    - text: "Individual analysis"
+      menu:
+        - text: "Whole Hypothalamus"
+          menu:
+            - text: "PRJNA438862"
+              href: https://github.com/EugOT/PRJNA438862
+            - text: "PRJNA547712"
+              href: https://github.com/EugOT/PRJNA547712
+            - text: "PRJNA548917"
+              href: https://github.com/EugOT/PRJNA548917
+            - text: "PRJNA779749"
+              href: https://github.com/EugOT/PRJNA779749
+        - text: "Individual nuclei/areas"
+          menu:
+            - text: "PRJNA453138"
+              href: https://github.com/EugOT/PRJNA453138
+            - text: "PRJNA515063"
+              href: https://github.com/EugOT/PRJNA515063
+            - text: "PRJNA548532"
+              href: https://github.com/EugOT/PRJNA548532
+            - text: "PRJNA604055"
+              href: https://github.com/EugOT/PRJNA604055
+            - text: "PRJNA611624"
+              href: https://github.com/EugOT/PRJNA611624
+            - text: "PRJNA679294"
+              href: https://github.com/EugOT/PRJNA679294
+            - text: "PRJNA705596"
+              href: https://github.com/EugOT/PRJNA705596
+            - text: "PRJNA722418"
+              href: https://github.com/EugOT/PRJNA722418
+            - text: "PRJNA723345"
+              href: https://github.com/EugOT/PRJNA723345
+            - text: "PRJNA798401"
+              href: https://github.com/EugOT/PRJNA798401
+            - text: "PRJNA815819"
+              href: https://github.com/EugOT/PRJNA815819
+            - text: "PRJNA847050"
+              href: https://github.com/EugOT/PRJNA847050
+    - text: "Methods"
+      href: methods.html
+  right:
+    - text: "License"
+      href: license.html
+    - icon: fa-github
+      href: https://github.com/EugOT/heteroAstrocytes
+
 output:
   workflowr::wflow_html:
     toc: yes
     toc_float: yes
     theme: cosmo
     highlight: textmate
+    code_folding: hide
+    df_print: paged

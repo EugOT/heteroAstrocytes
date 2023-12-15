@@ -1,0 +1,172 @@
+---
+title: "Functional heterogeneity of hypothalamic astrocytes"
+author: "Evgenii Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(
+  autodep        = TRUE,
+  cache          = FALSE,
+  cache.lazy     = FALSE,
+  dev            = c("png", "pdf"),
+  echo           = TRUE,
+  error          = FALSE,
+  fig.align      = "center",
+  fig.width      = 8,
+  fig.asp        = 0.618,
+  message        = FALSE,
+  warning        = FALSE
+)
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(future)
+  library(kableExtra)
+})
+
+# Load packages for scRNA-seq analysis and visualisation
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install(c("Seurat", "R.utils", "satijalab/seurat-wrappers", "mojaveazure/seurat-disk", "workflowr", "linxihui/NNLM", "yanwu2014/swne", "YuLab-SMU/ggtree", "pengminshi/mrtree", "glmpca", "scry", "scater", "scuttle", "miQC", "sjessa/ggmin", "glmGamPoi", "Nebulosa"))
+}
+
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(SeuratWrappers)
+  library(SeuratDisk)
+  library(sctransform)
+  library(glmGamPoi)
+  library(UpSetR)
+  library(patchwork)
+  library(swne)
+  library(Nebulosa)
+  library(scCustomize)
+  library(RColorBrewer)
+  library(mrtree)
+})
+
+# Set paths
+raw_dir <- here("/data/Steuernagel10x")
+ext1_dir <- here("/data/Ohlig2021")
+ext2_dir <- here("/data/Lutomska2022")
+src_dir <- here("code")
+data_dir <- here("data")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures")
+tables_dir <- here(output_dir, "tables")
+source(here(src_dir, "genes.R"))
+
+# parallelisation
+n_cores <- 36
+plan("multisession", workers = n_cores)
+options(future.globals.maxSize = 25000 * 1024^2) # 25Gb
+plan()
+
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+```{r load-data}
+combined_sct <- LoadH5Seurat(here(data_dir, "comb_astrocytes.bak.h5Seurat"))
+```
+
+```{r check-metadata-summary, render = knitr::normal_print}
+skim(combined_sct@meta.data)
+combined_sct <-
+  Store_Palette_Seurat(
+    seurat_object = combined_sct,
+    palette = rev(brewer.pal(n = 11, name = "Spectral")),
+    palette_name = "expr_Colour_Pal"
+  )
+```
+
+
+Plot by nucleus
+
+```{r pl-all-integrated-astrocytes-nucleus, fig.width=12, fig.asp=0.309}
+plEmbCombBatch <- DimPlot(combined_sct,
+  reduction = "umap",
+  group.by = "Batch_ID",
+  label = TRUE, repel = TRUE
+) + NoLegend()
+plEmbCombReg <- DimPlot(combined_sct,
+  reduction = "umap",
+  group.by = "Author_Region",
+  label = TRUE, repel = TRUE
+) + NoLegend()
+plEmbCombBatch + plEmbCombReg
+```
+
+```{r pl-clustering, fig.height=5, fig.width=8}
+p1 <- DimPlot(combined_sct, label = T, repel = T) + ggtitle("Unsupervised clustering") + NoLegend()
+p2 <- DimPlot(combined_sct, label = T, repel = T, group.by = "k_tree") + ggtitle("MRTree") + NoLegend()
+
+p1 | p2
+```
+
+```{r pl-schex}
+library(schex)
+combined_sct <- make_hexbin(combined_sct, nbins = 60, dimension_reduction = "UMAP")
+plot_hexbin_density(combined_sct)
+plot_hexbin_meta(combined_sct, col = "nCount_RNA", action = "median")
+combined_sct$k_tree <- factor(combined_sct$k_tree)
+plot_hexbin_meta(combined_sct, col = "k_tree", action = "majority")
+```
+
+```{r pl-schex-k-tree}
+label_df <- make_hexbin_label(combined_sct, col = "k_tree")
+pp <- plot_hexbin_meta(combined_sct, col = "k_tree", action = "majority")
+pp + ggrepel::geom_label_repel(
+  data = label_df, aes(x = x, y = y, label = label), colour = "black",
+  label.size = NA, fill = NA
+)
+```
+
+```{r pl-schex-regions}
+reg_df <- make_hexbin_label(combined_sct,
+  col = "Author_Region"
+)
+pp2 <- plot_hexbin_meta(combined_sct,
+  col = "Author_Region",
+  action = "majority"
+)
+pp2 + ggrepel::geom_label_repel(
+  data = reg_df,
+  aes(
+    x = x, y = y,
+    label = label
+  ),
+  colour = "black",
+  label.size = NA, fill = NA
+)
+```
+
+```{r pl-all-integrated-astrocytes-init-canon-markers, fig.width=12}
+plEmbCombCMrk <- FeaturePlot_scCustom(
+  combined_sct,
+  colors_use = combined_sct@misc$expr_Colour_Pal,
+  features = genes.embed[genes.embed %in%
+    rownames(combined_sct@assays$SCT@data)],
+  max.cutoff = "q99"
+)
+plEmbCombCMrk
+```
+
+```{r pl-all-integrated-astrocytes-init-canon-mrk-density, fig.width=7}
+genes.embed[genes.embed %in% rownames(combined_sct@assays$SCT@scale.data)] |>
+  map(~ Plot_Density_Custom(combined_sct, .x))
+```

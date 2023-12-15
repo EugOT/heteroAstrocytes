@@ -1,0 +1,447 @@
+---
+title: "Plot results of Differential expression analysis for individual hypothalamic nuclei astrocytes evaluation dataset"
+author: "Evgenii O. Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig-width: 9
+    fig-height: 12
+    fig-format: retina
+    fig-responsive: true
+    fig-dpi: 200
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+    fig.width: 14
+    fig.height: 12
+---
+
+```{r setup, include = FALSE}
+DOCNAME <- "plot-de-astrocytes-between-regions-on-evaluation-datasets"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("png", "pdf"),
+  timeit         = TRUE
+)
+```
+
+## Load data and setup parameters
+
+```{r libraries, cache=FALSE}
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(future)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(RColorBrewer)
+  library(viridis)
+})
+
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(patchwork)
+  library(ggstatsplot)
+  library(sceasy)
+  library(Seurat)
+  library(SeuratDisk)
+  library(SeuratWrappers)
+  library(schex)
+  library(scCustomize)
+})
+```
+
+### Set paths
+
+```{r paths}
+src_dir <- here("code/")
+data_dir <- here("data/")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures/")
+tables_dir <- here(output_dir, "tables/")
+```
+
+### Load helper functions and gene-sets
+
+```{r source, cache = FALSE}
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+```
+
+### Set fixed variables
+
+```{r params-computation, cache = FALSE}
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# Parameters for parallel execution
+n_cores <- 8
+plan("multisession", workers = n_cores)
+options(
+  future.globals.maxSize = 1999999 * 1024^2,
+  future.rng.onMisuse = "ignore"
+)
+plan()
+
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+```{r params}
+bioproject <- "individual_hypothalamic_nuclei_astrocytes_evaluation_dataset"
+cb_fpr <- 0.001
+connectivity_model <- "min_tree"
+k <- 10
+metric <- "euclidean"
+signature <- 100
+```
+
+## Load predicted astrocytes data
+
+```{r load-seurat}
+srt_path <- here(
+  data_dir,
+  sprintf("best_xgboost-subregional-astrocytes_dataset-msp_%s-metric_%s-k_%s-sign_%s-amb_%s.h5Seurat", connectivity_model, metric, k, signature, cb_fpr)
+)
+srt <- LoadH5Seurat(file = srt_path)
+
+srt <-
+  Store_Palette_Seurat(
+    seurat_object = srt,
+    palette = c(
+      "#ffff00", "#fae200", "#f4c500", "#eeab00", "#e99500",
+      "#e37f00", "#dd6b00", "#d75b00", "#d04c00", "#c93e00",
+      "#c33300", "#bc2800", "#b42003", "#ad1941", "#a41281",
+      "#9c0db7", "#9309dd", "#8906f7", "#7f04ff", "#7402f6",
+      "#6701db", "#5900b0", "#49007e", "#32003e", "#000000"
+    ),
+    palette_name = "expr_Colour_Palette_gnuplot_rette_gnuplot_r")
+
+srt <-
+  Store_Palette_Seurat(
+    seurat_object = srt,
+    palette = rev(brewer.pal(n = 11, name = "Spectral")),
+    palette_name = "div_Colour_Pal"
+  )
+
+colours_code <- c(
+  "0" = "grey30",
+  "1" = "blue",
+  "2" = "skyblue",
+  "3" = "forestgreen",
+  "4" = "greenyellow",
+  "5" = "yellow",
+  "6" = "orangered",
+  "7" = "grey70"
+)
+
+colours_region <- c(
+  "ARC" = "grey30",
+  "LHA" = "blue",
+  "MnPO" = "skyblue",
+  "POA" = "forestgreen",
+  "PVN" = "greenyellow",
+  "SCN" = "yellow",
+  "VMH" = "orangered",
+  "VPH" = "grey70"
+)
+
+print(srt)
+invisible(gc())
+```
+
+
+```{r scale-data}
+srt <- NormalizeData(srt)
+srt <- FindVariableFeatures(srt, selection.method = "vst", nfeatures = 5000)
+all.genes <- rownames(srt)
+srt <- ScaleData(srt, features = all.genes)
+```
+
+
+```{r save-markers-featureplots-at_genes}
+selected_genes <- c(
+  "Insr", "Meis1", "Igf1r", "Nrf1", "Prlr", "Camk1d", "Lars2", "Cacna2d3", # 0 ARC
+  "Dcn", "Ptgds", "Nupr1", "Igfbp2", "Nrarp", "Ctnna2", "Ldlr", "Mmp14", # 1 LHA
+  "Nkx6-2", "Cirbp", "Selenop", # 2 MnPO
+  "Foxg1", "Crym", "Sema3c", "Meis2", "Dbp", "Drd1", "Drd2", "Drd3", "Drd4", "Drd5", # 3 POA
+  "Egr1", "Ttr", "Btg2", "Mbnl3", "Pgf", "Irs4", "Gpr101", "Nr3c2", "Agtr1", # 4 PVN
+  "Rfx4", "Dbx2", "Prokr2", "Cebpb", "Zic1", "Zic2", "Ccn1", "Gata4", "Klf10", # 5 SCN
+  "Tbx3", "Fis1", "Ndn", "Psmc5", "Drap1", "Pcsk1n", "Rtn1", # 6 VMH
+  "Emx2", "Sgip1", "Myoc", "Hivep3", "Dcc", "Ltbp1", "Ralyl", "Egfem1", # 7 VPH
+  "Klf4", "Atf3", "Nrg1", "Cdk8", "Pitx2", "Otx1", "Otx2", "Peg3", "Isl1", "Myt1l", "Nr5a1", "Otp", "Six6", "Nkx2-1", "Qrfpr", "Hcrtr1", "Hcrtr2", "Tacr1", "Trhr", "Tshr", "Grpr", "Npy1r", "Npy2r", "Npy5r",
+  "Gfap", "Fgf1", "Fgfr3", "Hepacam", "Hif1", "Htra1", "Lxn", "Ndrg2", "Ntn1", "Nfia", "Slit2", "Aqp4", "S100a1", "S100a6", "S100b", "Slc1a2", "Slc1a3", "Slc38a1", "Vegfa", "Fos", "Fosb", "Jun", "Junb", "Jund", "Ier2", "Socs3", "Pde10a", "Fbln5"
+)
+
+
+# Iterate_FeaturePlot_scCustom(
+#   seurat_object = srt,
+#   gene_list = selected_genes,
+#   reduction = "densmap_xgboost",
+#   na_cutoff = NA,
+#   pt.size = 4,
+#   order = TRUE,
+#   raster = TRUE,
+#   raster.dpi = c(960, 960),
+#   alpha_na_exp = 0.1,
+#   alpha_exp = 0.75,
+#   single_pdf = FALSE,
+#   file_path = plots_dir,
+#   file_type = ".pdf",
+#   file_name = sprintf("%s_selected", bioproject),
+#   colors_use = srt@misc$expr_Colour_Palette_gnuplot_r
+# )
+
+# Iterate_FeaturePlot_scCustom(
+#   seurat_object = srt,
+#   gene_list = gene_int[gene_int %in% all.genes],
+#   reduction = "densmap_xgboost",
+#   na_cutoff = NA,
+#   pt.size = 4,
+#   order = TRUE,
+#   raster = TRUE,
+#   raster.dpi = c(960, 960),
+#   alpha_na_exp = 0.1,
+#   alpha_exp = 0.75,
+#   single_pdf = FALSE,
+#   file_path = plots_dir,
+#   file_type = ".pdf",
+#   file_name = sprintf("%s_selected", bioproject),
+#   colors_use = srt@misc$expr_Colour_Palette_gnuplot_r
+# )
+```
+
+```{r plot-density-insr-lxn}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Insr", "Lxn"))
+```
+
+```{r plot-density-gfap-lxn}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Gfap", "Lxn"))
+```
+
+```{r plot-density-insr-gfap}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Insr", "Gfap"))
+```
+
+```{r plot-density-gfap-mfn2}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Gfap", "Mfn2"))
+```
+
+```{r plot-density-lxn-mfn2}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Lxn", "Mfn2"))
+```
+
+
+
+```{r plot-density-insr-lxn-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Insr", "Lxn"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-gfap-lxn-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Gfap", "Lxn"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-insr-gfap-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Insr", "Gfap"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-gfap-mfn2-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Gfap", "Mfn2"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-density-lxn-mfn2-spectral}
+Plot_Density_Joint_Only(seurat_object = srt, reduction = "densmap_xgboost", features = c("Lxn", "Mfn2"), custom_palette = srt@misc$div_Colour_Pal)
+```
+
+```{r plot-chi2, fig.width=8, fig.height=24}
+sbs_mtx <- GetAssayData(object = srt, slot = "count", assay = "RNA") %>%
+  as.data.frame() %>%
+  t() %>%
+  as.data.frame() %>%
+  select(Insr, Lxn) %>%
+  dplyr::bind_cols(srt@meta.data) %>%
+  select(region, Insr, Lxn) %>%
+  mutate(Insr_pos = Insr > 0,
+         Lxn_pos  = Lxn  > 0)
+
+sbs_mtx %>% skimr::skim()
+
+
+# plot
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Insr_pos,
+  y = Lxn_pos,
+  grouping.var = region,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "InsR specification of Lxn-positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+
+grouped_ggpiestats(
+  # arguments relevant for `ggpiestats()`
+  data = sbs_mtx,
+  x = Insr,
+  y = Lxn,
+  grouping.var = region,
+  perc.k = 1,
+  package = "ggsci",
+  palette = "category10_d3",
+  # arguments relevant for `combine_plots()`
+  title.text = "InsR specification of Lxn-positive hypothalamic astrocytic lineages",
+  caption.text = "Asterisks denote results from proportion tests; \n***: p < 0.001, ns: non-significant",
+  plotgrid.args = list(nrow = 8)
+)
+```
+
+```{r plot-hexbin}
+srt <- make_hexbin(
+  srt,
+  nbins = 64,
+  dimension_reduction = "densmap_xgboost",
+  use_dims = c(1, 2)
+)
+
+plot_hexbin_density(srt) + ggsci::scale_fill_material("amber")
+
+
+plot_hexbin_meta(
+  srt,
+  col = "project",
+  action = "majority"
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "orig.ident",
+  action = "majority"
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "tech",
+  action = "majority"
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "sex",
+  action = "majority"
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "stage",
+  action = "majority"
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "predictions_xgboost_eval",
+  action = "majority",
+  colors = colours_code
+)
+
+plot_hexbin_meta(
+  srt,
+  col = "region",
+  action = "majority",
+  colors = colours_region
+)
+```
+
+```{r plot-hexbin-genes}
+plot_custom_median_hex <- function(gene_id) {
+  plot_hexbin_feature_plus(srt,
+    col = "region",
+    colors = colours_region,
+    feature = gene_id,
+    mod = "RNA",
+    type = "data",
+    action = "median",
+    xlab = "XGBoost_densMAP_1", ylab = "XGBoost_densMAP_2",
+    title = sprintf("Median of mRNA expression of %s in logarithmic scale", gene_id),
+  ) + scale_fill_gradientn(
+    colors = srt@misc$expr_Colour_Palette_gnuplot_r,
+    na.value = "white"
+  )
+}
+
+plot_custom_mean_hex <- function(gene_id) {
+  plot_hexbin_feature_plus(srt,
+    col = "region",
+    colors = colours_region,
+    feature = gene_id,
+    mod = "RNA",
+    type = "data",
+    action = "mean",
+    xlab = "XGBoost_densMAP_1", ylab = "XGBoost_densMAP_2",
+    title = sprintf("Mean of mRNA expression of %s in logarithmic scale", gene_id),
+  ) + scale_fill_gradientn(
+    colors = srt@misc$expr_Colour_Palette_gnuplot_r,
+    na.value = "white"
+  )
+}
+
+map(selected_genes[selected_genes %in% rownames(GetAssayData(object = srt, slot = "data"))], plot_custom_median_hex)
+map(selected_genes[selected_genes %in% rownames(GetAssayData(object = srt, slot = "data"))], plot_custom_mean_hex)
+
+map(gene_int[gene_int %in% rownames(GetAssayData(object = srt, slot = "data"))], plot_custom_median_hex)
+map(gene_int[gene_int %in% rownames(GetAssayData(object = srt, slot = "data"))], plot_custom_mean_hex)
+```
+
+
+## Session information
+
+```{r session-info, cache = FALSE}
+sI <- sessioninfo::session_info()
+sI$loadedOnly <- NULL
+print(sI, locale = FALSE)
+```

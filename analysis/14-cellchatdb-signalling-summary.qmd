@@ -1,0 +1,2602 @@
+---
+title: "CellChat signalling analysis of Lxn positive vs. Lxn negative astrocytes"
+author: "Evgenii O. Tretiakov"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    df-print: paged
+    code-fold: true
+    fig-width: 14
+    fig-height: 12
+    fig-format: retina
+    fig-responsive: true
+    fig-dpi: 200
+execute:
+  keep-md: false
+  echo: true
+  error: false
+  message: false
+  warning: false
+  debug: false
+knitr:
+  opts_chunk:
+    autodep: true
+    fig.align: center
+    fig.retina: 2
+    fig.width: 14
+    fig.height: 12
+editor: visual
+---
+
+```{r setup, include = FALSE}
+DOCNAME <- "cellchatdb-signalling-between-agrp-or-pomc-neurons-and-lxn-pos-or-neg-astrocytes-in-arc-and-pvn"
+NOW <- Sys.time()
+
+# Time chunks during knitting
+knitr::knit_hooks$set(timeit = function(before) {
+  if (before) {
+    print(paste("Start:", Sys.time()))
+    NOW <<- Sys.time()
+  } else {
+    print(paste("Stop:", Sys.time()))
+    print(Sys.time() - NOW)
+  }
+})
+
+knitr::knit_hooks$set(debug = function(before, options, envir) {
+  if (!before) {
+    message(
+      paste(names(envir), as.list(envir),
+        sep = " = ", collapse = "\n"
+      )
+    )
+  }
+})
+
+knitr::opts_chunk$set(
+  cache          = FALSE,
+  dev            = c("png", "pdf"),
+  timeit         = TRUE
+)
+```
+
+## Load data and setup parameters
+
+```{r libraries, cache=FALSE}
+# Load tidyverse infrastructure packages
+suppressPackageStartupMessages({
+  library(reticulate)
+  library(future)
+  library(here)
+  library(tidyverse)
+  library(magrittr)
+  library(stringr)
+  library(skimr)
+  library(RColorBrewer)
+})
+
+
+# Load packages for scRNA-seq analysis and visualisation
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(patchwork)
+  library(ggstatsplot)
+  library(ggupset)
+  library(ComplexUpset)
+  library(dabestr)
+})
+```
+
+### Set paths
+
+```{r paths}
+src_dir <- here("code")
+data_dir <- here("data")
+output_dir <- here("output")
+plots_dir <- here(output_dir, "figures")
+tables_dir <- here(output_dir, "tables")
+```
+
+### Load helper functions and gene-sets
+
+```{r source, cache = FALSE}
+source(here(src_dir, "genes.R"))
+source(here(src_dir, "functions.R"))
+```
+
+### Set fixed variables
+
+```{r params-computation, cache = FALSE}
+# set seed
+reseed <- 42
+set.seed(seed = reseed)
+
+# Parameters for parallel execution
+n_cores <- 8
+plan("multisession", workers = n_cores)
+options(
+  future.globals.maxSize = 100000 * 1024^2,
+  future.rng.onMisuse = "ignore"
+)
+plan()
+
+
+# ggplot2 theme
+theme_set(ggmin::theme_powerpoint())
+```
+
+## Load selected astrocytes signalling data estimated using Liana-py and Rank Aggregation method (including CellPhoneDB, CellChat, ICELLNET, connectomeDB2020, and CellTalkDB) for CellChatDB only
+
+```{r load-data, cache = FALSE}
+lutomska_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lutomska",
+    "arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+
+lutomska_hfhsd <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lutomska",
+    "hfd-arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+
+deng_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "deng",
+    "arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+
+deng_hfd <-
+  read_csv(here(
+    data_dir,
+    "signalling", "deng",
+    "hfd-arc_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+
+lopez_norm <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lopez",
+    "pvn_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+
+lopez_csds <-
+  read_csv(here(
+    data_dir,
+    "signalling", "lopez",
+    "chronic-stress-pvn_astro-with_npy_pomc-liana-res-lxn-cellchatdb.csv"
+  )
+)
+```
+
+```{r eda-lutomska_norm}
+skim(lutomska_norm)
+```
+
+```{r eda-lutomska_hfhsd}
+skim(lutomska_hfhsd)
+```
+
+```{r eda-deng_norm}
+skim(deng_norm)
+```
+
+```{r eda-deng_hfd}
+skim(deng_hfd)
+```
+
+```{r eda-lopez_norm}
+skim(lopez_norm)
+```
+
+```{r eda-lopez_csds}
+skim(lopez_csds)
+```
+
+## Filter by p-values
+
+```{r filtering}
+lutomska_norm <-
+  lutomska_norm |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+
+lutomska_hfhsd <-
+  lutomska_hfhsd |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+
+deng_norm <-
+  deng_norm |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+
+deng_hfd <-
+  deng_hfd |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+
+lopez_norm <-
+  lopez_norm |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+
+lopez_csds <-
+  lopez_csds |>
+  filter(specificity_rank <= 0.05,
+         magnitude_rank <= 0.05)
+```
+
+```{r eda-lutomska_norm-filtering}
+skim(lutomska_norm)
+```
+
+```{r eda-lutomska_hfhsd-filtering}
+skim(lutomska_hfhsd)
+```
+
+```{r eda-deng_norm-filtering}
+skim(deng_norm)
+```
+
+```{r eda-deng_hfd-filtering}
+skim(deng_hfd)
+```
+
+```{r eda-lopez_norm-filtering}
+skim(lopez_norm)
+```
+
+```{r eda-lopez_csds-filtering}
+skim(lopez_csds)
+```
+
+Merge datasets
+
+```{r}
+lutomska_norm <-
+  lutomska_norm |>
+  mutate(region = "ARC",
+         condition = "HFHSD",
+         control = TRUE)
+
+lutomska_hfhsd <-
+  lutomska_hfhsd |>
+  mutate(region = "ARC",
+         condition = "HFHSD",
+         control = FALSE)
+
+deng_norm <-
+  deng_norm |>
+  mutate(region = "ARC",
+         condition = "HFD",
+         control = TRUE)
+
+deng_hfd <-
+  deng_hfd |>
+  mutate(region = "ARC",
+         condition = "HFD",
+         control = FALSE)
+
+lopez_norm <-
+  lopez_norm |>
+  mutate(region = "PVN",
+         condition = "CSDS",
+         control = TRUE)
+
+lopez_csds <-
+  lopez_csds |>
+  mutate(region = "PVN",
+         condition = "CSDS",
+         control = FALSE)
+
+df_complex_conditions <-
+    bind_rows(
+        lutomska_norm,
+        lutomska_hfhsd,
+        deng_norm,
+        deng_hfd,
+        lopez_norm,
+        lopez_csds
+    )
+df_complex_conditions <-
+    df_complex_conditions |>
+    mutate(pairs = str_c(source, target, sep = "==>")) |>
+    filter(pairs %in% c(
+        "Astro_LXN+==>POMC neurons",
+        "Astro_LXN-==>POMC neurons",
+        "Astro_LXN+==>AGRP/NPY neurons",
+        "Astro_LXN-==>AGRP/NPY neurons",
+        "POMC neurons==>Astro_LXN+",
+        "AGRP/NPY neurons==>Astro_LXN+",
+        "POMC neurons==>Astro_LXN-",
+        "AGRP/NPY neurons==>Astro_LXN-"
+    ))
+```
+
+## Intersection sets analysis
+
+```{r upset-bar, fig.width=14, fig.asp=.618}
+df_complex_conditions2 <- df_complex_conditions %>%
+    mutate(Label = pmap(list(region, condition, control, pairs), function(region, condition, control, pairs) {
+        c(
+            str_c(region, condition, sep = "_"),
+            if (control)
+                "Control",
+            pairs
+        )
+    }))
+
+df_complex_conditions2 %>%
+    ggplot(aes(x = Label)) +
+    geom_bar() +
+    scale_x_upset(
+        order_by = "degree",
+        sets = c(
+            "ARC_HFHSD",
+            "ARC_HFD",
+            "PVN_CSDS",
+            "Control",
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons",
+            "POMC neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        ),
+        name = ""
+    ) +
+    theme_combmatrix(
+        combmatrix.label.text = element_text(size = 12),
+        combmatrix.label.extra_spacing = 5
+    )
+```
+
+```{r upset-complex, fig.width=14, fig.asp=.618}
+df_complex_conditions2 |>
+    filter(pairs %in% c(
+        "Astro_LXN+==>POMC neurons",
+        "Astro_LXN-==>POMC neurons",
+        "Astro_LXN+==>AGRP/NPY neurons",
+        "Astro_LXN-==>AGRP/NPY neurons"
+    )) %>%
+    ggplot(aes(x = Label, y = -log10(magnitude_rank))) +
+    geom_boxplot() +
+    geom_jitter(aes(color = region), width = 0.1) +
+    scale_x_upset(
+        order_by = "degree",
+        sets = c(
+            "ARC_HFHSD",
+            "ARC_HFD",
+            "PVN_CSDS",
+            "Control",
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+            # "POMC neurons==>Astro_LXN+",
+            # "AGRP/NPY neurons==>Astro_LXN+",
+            # "POMC neurons==>Astro_LXN-",
+            # "AGRP/NPY neurons==>Astro_LXN-"
+        ),
+        position = "top",
+        name = ""
+    ) +
+    theme_combmatrix(
+        combmatrix.label.text = element_text(size = 12),
+        combmatrix.label.extra_spacing = 5
+    )
+```
+
+```{r upset-detailed, fig.width=28, fig.asp=.618}
+df_details <- df_complex_conditions |>
+    filter(pairs %in% c(
+        "Astro_LXN+==>POMC neurons",
+        "Astro_LXN-==>POMC neurons",
+        "Astro_LXN+==>AGRP/NPY neurons",
+        "Astro_LXN-==>AGRP/NPY neurons"
+    )) |> mutate(filler = 1) |>
+    pivot_wider(
+        names_from = condition,
+        values_from = filler,
+        values_fill = 0) |>
+    mutate(filler = 1) |>
+    pivot_wider(
+        names_from = pairs,
+        values_from = filler,
+        values_fill = 0) |>
+    mutate(control = as.integer(control))
+
+upset(
+    df_details,
+    c("HFHSD",
+      "HFD",
+      "CSDS",
+      'control',
+      "Astro_LXN+==>POMC neurons",
+      "Astro_LXN-==>POMC neurons",
+      "Astro_LXN+==>AGRP/NPY neurons",
+      "Astro_LXN-==>AGRP/NPY neurons"),
+    annotations = list(
+        'Magnitude' = list(
+            aes = aes(
+                x = intersection,
+                y = -log10(magnitude_rank
+                )),
+            geom = geom_boxplot(na.rm = TRUE)
+        ),
+        'LogFoldChange' = list(
+            aes = aes(
+                x = intersection,
+                y = lr_logfc
+            ),
+            geom = list(
+                geom_jitter(aes(color = -log10(specificity_rank)), na.rm = TRUE),
+                geom_violin(alpha = 0.5, na.rm = TRUE)
+            )
+        )
+    ),
+    min_degree = 3,
+    min_size = 10,
+    width_ratio = 0.1,
+    themes = modifyList(upset_themes,
+                        list(
+                            Magnitude = theme(), LogFoldChange = theme()
+                        )),
+    group_by = 'sets',
+    queries = list(
+        upset_query(
+            group = "Astro_LXN+==>POMC neurons",
+            color = 'blue'
+        ),
+        upset_query(
+            group = "Astro_LXN-==>POMC neurons",
+            color = 'orange'
+        ),
+        upset_query(
+            group = "Astro_LXN+==>AGRP/NPY neurons",
+            color = 'purple'
+        ),
+        upset_query(
+            group = "Astro_LXN-==>AGRP/NPY neurons",
+            color = 'cyan'
+        ),
+        upset_query(
+            set = "Astro_LXN+==>POMC neurons",
+            fill = 'blue'
+        ),
+        upset_query(
+            set = "Astro_LXN-==>POMC neurons",
+            fill = 'orange'
+        ),
+        upset_query(
+            set = "Astro_LXN+==>AGRP/NPY neurons",
+            fill = 'purple'
+        ),
+        upset_query(
+            set = "Astro_LXN-==>AGRP/NPY neurons",
+            fill = 'cyan'
+        )),
+    set_sizes = (
+        upset_set_size(
+            # geom=geom_bar(
+            #     aes(fill=control, x=group),
+            #     width=0.8
+            # ),
+            # position='right'
+        )
+        + geom_text(aes(label = ..count..), hjust = 1.1, stat = 'count')
+        + theme(axis.text.x = element_text(angle = 90))
+    ),
+    stripes = upset_stripes(
+        geom = geom_segment(size = 5),
+        colors = c('cornsilk1', 'deepskyblue1')
+    )
+)
+```
+
+# Astrocytes \>\>\> Neurons
+
+## Arcuate
+
+### Specificity
+
+```{r dabest-two-group-unpaired-arc-a2n-specificity, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region=="ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_specificity_rank,
+        idx = c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-arc-a2n-specificity, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "HFD: Astro_LXN+==>POMC neurons"
+                 ),
+             c(
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "HFD: Astro_LXN-==>POMC neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.mean_diff,
+    color.column = condition
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.cohens_d,
+    color.column = condition
+)
+```
+
+```{r dabest-multi-group-unpaired-arc-a2n-specificity, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "Norm: Astro_LXN+==>AGRP/NPY neurons",
+                 "Norm: Astro_LXN-==>AGRP/NPY neurons"
+                 ),
+             c(
+                 "HFD: Astro_LXN+==>POMC neurons",
+                 "HFD: Astro_LXN-==>POMC neurons",
+                 "HFD: Astro_LXN+==>AGRP/NPY neurons",
+                 "HFD: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff, color.column = condition)
+
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d, color.column = condition)
+```
+
+### Magnitude
+
+```{r dabest-two-group-unpaired-arc-a2n-magnitude, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region=="ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_magnitude_rank,
+        idx = c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-arc-a2n-magnitude, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "HFD: Astro_LXN+==>POMC neurons"
+                 ),
+             c(
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "HFD: Astro_LXN-==>POMC neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.mean_diff,
+    color.column = condition
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.cohens_d,
+    color.column = condition
+)
+```
+
+```{r dabest-multi-group-unpaired-arc-a2n-magnitude, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "Norm: Astro_LXN+==>AGRP/NPY neurons",
+                 "Norm: Astro_LXN-==>AGRP/NPY neurons"
+                 ),
+             c(
+                 "HFD: Astro_LXN+==>POMC neurons",
+                 "HFD: Astro_LXN-==>POMC neurons",
+                 "HFD: Astro_LXN+==>AGRP/NPY neurons",
+                 "HFD: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+
+```
+
+## PVN
+
+### Specificity
+
+```{r dabest-two-group-unpaired-pvn-a2n-specificity, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region=="PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_specificity_rank,
+        idx = c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-pvn-a2n-specificity, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               condition
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "CSDS: Astro_LXN+==>POMC neurons"
+                 ),
+             c(
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "CSDS: Astro_LXN-==>POMC neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.mean_diff,
+     slopegraph = TRUE
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.cohens_d,
+     slopegraph = TRUE
+)
+```
+
+```{r dabest-multi-group-unpaired-pvn-a2n-specificity, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "CSDS"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "Norm: Astro_LXN+==>AGRP/NPY neurons",
+                 "Norm: Astro_LXN-==>AGRP/NPY neurons"
+                 ),
+             c(
+                 "CSDS: Astro_LXN+==>POMC neurons",
+                 "CSDS: Astro_LXN-==>POMC neurons",
+                 "CSDS: Astro_LXN+==>AGRP/NPY neurons",
+                 "CSDS: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d)
+
+```
+
+### Magnitude
+
+```{r dabest-two-group-unpaired-pvn-a2n-magnitude, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region=="PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_magnitude_rank,
+        idx = c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-pvn-a2n-magnitude, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               condition
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "CSDS: Astro_LXN+==>POMC neurons"
+                 ),
+             c(
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "CSDS: Astro_LXN-==>POMC neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.mean_diff,
+     slopegraph = TRUE
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.cohens_d,
+     slopegraph = TRUE
+)
+```
+
+```{r dabest-multi-group-unpaired-pvn-a2n-magnitude, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "CSDS"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: Astro_LXN+==>POMC neurons",
+                 "Norm: Astro_LXN-==>POMC neurons",
+                 "Norm: Astro_LXN+==>AGRP/NPY neurons",
+                 "Norm: Astro_LXN-==>AGRP/NPY neurons"
+                 ),
+             c(
+                 "CSDS: Astro_LXN+==>POMC neurons",
+                 "CSDS: Astro_LXN-==>POMC neurons",
+                 "CSDS: Astro_LXN+==>AGRP/NPY neurons",
+                 "CSDS: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d)
+
+```
+
+# Neurons \>\>\> Astrocyte
+
+## Arcuate
+
+### Specificity
+
+```{r dabest-two-group-unpaired-arc-n2a-specificity, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region=="ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_specificity_rank,
+        idx = c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-arc-n2a-specificity, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "HFD: POMC neurons==>Astro_LXN+"
+                 ),
+             c(
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "HFD: POMC neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.mean_diff,
+    color.column = condition
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.cohens_d,
+    color.column = condition
+)
+```
+
+```{r dabest-multi-group-unpaired-arc-n2a-specificity, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN+",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "HFD: POMC neurons==>Astro_LXN+",
+                 "HFD: POMC neurons==>Astro_LXN-",
+                 "HFD: AGRP/NPY neurons==>Astro_LXN+",
+                 "HFD: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff, color.column = condition)
+
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d, color.column = condition)
+```
+
+### Magnitude
+
+```{r dabest-two-group-unpaired-arc-n2a-magnitude, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region=="ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_magnitude_rank,
+        idx = c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-arc-n2a-magnitude, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "HFD: POMC neurons==>Astro_LXN+"
+                 ),
+             c(
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "HFD: POMC neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.mean_diff,
+    color.column = condition
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+plot(
+    multi.two.group.unpaired.cohens_d,
+    color.column = condition
+)
+```
+
+```{r dabest-multi-group-unpaired-arc-n2a-magnitude, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        region == "ARC",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "HFD"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN+",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "HFD: POMC neurons==>Astro_LXN+",
+                 "HFD: POMC neurons==>Astro_LXN-",
+                 "HFD: AGRP/NPY neurons==>Astro_LXN+",
+                 "HFD: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+
+```
+
+## PVN
+
+### Specificity
+
+```{r dabest-two-group-unpaired-pvn-n2a-specificity, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region=="PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_specificity_rank,
+        idx = c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-pvn-n2a-specificity, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+        ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               condition
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "CSDS: POMC neurons==>Astro_LXN+"
+                 ),
+             c(
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "CSDS: POMC neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.mean_diff,
+     slopegraph = TRUE
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.cohens_d,
+     slopegraph = TRUE
+)
+```
+
+```{r dabest-multi-group-unpaired-pvn-n2a-specificity, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "CSDS"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN+",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "CSDS: POMC neurons==>Astro_LXN+",
+                 "CSDS: POMC neurons==>Astro_LXN-",
+                 "CSDS: AGRP/NPY neurons==>Astro_LXN+",
+                 "CSDS: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d)
+
+```
+
+### Magnitude
+
+```{r dabest-two-group-unpaired-pvn-n2a-magnitude, fig.width=6, fig.asp=.618}
+df.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        `...1`,
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region=="PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank))
+
+two.group.unpaired <-
+    df.two.group.unpaired |>
+    dabest(
+        x = pairs,
+        y = neg_log10_magnitude_rank,
+        idx = c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            ),
+        paired = FALSE,
+        id.column = "...1"
+        )
+
+two.group.unpaired.meandiff <- mean_diff(two.group.unpaired)
+two.group.unpaired.meandiff
+plot(two.group.unpaired.meandiff,
+     slopegraph = FALSE, color.column = control)
+
+two.group.unpaired.cohens_d <- cohens_d(two.group.unpaired)
+two.group.unpaired.cohens_d
+plot(two.group.unpaired.cohens_d,
+     slopegraph = FALSE, color.column = control)
+```
+
+### Multi-two group
+
+```{r dabest-multi-two-group-unpaired-pvn-n2a-magnitude, fig.width=12, fig.asp=.521, echo=FALSE, message=FALSE}
+df.multi.two.group.unpaired <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+        ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-"
+            )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               condition
+               )
+           ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+        ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.two.group.unpaired <-
+  df.multi.two.group.unpaired %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "CSDS: POMC neurons==>Astro_LXN+"
+                 ),
+             c(
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "CSDS: POMC neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.two.group.unpaired.mean_diff <- mean_diff(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.mean_diff,
+     slopegraph = TRUE
+)
+
+multi.two.group.unpaired.cohens_d <- cohens_d(multi.two.group.unpaired)
+
+
+plot(
+    multi.two.group.unpaired.cohens_d,
+     slopegraph = TRUE
+)
+```
+
+```{r dabest-multi-group-unpaired-pvn-n2a-magnitude, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        region == "PVN",
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank),
+           control = if_else(
+               control,
+               "Norm",
+               "CSDS"
+           )
+    ) |>
+    unite(
+        control,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "Norm: POMC neurons==>Astro_LXN+",
+                 "Norm: POMC neurons==>Astro_LXN-",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN+",
+                 "Norm: AGRP/NPY neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "CSDS: POMC neurons==>Astro_LXN+",
+                 "CSDS: POMC neurons==>Astro_LXN-",
+                 "CSDS: AGRP/NPY neurons==>Astro_LXN+",
+                 "CSDS: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d)
+
+```
+
+# Arcuate + Paraventricular nuclei
+
+## Astrocytes \>\>\> Neurons
+
+### Specificity
+
+#### Treatment
+
+```{r dabest-multi-group-unpaired-arc-pvn-a2n-specificity-treatment, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        !control,
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "ARC: Astro_LXN+==>POMC neurons",
+                 "ARC: Astro_LXN-==>POMC neurons",
+                 "PVN: Astro_LXN+==>POMC neurons",
+                 "PVN: Astro_LXN-==>POMC neurons"
+                 ),
+             c(
+                 "ARC: Astro_LXN+==>AGRP/NPY neurons",
+                 "ARC: Astro_LXN-==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN+==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+
+```
+
+#### Control
+
+```{r dabest-multi-group-unpaired-arc-pvn-a2n-specificity-control, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        control,
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "ARC: Astro_LXN+==>POMC neurons",
+                 "ARC: Astro_LXN-==>POMC neurons",
+                 "PVN: Astro_LXN+==>POMC neurons",
+                 "PVN: Astro_LXN-==>POMC neurons"
+                 ),
+             c(
+                 "ARC: Astro_LXN+==>AGRP/NPY neurons",
+                 "ARC: Astro_LXN-==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN+==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+### Magnitude
+
+#### Treatment
+
+```{r dabest-multi-group-unpaired-arc-pvn-a2n-magnitude-treatment, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        !control,
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "ARC: Astro_LXN+==>POMC neurons",
+                 "ARC: Astro_LXN-==>POMC neurons",
+                 "PVN: Astro_LXN+==>POMC neurons",
+                 "PVN: Astro_LXN-==>POMC neurons"
+                 ),
+             c(
+                 "ARC: Astro_LXN+==>AGRP/NPY neurons",
+                 "ARC: Astro_LXN-==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN+==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+
+```
+
+#### Control
+
+```{r dabest-multi-group-unpaired-arc-pvn-a2n-magnitude-control, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        control,
+        pairs %in% c(
+            "Astro_LXN+==>POMC neurons",
+            "Astro_LXN-==>POMC neurons",
+            "Astro_LXN+==>AGRP/NPY neurons",
+            "Astro_LXN-==>AGRP/NPY neurons"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "ARC: Astro_LXN+==>POMC neurons",
+                 "ARC: Astro_LXN-==>POMC neurons",
+                 "PVN: Astro_LXN+==>POMC neurons",
+                 "PVN: Astro_LXN-==>POMC neurons"
+                 ),
+             c(
+                 "ARC: Astro_LXN+==>AGRP/NPY neurons",
+                 "ARC: Astro_LXN-==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN+==>AGRP/NPY neurons",
+                 "PVN: Astro_LXN-==>AGRP/NPY neurons"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+## Neurons \>\>\> Astrocyte
+
+### Specificity
+
+#### Treatment
+
+```{r dabest-multi-group-unpaired-arc-pvn-n2a-specificity-treatment, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        !control,
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "ARC: POMC neurons==>Astro_LXN+",
+                 "ARC: POMC neurons==>Astro_LXN-",
+                 "PVN: POMC neurons==>Astro_LXN+",
+                 "PVN: POMC neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "ARC: AGRP/NPY neurons==>Astro_LXN+",
+                 "ARC: AGRP/NPY neurons==>Astro_LXN-",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN+",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+#### Control
+
+```{r dabest-multi-group-unpaired-arc-pvn-n2a-specificity-control, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        specificity_rank
+    ) |>
+    filter(
+        control,
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_specificity_rank = -log10(specificity_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_specificity_rank,
+        idx = list(
+             c(
+                 "ARC: POMC neurons==>Astro_LXN+",
+                 "ARC: POMC neurons==>Astro_LXN-",
+                 "PVN: POMC neurons==>Astro_LXN+",
+                 "PVN: POMC neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "ARC: AGRP/NPY neurons==>Astro_LXN+",
+                 "ARC: AGRP/NPY neurons==>Astro_LXN-",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN+",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+### Magnitude
+
+#### Treatment
+
+```{r dabest-multi-group-unpaired-arc-pvn-n2a-magnitude-treatment, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        !control,
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "ARC: POMC neurons==>Astro_LXN+",
+                 "ARC: POMC neurons==>Astro_LXN-",
+                 "PVN: POMC neurons==>Astro_LXN+",
+                 "PVN: POMC neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "ARC: AGRP/NPY neurons==>Astro_LXN+",
+                 "ARC: AGRP/NPY neurons==>Astro_LXN-",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN+",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+#### Control
+
+```{r dabest-multi-group-unpaired-arc-pvn-n2a-magnitude-control, fig.width=16, fig.asp=.412}
+df.multi.group <-
+    df_complex_conditions |>
+    select(
+        pairs,
+        ligand_complex,
+        receptor_complex,
+        region,
+        condition,
+        control,
+        magnitude_rank
+    ) |>
+    filter(
+        control,
+        pairs %in% c(
+            "POMC neurons==>Astro_LXN+",
+            "POMC neurons==>Astro_LXN-",
+            "AGRP/NPY neurons==>Astro_LXN+",
+            "AGRP/NPY neurons==>Astro_LXN-"
+        )) |>
+    mutate(neg_log10_magnitude_rank = -log10(magnitude_rank)) |>
+    unite(
+        region,
+        pairs,
+        col = "case",
+        sep = ": "
+    ) |>
+    unite(
+        ligand_complex,
+        receptor_complex,
+        col = "signal"
+    )
+
+multi.group <-
+  df.multi.group %>%
+  dabest(
+        x = case,
+        y = neg_log10_magnitude_rank,
+        idx = list(
+             c(
+                 "ARC: POMC neurons==>Astro_LXN+",
+                 "ARC: POMC neurons==>Astro_LXN-",
+                 "PVN: POMC neurons==>Astro_LXN+",
+                 "PVN: POMC neurons==>Astro_LXN-"
+                 ),
+             c(
+                 "ARC: AGRP/NPY neurons==>Astro_LXN+",
+                 "ARC: AGRP/NPY neurons==>Astro_LXN-",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN+",
+                 "PVN: AGRP/NPY neurons==>Astro_LXN-"
+                 )
+             ),
+         paired = FALSE,
+         id.column = "signal"
+         )
+
+multi.group.mean_diff <- multi.group %>% mean_diff()
+plot(multi.group.mean_diff,
+    color.column = condition)
+
+multi.group.cohens_d <- multi.group %>% cohens_d()
+plot(multi.group.cohens_d,
+    color.column = condition)
+```
+
+# Session info
+
+```{r}
+sessioninfo::session_info()
+```

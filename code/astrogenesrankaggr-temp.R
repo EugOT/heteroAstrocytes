@@ -2,7 +2,7 @@ library(tidyverse)
 library(Seurat)
 library(RobustRankAggreg)
 
-gn <- nrow(combined_sct)
+gn <- 45163
 glist <- map(srt_list, VariableFeatures)
 tc <- map_dbl(glist, ~length(.x)/gn)
 granks <-

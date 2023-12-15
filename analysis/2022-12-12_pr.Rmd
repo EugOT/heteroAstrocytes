@@ -28,6 +28,7 @@ suppressPackageStartupMessages({
   library(stringr)
   library(skimr)
   library(future)
+  library(zeallot)
   library(kableExtra)
   library(reticulate)
 })
@@ -381,14 +382,30 @@ combined_sct <-
   PrepSCTFindMarkers(combined_sct, assay = "SCT")
 newcells.markers <-
   FindMarkers(
-    combined_sct, 
-    assay = "SCT",
+    combined_sct,
     ident.1 = "deleteme",
     ident.2 = NULL,
-    min.diff.pct = 0.3,
-    only.pos = TRUE
+    assay = "SCT",
+    verbose = FALSE,
+    random.seed = reseed,
+    latent.vars = c("percent.mt"),
+    only.pos = TRUE,
+    min.pct = 0.3,
+    base = 10,
+    logfc.threshold = 0.1,
+    densify = TRUE,
+    test.use = "LR"
   )
-head(newcells.markers)
+slice_max(
+  newcells.markers,
+  n = 3,
+  order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
 
 ```
 
@@ -504,10 +521,27 @@ combined_sct <- IntegrateData(
 npcs <- 50
 combined_sct <- combined_sct |> 
   RunPCA(seed.use = reseed, verbose = FALSE) |> 
-  RunUMAP(reduction = "pca", return.model = TRUE,
-          densmap = TRUE, dims = 1:npcs, 
-          seed.use = reseed, verbose = FALSE) |> 
-  FindNeighbors(reduction = "pca", dims = 1:npcs, verbose = FALSE)
+  RunUMAP(
+    reduction = "pca",
+    return.model = TRUE,
+    umap.method = "umap-learn",
+    densmap = TRUE,
+    dens.lambda = 1,
+    dens.frac = 0.2,
+    dims = 1:npcs,
+    n.epochs = 1000,
+    n.neighbors = 20L,
+    min.dist = 0.1,
+    spread = 2,
+    metric = "cosine",
+    seed.use = reseed,
+    verbose = FALSE) |> 
+  FindNeighbors(
+    features = VariableFeatures(combined_sct),
+    k.param = 15,
+    annoy.metric = "euclidean",
+    n.trees = 100,
+    verbose = FALSE)
 ```
 
 Plot by source after clean up
@@ -530,7 +564,7 @@ ref.labels <- metadata$stim
 resolutions <-
   modularity_event_sampling(
     A = combined_sct@graphs$integrated_snn,
-    n.res = 15,
+    n.res = 20,
     gamma.min = 0.1,
     gamma.max = 2
   ) # sample based on the similarity matrix
@@ -614,7 +648,7 @@ kable_material(
     "html"),
   bootstrap_options = "striped",
   position = "left",
-  font_size = 7
+  font_size = 14
 )
 
 tmp.ari <- stab.out$df |>
@@ -656,7 +690,7 @@ kable_material(
     "html"),
   bootstrap_options = "striped",
   position = "left",
-  font_size = 7
+  font_size = 14
 )
 ```
 
@@ -683,34 +717,53 @@ srt.markers.roc <-
   FindAllMarkers(
     combined_sct,
     assay = "SCT",
-    only.pos = TRUE,
-    min.diff.pct = 0.1,
-    logfc.threshold = 0.25,
+    verbose = FALSE,
+    random.seed = reseed,
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.1,
+    densify = TRUE,
     test.use = "roc")
 write_csv(srt.markers.roc,
           here(tables_dir,
                'novoseq-ageing_astr_recon-fix-mrk_roc-sct.csv'))
 
 srt.markers.roc %>%
-    group_by(cluster) %>%
-    slice_max(n = 3, order_by = avg_log2FC)
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
 
 
 srt.markers.lr <-
   FindAllMarkers(
     combined_sct,
     assay = "SCT",
-    only.pos = TRUE,
-    min.diff.pct = 0.15,
-    logfc.threshold = 0.25,
-    test.use = "LR",
-    latent.vars = "sample")
+    verbose = FALSE,
+    random.seed = reseed,
+    latent.vars = c("percent_mt", "sample"),
+    only.pos = FALSE,
+    min.pct = 0.25,
+    base = 10,
+    logfc.threshold = 0.1,
+    densify = TRUE)
 write_csv(srt.markers.lr,
           here(tables_dir,
                'novoseq-ageing_astr_recon-fix-mrk_logreg-sct.csv'))
 srt.markers.lr %>%
-    group_by(cluster) %>%
-    slice_max(n = 3, order_by = avg_log2FC)
+  group_by(cluster) %>%
+  slice_max(n = 3, order_by = avg_log10FC) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
 
 
 # srt.markers.mast <-
@@ -808,10 +861,35 @@ features.list <-
   hypoth.list %>%
   map(~SelectIntegrationFeatures(object.list = append(srt_list, .x),
                                  nfeatures = 2500))
+
+gn <-
+  hypoth.list %>%
+  map_int(nrow) %>%
+  max()
+tc <- map_dbl(features.list, ~length(.x)/gn)
+granks <-
+  aggregateRanks(
+    glist = features.list,
+    N = gn,
+    topCutoff = as.vector(tc))
+
+filter(granks, Score < 5e-2) %>%
+  kable("html") %>%
+  kable_material(
+    bootstrap_options = "striped",
+    position = "left",
+    font_size = 14
+  )
+
 write_rds(
   features.list,
   here(data_dir,
        "integration_features_by_nuclei.rds"))
+
+write_rds(
+  granks,
+  here(data_dir,
+       "integration_features_by_nuclei_rra.rds"))
 ```
 
 ## Arcuate nucleus
