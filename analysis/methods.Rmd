@@ -61,10 +61,8 @@ library("jsonlite")
 
 # Tidyverse
 library("tidyverse")
-```
 
-```{r source, cache = FALSE}
-
+source(here::here("code", "functions.R"))
 ```
 
 ```{r pkg-bib}
@@ -78,7 +76,7 @@ if (!file.exists(here::here("output/methods/packages.bib"))) {
       "mrtree", "gprofiler2", "cowplot", "UpSetR", "ggstatsplot",
       "gridExtra", "tidyverse", "dplyr", "tidyr", "magrittr", "stringr",
       "skimr", "future", "purrr", "here", "workflowr", "zeallot", "knitr",
-      "kableExtra", "rmarkdown", "reticulate"
+      "kableExtra", "rmarkdown", "reticulate", "uwot", "Rtsne", "MAST"
     ),
     file = here::here("output/methods/packages.bib")
   )
@@ -90,6 +88,7 @@ versions <- list(
   biomaRt = packageVersion("biomaRt"),
   cellbender = "docker://etretiakov/cellbender:v0.0.1",
   cellranger = "7.1.0",
+  cellrank = reticulate::import("cellrank")$`__version__`,
   cellranger_ref = "mm10_optimized_v.1.0",
   clustree = packageVersion("clustree"),
   cowplot = packageVersion("cowplot"),
@@ -104,854 +103,978 @@ versions <- list(
   quarto = packageVersion("quarto"),
   kableExtra = packageVersion("kableExtra"),
   knitr = packageVersion("knitr"),
-  leidenalg = "0.9.1@pypi_0",
+  leidenalg = reticulate::import("leidenalg")$version,
+  liana = reticulate::import("liana")$`__version__`,
   magrittr = packageVersion("magrittr"),
+  MAST = packageVersion("MAST"),
   mrtree = packageVersion("mrtree"),
   Nebulosa = packageVersion("Nebulosa"),
+  pacmap = reticulate::import("pacmap")$`__version__`,
   pandoc = rmarkdown::pandoc_version(),
   patchwork = packageVersion("patchwork"),
   purrr = packageVersion("purrr"),
   pyroe = "docker://combinelab/usefulaf:0.9.3",
-  python = "3.8.8",
+  python = py_config()$version_string,
   R = str_extract(R.version.string, "[0-9\\.]+"),
   reticulate = packageVersion("reticulate"),
   rmarkdown = packageVersion("rmarkdown"),
+  scanpy = reticulate::import("scanpy")$`__version__`,
   scCustomize = packageVersion("scCustomize"),
+  sklearn = reticulate::import("sklearn")$`__version__`,
   sctransform = packageVersion("sctransform"),
+  scvelo = reticulate::import("scvelo")$`__version__`,
   Seurat = packageVersion("Seurat"),
   simpleaf = "docker://etretiakov/usefulaf:0.9.0",
   skimr = packageVersion("skimr"),
   stringr = packageVersion("stringr"),
-  Snakemake = "7.21.0",
-  scrublet = "0.2.3@pyh5e36f6f_1",
+  Snakemake = reticulate::import("snakemake")$`__version__`,
+  scrublet = "0.2.3",
   tidyr = packageVersion("tidyr"),
   tidyverse = packageVersion("tidyverse"),
   UpSetR = packageVersion("UpSetR"),
+  uwot = packageVersion("uwot"),
   viridis = packageVersion("viridis"),
   workflowr = packageVersion("workflowr"),
+  xgboost = reticulate::import("xgboost")$`__version__`,
   zeallot = packageVersion("zeallot")
 )
 ```
 
-# Mouse strains (WIP SECTION)
+# [**The 'AstroTRAP' pipeline**]{.underline}
 
-All mice were housed in groups in clear plastic cages on a 12h--12h
-light--dark cycle (lights on at 08:00 h) and in a temperature (22 ±
-2 °C) and humidity (50 ± 10%) controlled environment. Food and water
-were available ad libitum. Embryos and tissues were obtained from timed
-matings with the day of vaginal plug considered as embryonic day (E)
-0.5. The day of birth was always registered as postnatal day (P)0.
-Postnatal animals were weaned on P21. Commercial mouse lines were:
-C57Bl/6J wild-type (RRID:IMSR_JAX:000664), Ai14 (RRID:IMSR_JAX:007914),
-Ascl1-creERT2 (RRID:IMSR_JAX:012882), Th--Gfp (RRID:IMSR_RBRC03162),
-(BAC)GAD65--eGFP (RRID:MMRRC_011849-UCD), GAD67 (RRID:IMSR_RBRC03674),
-Pomc--Gfp (RRID:IMSR_JAX:009593), Slc6a3-Ires-cre
-(RRID:IMSR_JAX:006660), Nfia−/− (RRID:MMRRC_010318-UNC), Robo1−/−
-(RRID:IMSR_APB:5320), Slit1−/− (RRID:MMRRC_030404-MU), Slit2−/−
-(RRID:MMRRC_030405-MU), Isl1-cre (RRID:IMSR_JAX:024242) and OxtrVenus/+
-(MGI:3838764) (REF ). Ascl1-creERT2 knock-in mice were used as
-heterozygotes when performing lineage tracing and as homozygotes to
-study developmental consequences of the lack of Ascl1 since both copies
-of the gene were replaced by the Cre coding region (referred to as Ascl1
-ko). Tracing experiments for all other Cre lines were performed using
-heterozygotes. No statistical methods were used to predetermine sample
-size. The experiments were not randomized and the investigators were not
-blinded to allocation during experiments and outcome assessment.
+**Downloading and preprocessing single-cell RNA-seq data:** Raw
+sequencing data files were obtained from the NCBI Gene Expression
+Onimbus mirror of the European Bioinformatics Institute using the IBM
+Aspera tool-kit (example command: *- ascp -QT -l 800m -k 1
+\--overwrite=diff -P 33001 -i \~/asperaweb_id_dsa.openssh
+era-fasp\@fasp.sra.ebi.ac.uk:/path/to/file/on/server*) or directly from
+the NCBI mirror using the ncbi-toolkit based on the BioProject ID
+(example command: *esearch -db sra -query PRJNA\*\*\*\*\*\* \| efetch
+-format runinfo \| cut -d ',' -f 1 \| grep SRR \| xargs -n 1 -P 20
+prefetch \--max-size u && esearch -db sra -query PRJNA\*\*\*\*\*\* \|
+efetch -format runinfo \| cut -d ',' -f 1 \| grep SRR \| xargs -n 1 -P
+20 fasterq-dump -p -x \--threads 10 \--mem 20000M \--outdir fastq
+\--split-files \--include-technical && pigz -p 20 fastq/SRR\*.fastq*).
+If an original bam-file from the 10X Genomics Cell Ranger count pipeline
+was deposited, it was further converted to fastq (example command:
+*\~/src/cellranger-7.1.0/bin/cellranger bamtofastq \--nthreads=12
+/data/PRJNA\*\*\*\*\*\*/bam/SRR\*\*\*\*\*\*\*.bam
+/data/PRJNA\*\*\*\*\*\*/fastq/SRR\*\*\*\*\*\*\*/*). Information
+regarding publicly available data deposition are **in ED Table 1**.
 
-# Tissue collection and fixation
+**Deriving initial UMI-count matrices:** The Cell Ranger pipeline
+(*v7.1.0*)[(Zheng *et al.*, 2017)](https://sciwheel.com/work/citation?ids=3003288&pre=&suf=&sa=0&dbf=0)
+was used for sample demultiplexing, barcode processing, and
+single-nucleus gene counting. Reads containing sequence information were
+aligned using the optimized mouse genome reference
+(*vmm10_optimized_v.1.0*) provided by Pool's
+lab[(Pool *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0),
+which is based on the default Cell Ranger mm10 genome version 2020-A
+that was cleared from gene overlaps, poorly annotated exons, 3'-UTRs,
+and intergenic fragments. PCR duplicates were removed by selecting
+unique combinations of cell barcodes, unique molecular identifiers
+(UMIs), and gene IDs. Thus, a gene expression matrix was created and
+used for further analysis. We aligned reads using '\--include-introns'
+quantification mode.
 
-Dissected brains were collected and fixed in 4% paraformaldehyde (PFA)
-in phosphate-buffered saline (PBS, 0.05 M, pH 7.4) at 4 °C for 24 h.
-Animals were transcardially perfused with 4% PFA in 0.1 M phosphate
-buffer (PB; pH 7.4) and dissected brains post-fixed overnight. Samples
-were then washed in PB and cryoprotected by incubating in 30% sucrose in
-distilled water at 4 °C overnight.
+**RNA-velocity for count matrices:** To obtain multiple count matrices
+for each read source (related to exon/intron gene structures), we have
+built a *piscem*
+index[(He, Soneson and Patro, 2023)](https://sciwheel.com/work/citation?ids=15702020&pre=&suf=&sa=0&dbf=0)
+of the reference genome for the *spliceu version* of the *simpleaf*
+quantification pipeline
+([*vdocker://etretiakov/usefulaf:0.9.0*](vdocker://etretiakov/usefulaf:0.9.0))
+based on
+alevin-fry[(He *et al.*, 2022)](https://sciwheel.com/work/citation?ids=12686545&pre=&suf=&sa=0&dbf=0).
+This approach achieved the high-quality resolution of any ambiguity of
+the read source, which was particularly important in case of
+single-nuclei
+RNA-seq[(Eldjárn Hjörleifsson *et al.*, 2022; Kuo, Hansen and Hicks, 2022; He, Soneson and Patro, 2023)](https://sciwheel.com/work/citation?ids=15702020,14168104,14034472&pre=&pre=&pre=&suf=&suf=&suf=&sa=0,0,0&dbf=0&dbf=0&dbf=0),
+which can strongly affect the outcome of RNA-velocity
+estimates[(Soneson *et al.*, 2021; Gorin *et al.*, 2022)](https://sciwheel.com/work/citation?ids=14086393,10290566&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
 
-# Ethical approval of animal studies
+[**Preparation of individual single-cell RNA sequencing datasets for
+analysis**]{.underline}
 
-Experiments on live animals conformed to the 2010/63/EU European
-Communities Council Directive and regulated by applicable local laws
-(Tierversuchsgesetz 2012, BGBI, Nr. 114/2012 (Austria)) and were
-approved by the Austrian Ministry of Science and Research
-(66.009/0145-WF/II/3b/2014, and 66.009/0277-WF/V/3b/2017). Particular
-effort was directed towards minimizing the number of animals used and
+1.   **Droplet selection:** The droplet selection method of Cell Ranger
+is based on the *EmptyDrops*
+method[(Lun *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6713331&pre=&suf=&sa=0&dbf=0)
+incorporated into the Cell Ranger count pipeline. We refer to **ED Table
+1** for Information on the number of detected cells/nuclei.
+
+2.   **Ambient RNA removal:** We applied *CellBender,* a neural
+network-based approach
+([*docker://etretiakov/cellbender:v0.0.1*](docker://etretiakov/cellbender:v0.0.1))[(Fleming *et al.*, 2023)](https://sciwheel.com/work/citation?ids=15230165&pre=&suf=&sa=0&dbf=0).
+To derive additional information on the degree of regionally different
+levels of contamination and the quality of particular samples, we set
+false positive rate thresholds at successive levels (0.1, 0.01, and
+0.001) and powered the neural network to learn over 150 epochs with a
+total number of droplets included on knee plots. Our subsequent analysis
+was performed at all three resolutions and without correcting data
+variants. We refer to **ED Table 1** on the size of droplet sets used.
+
+3.   **Doublet detection:** For each sample, we separately quantified
+the probability of a cell being a doublet based on the expected
+doublet-rate reference table provided by 10X Genomics, and the number of
+cells/nuclei in the samples by Scrublet
+(*v0.2.3\@pyh5e36f6f_1*)[(Wolock, Lopez and Klein, 2019)](https://sciwheel.com/work/citation?ids=6776726&pre=&suf=&sa=0&dbf=0).
+Information on the expected doublet rates used in this estimation are in
+**ED Table 1**. (*see also*: *GetDoubletRate* in *function.R* and
+*scrublet_cb.py* files of the code directory).
+
+4.   **Further filtering:** Information on gene annotation was added by
+using the *gprofiler2* package
+(v0.2.1)[(Reimand *et al.*, 2016)](https://sciwheel.com/work/citation?ids=2925076&pre=&suf=&sa=0&dbf=0).
+Accordingly, we filtered cells based on their high content of
+mitochondrial, ribosomal, or hemoglobin genes. Specific thresholds were
+chosen individually for each dataset (*see:* *GitHub Exploratory
+Analysis reports and params.json files*). Additionally, pseudogenes and
+poorly annotated genes were deleted from the count matrix. Cells of low
+complexity were filtered out, too (as *log_10 Genes/log_10 UMI*). Cells
+were then assigned cell cycle scores using the *CellCycleScoring*
+function in the *Seurat* package
+(v4.3.0)[(Satija *et al.*, 2015; Stuart and Satija, 2019)](https://sciwheel.com/work/citation?ids=112055,6335278&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+For correlation analysis of astrocytes in
+ARC[(Deng *et al.*, 2020)](https://sciwheel.com/work/citation?ids=13444613&pre=&suf=&sa=0&dbf=0),
+we filtered cells based on the expression of 13 mitochondrially coded
+genes, using a strict approach to avoid bias caused by the technical
+variability of sequencing when exploring *Mfn2* in particular. To do so,
+we applied individual filtering models fitted for each sample of the
+dataset
+separately[(Grün and Leisch, 2008; Hastie, 2017; Hippen *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10222079,6860577,11924591&pre=&pre=&pre=&suf=&suf=&suf=&sa=0,0,0&dbf=0&dbf=0&dbf=0)
+(for packages *splines, flexmix, miQC*): *536-1_chow-diet,
+536-3_chow-diet, 537-5_538-2_high-fat-diet - mixtureModel with posterior
+cutoff 0.95; 536-5_chow-diet - spline mixtureModel with posterior cutoff
+0.7, 537-1_537-3_high-fat-diet - spline mixtureModel with posterior
+cutoff 0.95, 536-2_537-4_high-fat-diet - spline mixtureModel with
+posterior cutoff 0.999999*.
+
+[**Astrocyte selection**]{.underline}
+
+The analysis described here were performed twice, with the 1^st^
+iteration exploring all cell types, while the 2^nd^ focusing on
+particular glial cell types: *i*) astrocytes, *ii*) tanycytes, *iii*)
+ependymal cells and NG2-glia, and *iv*) oligodendrocyte precursors
+(ODPs).
+
+**1.   Gene selection:** The selection method of the Seurat package
+(v4.3.0)[(Satija *et al.*, 2015; Stuart and Satija, 2019)](https://sciwheel.com/work/citation?ids=112055,6335278&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0),
+which uses a modern variance of stabilizing the transformation of
+statistical technics that utilizes the scaling to Pearson
+residuals[(Hafemeister and Satija, 2019)](https://sciwheel.com/work/citation?ids=8000403&pre=&suf=&sa=0&dbf=0).
+Thus, we selected 3,000 highly variable genes *per* dataset, and
+regressed out complexity and cell-cycle variability prior to the final
+scaling of the filtered matrixes.
+
+**2.   Graph-based and multi-level reconcile tree clustering:** We
+performed Leiden algorithm graph-based clustering. PCA was performed
+using selected genes. Jackknife
+tested[(Chung and Storey, 2015)](https://sciwheel.com/work/citation?ids=801002&pre=&suf=&sa=0&dbf=0)
+principal components (we tested the significance of feature for randomly
+picked in 100 samples by 2% of data, each over 1,000 iterations; see
+*PCScore function in the functions.R script of the code directory*)
+allowed us to construct a shared nearest neighbor graph by relying on
+the overlap amongst the 15 nearest neighbors of each cell. Leiden
+modularity
+optimization[(Traag, Waltman and van Eck, 2019)](https://sciwheel.com/work/citation?ids=6947194&pre=&suf=&sa=0&dbf=0)
+was used to partition this graph with an array of resolution parameters,
+where 30 modularity events were sampled between 0.2 and 2.5.
+Visualizations of clustering
+trees[(Zappia and Oshlack, 2018)](https://sciwheel.com/work/citation?ids=5672028&pre=&suf=&sa=0&dbf=0)
+were produced using the *clustree package* (v0.5.0), which showed the
+resolution of previously identified clusters. By inspecting these
+resolutions, a reconciled tree was produced by the *mrtree package*
+(v0.0.0.9000)[(Peng *et al.*, 2021)](https://sciwheel.com/work/citation?ids=11190107&pre=&suf=&sa=0&dbf=0),
+including a calculation of an adjusted multi-resolution Rand index,
+which was then chosen as the maximum value if there was no higher
+modularity within an additional 0.05 AMRI difference (see:
+*SelectResolution in the function.R file of the code directory*).
+
+**3.   Marker genes:** Marker genes for each cluster were identified
+using the *logreg*
+test[(Ntranos *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6301874&pre=&suf=&sa=0&dbf=0)
+implemented in the Seurat framework
+(v4.3.1)[(Hao *et al.*, 2021)](https://sciwheel.com/work/citation?ids=11129215&pre=&suf=&sa=0&dbf=0).
+Genes were considered significant markers for a cluster if they had an
+FDR of \< 0.001. Identities were assigned to each cluster by comparing
+the detected genes to previously published markers and our own
+validation experiments. We assigned the 'astrocyte' label to a cell only
+if it contained at least *n* = 7 marker genes. The list of *n* = 22
+marker genes that we used as inclusion criteria are referred to in **ED
+Table 2** (see: *class_cello.py* files of the code repository).
+
+**Classification of cell types based on gene-scoring based on
+information from publicly available databases:** We further explored
+gene signatures using enrichment with over-representation
+analysis[(Badia‑I-Mompel *et al.*, 2022)](https://sciwheel.com/work/citation?ids=12662452&pre=&suf=&sa=0&dbf=0).
+To this end, we used canonical markers from *PanglaoDB* with particular
+focus on *i*) astrocytes, *ii*) tanycytes, *iii*) ependymocytes and ODPs
+(see: *class_cello.py* file of the code repository).
+
+**Filtering criteria for astrocytes:** Astrocytes were filtered with
+cell quality markers listed in the code repository as individual
+*params.json* files for each dataset. Regardless of the dataset, and the
+selection method of astrocytes, we further filtered cells using a
+manually curated list of 59 marker genes for each major subtype of cells
+(glutamatergic, GABAergic and peptidergic neurons, OPCs, mature
+myelinating oligodendrocytes, pericytes, vascular muscle cells,
+macrophages, microglia, tanycytes, and ependymocytes. Thus, any
+astrocyte to pass our filter ought to contain a maximum of *n* = 2 genes
+from the list of exclusion criteria as strict trade-off, also taking
+into account the effect of ambient RNA (**ED Table 1**). Marker genes
+used as exclusion criteria were listed in **ED Table 2** (see:
+*class_cello.py* file of the code repository).
+
+**Prepare, train, and test data splitting to enable hyperparameter
+optimization for supervised machine learning models by classification
+performance metrics:** As we had variable numbers of input cells in
+subregional datasets, we defined the probability of a cell to be in the
+[training set]{.underline} as 90%, or if this percentage was smaller
+than the ratio of 1,000 cells/the total cell number in the dataset. We
+used this probability to randomly assign cells to the training set. We
+used this process to obtain more balanced training sets regardless of
+the initial number of astrocytes in a hypothalamic region. We used the
+same training sets for all models to ensure that the results were
+comparable. The remaining cells were assigned to the [test
+set]{.underline} to enable the evaluation of the model's performance on
+unseen data. We used the same test sets for all models to ensure
+comparable results (see: *class_cello.py* file of the code repository).
+As a result of the previous steps, we derived subsets of astrocytes from
+each of [12 individual subregional dataset, split into train/test
+sets]{.underline} and 4 'whole hypothalamus' datasets (**ED Fig. 4a/Step
+0**).
+
+[**Identification of astrocyte signatures and diversity description
+across hypothalamic subregions**]{.underline}
+
+**Full conventional integration:** We first performed data integration
+using well-established anchor-based integration using the Seurat package
+(v4.3.0) to compare astrocytes from different hypothalamic
+areas[(Satija *et al.*, 2015; Hao *et al.*, 2021)](https://sciwheel.com/work/citation?ids=112055,11129215&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+We used both *SCTransform*-based and *GLM*-scaled versions of the
+default pipeline aimed to explore astrocyte heterogeneity with varying
+numbers of highly variable genes selected (2,500---7,500; initial *hvg
+param*). A particular problem we have encountered was the shallow
+fraction of variability shared across all analyzed hypothalamic regions
+(no more than 426 genes), which mostly were general astrocyte markers
+common across the nervous system.
+
+[**Differential gene expression**]{.underline} **(DGE)** analysis on
+*SCTransform*-corrected UMI-count matrices was statistically evaluated
+to obtain differentially expressed genes using log-normalized values
+with pseudocount = 1 for *n* = 12 regional hypothalamus clusters using
+the MAST
+test[(Finak *et al.*, 2015)](https://sciwheel.com/work/citation?ids=2037639&pre=&suf=&sa=0&dbf=0),
+as
+described[(Mayer *et al.*, 2018; Hafemeister and Satija, 2019)](https://sciwheel.com/work/citation?ids=4927382,8000403&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+Results were provided in **ED Table 3**.
+
+**Iterative paired integration while masking shared cellular
+signatures:** We used an alternative strategy in which shared signatures
+of astrocytes were reduced to address if any level of regional
+heterogeneity could be uncovered behind astrocytes transiting across
+functional states. To avoid that rapidly reducing the number of anchor
+genes used to integrate datasets would become a limitation of precision,
+we have preferred the pair-wise integration of each subregional dataset
+with each 'whole hypothalamus' dataset using Python implementation of
+the Harmony
+algorithm[(Korsunsky *et al.*, 2019)](https://sciwheel.com/work/citation?ids=7790202&pre=&suf=&sa=0&dbf=0).
+To define regional differences amongst astrocytes, rather than
+functional state-changes (*as above*), anchor genes (defined as a subset
+of highly variable features corrected for concatenated datasets to
+maximize the stringency of a variance-stabilizing transform
+procedure[(Lause, Berens and Kobak, 2021)](https://sciwheel.com/work/citation?ids=11654484&pre=&suf=&sa=0&dbf=0)
+optimized on the earlier pair-wise integrations) were extracted, with 48
+sets of 2,000 genes in total or 12 sets (each for a hypothalamic
+nucleus)[(Moffitt *et al.*, 2018; Mickelsen *et al.*, 2019, 2020; Deng *et al.*, 2020; Wen *et al.*, 2020; Affinati *et al.*, 2021; Lopez *et al.*, 2021; Morris *et al.*, 2021; Liu *et al.*, 2022; Lutomska *et al.*, 2022; Pool *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13870369,13444613,12223889,14086391,13008579,10366572,12875742,8245521,10643260,6618529,5984196&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&sa=0,0,0,0,0,0,0,0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0)
+per a reference set of the 'whole'
+hypothalamus[(Zeisel *et al.*, 2018; Kim *et al.*, 2020; Romanov *et al.*, 2020; Hajdarovic *et al.*, 2022)](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0)
+(see: *get_full_pair_mtx.py* file of the code repository; **ED Fig.
+3a;** PaCMAP embedding of integrated datasets before ambient RNA removal
+as in **ED Fig. 4a/Step 1**). Thus, a list of genes ordered by their
+descending variance on the same plane of the whole hypothalamus
+reference was extracted and adapted to a rank aggregation
+algorithm[(Kolde *et al.*, 2012)](https://sciwheel.com/work/citation?ids=3315303&pre=&suf=&sa=0&dbf=0)
+to distinguish broadly- expressed genes associated with functional
+cell-states: *i*) we derived scores per a 'whole' hypothalamus reference
+dataset, accounting for genes in the mouse genome version as above
+(45,163 genes in initial matrixes; see: *get_shared_signature.R* file of
+the code repository; **ED Fig. 4a/Step 2**). *ii*) We estimated rank
+aggregation scores of 4 derivate lists (**ED Table 3;** see:
+*get_aggregated_shared_signature.R* file of the code repository; **ED
+Fig. 4a/Step** **3**).
+
+Consequently, we derived integrated manifolds between 12
+area-specific[(Moffitt *et al.*, 2018; Mickelsen *et al.*, 2019, 2020; Deng *et al.*, 2020; Wen *et al.*, 2020; Affinati *et al.*, 2021; Lopez *et al.*, 2021; Morris *et al.*, 2021; Liu *et al.*, 2022; Lutomska *et al.*, 2022; Pool *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13870369,13444613,12223889,14086391,13008579,10366572,12875742,8245521,10643260,6618529,5984196&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&sa=0,0,0,0,0,0,0,0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0)
+and four 'whole' hypothalamus
+datasets[(Zeisel *et al.*, 2018; Kim *et al.*, 2020; Romanov *et al.*, 2020; Hajdarovic *et al.*, 2022)](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0),
+again after removal of shared signatures using *n* = 100, 250, and 500
+genes as thresholds (redundant correlated genes were also removed by
+absolute Pearson's correlation with\> 0.5 corresponding to each
+threshold; **ED Fig. 4a/Steps 4-5**) to estimate the impact of
+function-specifying genes (see: *get_substr_pair_mtx.py* file and
+particularly *get_top_abs_correlations()* and
+*remove_irrelevant_top_abs_correlations()* functions in the code
+repository; **ED Fig. 4a/Steps 6-7**). These steps were used to *i*)
+[unmask potentially hidden spatial marks in astrocytes]{.underline} from
+different hypothalamic nuclei, *ii*) [clean the genes axis of the
+expression matrices,]{.underline} and *iii*) have their respective
+manifolds [dimensionally reduced]{.underline} by the integration.
+
+The downstream analysis of the subregional heterogeneity of astrocytes
+reported here used datasets after removal of ambient RNA at 0.001 FDR,
+as well as of a shared signature of *n* = 100 genes (as threshold) with
+correlated genes as described above, and using *k* = 10 to construct
+graphs for nearest neighbors (NN; ks = k + 10 = 20 for expanded mutual
+kNN-graphs with a path-connectivity model) as our limited testing
+(*FDR=[0.001, 0.01, "nc"]; signature_substruction=[100, 250, 500,
+"full"], neighbors_k=[5, 10, 25, 50], connectivity_mst=["full_tree",
+"min_tree"]*) demonstrated best performance. We also had to reduce
+complexity (see *Snakefile* in the root of the main GitHub repository).
+To explore relevant parameters combinations, we used a simplified
+approach: *i*) we performed over-clustering of the training set of each
+integrated pair using clustering from *leidenalg*
+([v0.9.1\@pypi_0](mailto:v0.9.1@pypi_0))[(Traag, Waltman and van Eck, 2019)](https://sciwheel.com/work/citation?ids=6947194&pre=&suf=&sa=0&dbf=0),
+*ii*) subset each of the 12 matrices to the same reference
+dataset[(Hajdarovic *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13354131&pre=&suf=&sa=0&dbf=0),
+*iii*) derived a fuzzy simplicial set using UMAP-based
+path-connectivity[(McInnes *et al.*, 2018; Dalmia and Sia, 2021)](https://sciwheel.com/work/citation?ids=15702021,5973004&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0),
+*iv*) aggregated results (microclusters and graphs) by
+partitioning-based graph
+abstraction[(Wolf *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6682262&pre=&suf=&sa=0&dbf=0),
+*v*) PAGA graphs were utilized as layers of multiplexed graphs to
+optimize multiplex
+partitions[(Mucha *et al.*, 2010; Traag, Waltman and van Eck, 2019)](https://sciwheel.com/work/citation?ids=6947194,286189&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0),
+*vi*) used those partitions to train a support vector machine (SVM)
+classifier
+(SVC)[(Guyon *et al.*, 2002; Chang and Lin, 2011)](https://sciwheel.com/work/citation?ids=1332635,8752933&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)
+and to project those partitions on test sets astrocytes, and *vii*)
+embedded a full reference dataset labels for supervised
+densMAP[(Narayan, Berger and Cho, 2021)](https://sciwheel.com/work/citation?ids=10315021&pre=&suf=&sa=0&dbf=0)
+data embedding using derived (see: *microclustering_limited_test.ipynb*
+file of the analysis repository; an example of unfiltered (*FDR="nc",
+signature_substruction="full", k=10, ks=20,
+connectivity_mst="min_tree"*) (**Fig. 1K,M**).
+
+[**Area-specific hypothalamic astrocytes revealed by
+AstroTRAP**]{.underline}
+
+**Feature selection in 2 steps:** We prefiltered features using methods
+to capture genes of known subregional origin (**ED Fig. 4a/Step 11**).
+To this end, we used a union of gene sets selected by  c^2^
+statistics[(Pearson, 1900)](https://sciwheel.com/work/citation?ids=1133086&pre=&suf=&sa=0&dbf=0),
+ANOVA
+*F*-value[(Fisher, 1992)](https://sciwheel.com/work/citation?ids=6004145&pre=&suf=&sa=0&dbf=0),
+and mutual information
+score[(Kraskov, Stögbauer and Grassberger, 2004)](https://sciwheel.com/work/citation?ids=996986&pre=&suf=&sa=0&dbf=0).
+We coincidently used these feature selection methods to improve the
+accuracy and stability of the selected features, leading to better
+performance in machine learning models. We used *GridSearchCV* to
+optimize parameters of the pipelines that consisted of 3 steps:
+'scaling': *MinMaxScaler* for consistency (as negative values were not
+allowed in our calculations), 'reduce dimensionality': *SelectKBest*
+taking input one of  c^2^ (*f_classif* or *mutual_info_classif*), and
+'classify': SVC estimator with scaled gamma and a maximum number of
+iterations fixed to 1,000. The parameter grid included SVM fit strength
+(*C_OPTIONS = [1, 10, 100, 1000]*), and a number of features ('K') to
+select with genes thresholds (2,000, 1,000, 500,
+250)[(Pedregosa *et al.*, 2011)](https://sciwheel.com/work/citation?ids=15703083&pre=&suf=&sa=0&dbf=0).
+Then, we used *RepeatedStratifiedKFold(n_splits=10, n_repeats=10)*
+cross-validation to select classifiers with the highest weighted
+F-measure scores. Finally, we extracted features from each
+*best_estimator* and merged them into one set of genes (**ED Fig.
+4a/Step 11; ED Table 4**). The union of feature sets allowed us to
+filter input to the downstream pipeline.
+
+**Best SVM classifier model with *ad hoc* feature selection for
+region-label assignment using Grid-Search grouped k-fold
+cross-validation:** To build an effective classifier model that
+reconciles features of subregional origin regardless of functional
+cell-states (that were captured as shared signatures), we used
+astrocytes pre-selected from area-specific datasets (**ED Fig. 4a/Step
+0**), and pre-filtered gene sets (**ED Fig. 4a/Step 11**). To learn
+features that consistently represent regional heterogeneity, we
+recognized stand-alone functional roles of nuclei/areas of the
+hypothalamus. Functional state-differences amongst astrocytes might
+occur across the whole hypothalamus due to environmental and/or neuronal
+influences. Thus, we hypothesized that astrocytes are not specific to a
+given region at the long term; instead undergo continuous complex
+trajectory transitions. To resolve these problematics, we clustered
+their shared structure into tiny groups of cells that were being
+examined separately. Thus, we inferred a reduction in intra-regional
+specificities and could focus on inter-regional characterization at the
+transcriptome (gene) level. After having reduced number of genes and
+meaningful groups for stratification, we applied feature selection
+pipelines from 'scaling' *RobustScaler* that smooth outliers, feature
+selection, and classification by SVC. We implemented two types of
+feature selection:*LogisticRegression* that utilized L1-regularisation
+to fit coefficients for a multiclass problem *vs.* rest (for the sake of
+computational performance in contrast to multinomial estimation); and
+the *XGBoost* classifier. To fit these models, we encoded region classes
+as sorted proportions of each class. To select the best model, we
+performed *GridSearchCV* with *StratifiedGroupKFold(n_splits=10)*
+cross-validation on the training set scored by the Matthews correlation
+coefficient
+(MCC)[(Chicco, Tötsch and Jurman, 2021)](https://sciwheel.com/work/citation?ids=10754206&pre=&suf=&sa=0&dbf=0),
+as regional class proportions were unbiased.
+
+**Identifications of astrocyte clusters beyond functional states:** To
+further consolidate the signal we have gained, graph representations
+were generated using a minimal spanning tree also implementing A
+path-connectivity model of the UMAP
+algorithm[(McInnes, Healy and Melville, 2018)](https://sciwheel.com/work/citation?ids=10656679&pre=&suf=&sa=0&dbf=0).Firstly,
+we reduced 12 integration manifolds of training
+data[(Hajdarovic *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13354131&pre=&suf=&sa=0&dbf=0),
+using the UMAP
+algorithm[(McInnes *et al.*, 2018)](https://sciwheel.com/work/citation?ids=5973004&pre=&suf=&sa=0&dbf=0)
+with following parameters: *n_components*=6, *n_neighbors*=20,
+*n_epochs*=1000, *metric*="cosine", *init*="spectral",
+*learning_rate*=0.1, *min_dist*=1, *spread*=2, *repulsion_strength*=2.0,
+*negative_sample_rate*=10, *angular_rp_forest*=True, and
+*densmap*=False. Secondly, the UMAP algorithm drove the 10-NN graph from
+this matrix in Euclidean space with pynndescent optimization. Thirdly, a
+20-NN graph and distance matrix was used to build a 20-mutual-NN graph
+using the minimal tree path-connectivity model (functions:
+*min_spanning_tree(), create_connected_graph(), find_new_nn(),
+mutual_nn_nearest() in
+microclusters_to_groups_cv_feature_selection_svc.ipynb*)[(Dalmia and Sia, 2021)](https://sciwheel.com/work/citation?ids=15702021&pre=&suf=&sa=0&dbf=0).
+Fourthly, we derived a fuzzy simplical set for the ensuing graph using
+the UMAP
+algorithm[(McInnes, Healy and Melville, 2018)](https://sciwheel.com/work/citation?ids=10656679&pre=&suf=&sa=0&dbf=0).
+Graph information were saved in an *anndata* container by being
+transformed *from_scipy_sparse_array* to *iGraph*, and through
+*igraph.Graph.get_adjacency_sparse()* to *adata.obsp["connectivities"]*
+object. We also derived the required *adata.obsp["distances"]* using the
+*get_sparse_matrix_from_indices_distances_umap()* function (see:
+*microclusters_to_groups_cv_feature_selection_svc.ipynb* file in the
+main GitHub analysis repository; **ED Fig. 4a/Step
+8**)[(Csardi and Nepusz, 2006; Hagberg, Swart and Chult, 2008; Virshup *et al.*, 2023)](https://sciwheel.com/work/citation?ids=14649766,15703125,15703126&pre=&pre=&pre=&suf=&suf=&suf=&sa=0,0,0&dbf=0&dbf=0&dbf=0).
+Next, we used *Optimiser* class from the *leidenalg* package to explore
+the resolution profile of the Constant Pots Model clustering on the
+weighted graph at a range from 0 to 2, until full
+convergence[(Traag, Waltman and van Eck, 2019)](https://sciwheel.com/work/citation?ids=6947194&pre=&suf=&sa=0&dbf=0).
+Thus, we partitioned the weighted graph using the *CPMVertexPartition*
+function with *resolution_parameter=0.0112*, and applied the
+*optimise_partition* function of the optimizer until
+convergence[(Traag, Waltman and van Eck, 2019)](https://sciwheel.com/work/citation?ids=6947194&pre=&suf=&sa=0&dbf=0).
+The partitioning membership was saved as a categorical vector to the
+*PRJNA779749_init.obs["subfunct_groups"]* (**ED Fig. 4a/Step 9**). Thus,
+we trained 12 support vector machine classifiers (*linear kernel, svm
+fit strength - C=100*) from the *sklearn* package to fit corresponding
+labels (*PRJNA779749_init.obs["subfunct_groups"]*) to the subsets of 12
+integrated matrices. Therefore, we projected learned group labels to the
+corresponding regional parts of the training sets (**ED Fig. 4a/Step
+10**).
+
+**Optimization of hyperparameters for a *logit*-SVM classifier model:**
+We trained our pipeline with
+*SelectFromModel(LogisticRegression(solver="saga", multi_class="ovr",
+penalty="l1", max_iter=10000, n_jobs=-1,), threshold=-np.inf)* feature
+selection and SVC estimator with scaled gamma and a maximum number of
+iterations fixed at 10,000. The parameter grid included SVM fit strength
+*(C_OPTIONS = [1, 10, 100, 200])* and maximal number of features to
+select with *N_FEATURES_OPTIONS = [round(n_features / 3),
+round(n_features / 4), round(n_features / 8), round(n_features / 10),
+round(n_features / 20)]* (where *n_features* equals the number of genes
+in the union of prefiltered sets). We have also extracted features from
+*best_estimator* (**ED Table 4**). The best model was then trained on
+the whole training set, and then stored (**ED Fig. 4a/Step 12**).
+
+**Optimization of hyperparameters for the *XGBoost*-SVM classifier
+model:** Our pipeline was trained with
+*SelectFromModel(XGBClassifier(tree_method="gpu_hist"),
+threshold=-np.inf)* feature
+selection[(Chen and Guestrin, 2016)](https://sciwheel.com/work/citation?ids=2927024&pre=&suf=&sa=0&dbf=0)
+and SVC estimator with scaled gamma and a maximum number of iterations
+fixed at 10,000. The parameter grid included SVM fit strength
+(*C_OPTIONS = [1, 10, 100, 200]*). At the feature selection step, we
+have optimized parameters of the estimator as *learning_rate"*: [0.1,
+0.3, 0.5], boosting trees depth and number of rounds at *max_depth*: [3,
+5, 7], *n_estimators*": [100, 250, 500], and the maximal number of
+features to select as *N_FEATURES_OPTIONS* (see *logit*-SVC section). We
+have also extracted features from *best_estimator* (**ED Table 4**).
+Finally, we trained the best model on the whole training set, and stored
+it for further evaluation (**ED Fig. 4a/Step 12**).
+
+**Evaluation of the best classifier model:** Based on the above
+optimization, we have built two SVM-based classification pipelines, used
+on our test dataset with additional validation on 'whole' hypothalamus
+predictions: *i*) *LogisticRegression (logit)*-based feature selection
+with L1-regularisation + SVC, which identified 1,406 genes during the
+feature selection stage (**ED Table 4**), and performed with 0.441 MCC
+and 0.627 weighted *F*-measure on the evaluation set. During
+cross-validation, the mean test MCC score = 0.619 (**ED Table 5**).
+*ii*) *XGBoost*-based feature selection + SVC, which returned 211 genes,
+when *learning_rate=*0.3, boosting trees *max_depth*=3, and number of
+rounds *n_estimators*=100 for feature selection, and a strong (C = 200)
+SVM classifier (**ED Table 4**). This algorithm outperformed the simpler
+*logit*-SVC model with 0.578 MCC and 0.723 weighted *F*-measure on the
+evaluation set (**Fig. 2a**; **ED Fig. 5a**; during cross-validation,
+the mean test MCC score = 0.871; **ED Table 5**). These models were used
+to project learned regional differences onto 'whole' hypothalamus
+datasets[(Zeisel *et al.*, 2018; Kim *et al.*, 2020; Romanov *et al.*, 2020; Hajdarovic *et al.*, 2022)](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0).
+To do so, we used the original model to select directly from the whole
+set of available genes from the regional dataset matrices. Thus, our
+models were re-fitted to a subset of genes available for prediction in a
+particular dataset, resulting in 4 different models/pipelines. Given
+these constraints, we have initiated an *ad hoc* approach to save
+processing time and to limit interpretation, resulting in a [shared
+model]{.underline} across each predicted dataset. Herein, we *i*)
+selected subset genes that were expressed in more than 10 cells in each
+'whole' hypothalamus dataset, *ii*) took the intersection of these genes
+across the 4 reference datasets. This resulted in 2 best-models selected
+by cross-validation: *a*) fit strength C = 10 and 1,378 genes (**ED
+Table 4**) that were used for the *logit*-SVC model, which performed
+with a mean test MCC score of 0.714; *b*)fit strength C = 200,
+*learning_rate*=0.5, boosting trees *max_depth*=3 and number of rounds
+*n_estimators*=100, returning 207 genes for the *XGBoost*-SVC model
+(**ED Table 4**), which performed with a mean test MCC score of 0.770
+(**ED Table 5**). We used these final models to predict subclasses of
+astrocytes that could be spatially segregated and be present in each
+'whole' hypothalamus dataset. On our evaluation set, *ad hoc* version
+models performed: *i*) 0.539 MCC and 0.703 weighted *F*-measure for the
+*logit*-SVC model, and 2) 0.518 MCC and 0.686 weighted *F*-measure for
+the *XGBoost*-SVC model. Spatially restricted modalities of astrocytes
+predicted by these direct versions of AstroTRAP (**ED Fig. 4A/Step 13**)
+were histochemically validated and functionally interrogated
+experimentally in cultured cells and *in vivo*.
+
+[**Functional annotation and validation of the regional heterogeneity of
+astrocytes**]{.underline}
+
+**Gene regulatory networks (GRN) analysis by SCENIC:** We used SCENIC to
+confirm the GRN-driven heterogeneity amongst astrocytes, at a resolution
+that distinguished subgroups within distinct hypothalamic areas (**Fig.
+2B,C; ED Table 6**). In doing so, we used normalized expression matrices
+of astrocyte subsets from 'whole' hypothalamus reference datasets, and
+then applied the SCENIC
+pipeline[(Aibar *et al.*, 2017)](https://sciwheel.com/work/citation?ids=4362786&pre=&suf=&sa=0&dbf=0)
+([*docker://aertslab/pyscenic:0.12.1*](docker://aertslab/pyscenic:0.12.1)).
+to infer GRNs and their activity scores. For the *aucell* procedure, we
+have built GRNs only using enriched motifs with a NES of ³ 3.0. We then
+took only directly annotated transcription factors (TFs) or TF annotated
+for an orthologous gene into account and retained GRNs with ³ 3 genes.
+We used the *aucell* matrix to visualize dotplots of GRN activity, and
+to build a dendrogram by using Ward
+clustering[(Murtagh and Legendre, 2014)](https://sciwheel.com/work/citation?ids=1283402&pre=&suf=&sa=0&dbf=0)
+(**Fig. 2B; ED Fig. 5**).
+
+**Ligand-receptor expression pairs between astrocytes and neurons:** To
+validate the regional specificity of *Lxn*^+^ / Insr^+^ astrocytes,
+astrocyte-driven intercellular signalling cascades were selected, and
+estimated using
+*CellChat*[(Jin *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10691771&pre=&suf=&sa=0&dbf=0),
+*Liana-py*[(Dimitrov *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13133568&pre=&suf=&sa=0&dbf=0),
+and a rank aggregation method (including
+*CellPhoneDB*[(Efremova *et al.*, 2020)](https://sciwheel.com/work/citation?ids=8312724&pre=&suf=&sa=0&dbf=0),
+*CellChat*[(Jin *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10691771&pre=&suf=&sa=0&dbf=0),
+*ICELLNET*[(Noël *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10627195&pre=&suf=&sa=0&dbf=0),
+*connectomeDB2020*[(Hou *et al.*, 2020)](https://sciwheel.com/work/citation?ids=9778492&pre=&suf=&sa=0&dbf=0),
+and
+*CellTalkDB*[(Shao *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10000904&pre=&suf=&sa=0&dbf=0)).
+To provide a more accurate and transparent estimate of effect sizes and
+their confidence intervals, the Data Analysis with Bootstrap-coupled
+ESTimation
+(DABEST)[(Ho *et al.*, 2019)](https://sciwheel.com/work/citation?ids=7093745&pre=&suf=&sa=0&dbf=0)
+was conducted examining the cumulative effect of cell-to-cell
+communications between Lxn^+^ and Lxn^-^ or Insr^+^ and Insr^-^
+astrocytes and neurons in different physiological states. Therefore, the
+data are cleaned by filtering based on p-values, retaining only results
+with a significance threshold of less than 0.05, then merged into a
+single dataset, with additional categorical variables added to denote
+the region, condition, and control status. We included all
+ligand-receptor pairs regardless of their presence in each dataset or
+unique. Splitting the data into multiple groups and performing unpaired
+comparisons of the magnitude and specificity rankings between groups we
+produced Gardner-Altman plots of mean difference and Cohen's d effect
+size, which provided a clear visualization of the differences between
+groups[(Ho *et al.*, 2019)](https://sciwheel.com/work/citation?ids=7093745&pre=&suf=&sa=0&dbf=0).
+The analysis results conducted using
+CellChatDB[(Jin *et al.*, 2021)](https://sciwheel.com/work/citation?ids=10691771&pre=&suf=&sa=0&dbf=0)
+only or all databases pulled by
+Liana-py[(Dimitrov *et al.*, 2022)](https://sciwheel.com/work/citation?ids=13133568&pre=&suf=&sa=0&dbf=0)
+showed consistent effects, so we preferred using CellChatDB as a
+manually curated one.
+
+**Sample sizes, statistics, and reproducibility for 'AstroTRAP':**
+Comparisons of [model performance]{.underline} for hyperparameter
+optimization during grouped 10-fold cross-validation were addressed
+using *GridSearchCV*. The performance of models was evaluated using
+*matthews_corrcoef* (MCC). The output of *GridSearchCV* did not provide
+information on the certainty of the differences between the models.
+Therefore, we have conducted statistical tests on MCC results. Several
+variance-corrected statistical tests have been developed to meet these
+demands. We used the Nadeau and Bengio's corrected
+*t*-test[(Nadeau and Bengio, 1999)](https://sciwheel.com/work/citation?ids=15703153&pre=&suf=&sa=0&dbf=0)
+to obtain the highest replicability scores (which rate how similar the
+performance of a model is when evaluating it on different random
+partitions of the same dataset), while maintaining the lowest possible
+rate of false positives and false negatives. We implemented this
+analysis under both frequentist and Bayesian statistical frameworks.
+Herein, testing assumed a corrected right-tailed paired *t*-test to
+evaluate if the performance of the 1^st^ model was superior to the 2^nd^
+model, where our null hypothesis was that the 2^nd^ model performed at
+least as good as the 1^st^ model. Moreover, we used Bayesian estimation
+to calculate the probability that the 1^st^ model is better than the
+2^nd^. Bayesian estimation provides a distribution followed by the mean
+μ of the difference in the performance of two models. To obtain the
+posterior distribution, we assumed *a priori* how the mean might be
+distributed before working with the actual data and multiplied those by
+a likelihood function that computes how likely our observed differences
+were given the values that the mean of differences could take. One way
+to define posterior distribution is by using a closed-form expression to
+select a prior conjugate to the likelihood function. Benavoli *et
+al*.[(Benavoli *et al.*, 2017)](https://sciwheel.com/work/citation?ids=15703155&pre=&suf=&sa=0&dbf=0)
+showed that, when comparing the performance of two classifiers, one can
+model the prior as a normal-gamma distribution (with both mean and
+variance unknown) conjugated to a normal likelihood, thus expressing the
+posterior as a normal distribution. Marginalizing the variance from this
+normal posterior, the posterior of the mean parameter can be defined as
+Student's *t*-distribution. Overall, we computed the probability that a
+model performs better, worse, or quasi-equivalent to another using the
+Bayesian approach.
+
+[DGE of the assumed regionalized subclasses]{.underline} of astrocytes
+projected onto 'whole' hypothalamus datasets and UMIs counts matrices
+were statistically tested to obtain DEGs for *n* = 8 available
+hypothalamic territories using the *MAST*
+test[(Finak *et al.*, 2015)](https://sciwheel.com/work/citation?ids=2037639&pre=&suf=&sa=0&dbf=0).
+We used the *Logreg*
+test[(Ntranos *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6301874&pre=&suf=&sa=0&dbf=0)
+to define DGE across cells tentatively assigned to projected
+hypothalamic areas on 'whole' hypothalamus reference datasets. Finally,
+we applied rank aggregation of the DEGs across the different datasets to
+derive individual lists of markers for each
+nucleus[(Kolde *et al.*, 2012)](https://sciwheel.com/work/citation?ids=3315303&pre=&suf=&sa=0&dbf=0).
+We targeted RRA on the *p*-value to determine the specificity score and
+on the log~2~ fold change to determine the magnitude score (**ED Fig.
+4A/Step 14**; **Fig. 2A-F**; **ED Table 6**).
+
+**Other packages:** Visualizations and figures were created in the
+*ggplot2* (v3.4.2), *cowplot*
+(v1.1.1)[(Wilke, 2020)](https://sciwheel.com/work/citation?ids=15702037&pre=&suf=&sa=0&dbf=0),
+*patchwork* (v1.1.2.9000), and *scCustomize* (v1.1.1) packages using the
+viridis color palettes (v0.6.2) for continuous data. *UpSet*
+plots[(Conway, Lex and Gehlenborg, 2017)](https://sciwheel.com/work/citation?ids=3885647&pre=&suf=&sa=0&dbf=0)
+were produced using the *UpSetR* package
+(v1.4.0)[(Gehlenborg, 2019)](https://sciwheel.com/work/citation?ids=15702063&pre=&suf=&sa=0&dbf=0)
+with help from the *gridExtra* package
+(v2.3)[(Auguie, 2017)](https://sciwheel.com/work/citation?ids=15702043&pre=&suf=&sa=0&dbf=0).
+Data manipulation was performed using *tidyverse* (v2.0.0.9000),
+particularly *dplyr* (v1.1.2), *tidyr* (v1.1.2), and *ork*
+(v1.0.1)[(Wickham *et al.*, 2019)](https://sciwheel.com/work/citation?ids=7839114&pre=&suf=&sa=0&dbf=0).
+Analysis was managed in the *Snakemake* system
+(v7.21.0)[(Mölder *et al.*, 2021)](https://sciwheel.com/work/citation?ids=11176542&pre=&suf=&sa=0&dbf=0),
+and *orkflow*
+(v1.7.0)[(Blischak, Carbonetto and Stephens, 2019)](https://sciwheel.com/work/citation?ids=7634448&pre=&suf=&sa=0&dbf=0),
+which was also used to produce the publicly available website for the
+analysis code, results, and output. Reproducible reports were produced
+using Quarto (v1.2), knitr
+(1.42)[(Xie, 2014)](https://sciwheel.com/work/citation?ids=15702067&pre=&suf=&sa=0&dbf=0)
+and *R Markdown*
+(v2.21)[(Xie, Allaire and Grolemund, 2018)](https://sciwheel.com/work/citation?ids=6424500&pre=&suf=&sa=0&dbf=0),
+and converted to HTML using *Pandoc* (v2.19.2).
+
+# [***In vivo*****and *in vitro* studies:**]{.underline}
+
+**Ethical approval of animal studies**: Experiments on live animals
+conformed to the 2010/63/EU European Communities Council Directive and
+regulated by applicable local laws (Tierversuchsgesetz 2012, BGBI, Nr.
+114/2012, Austria). Experimental protocols were approved by the Austrian
+Ministry of Science and Research (66.009/0145-WF/II/3b/2014, and
+66.009/0277-WF/V/3b/2017). Feeding experiments using special diets were
+approved by the Institutional Animal Care and Use Committee of Yale
+University and performed in its Animal Resources Center. Particular
+effort was directed towards minimizing the number of animals used, and
 their suffering during experiments.
 
-# Tamoxifen injection and tissue processing (WIP SECTION)
-
-Acutely stressed and control
-$cfos-Cre^{ERT2}::ROSA26-stop-ZsGreen1^{f/f}$ *"TRAP"* mice (formalin
-stress induced by injection of 4% PFA into the left paw; REF Alán Alpár
-EMBOJ) experimental groups were injected with tamoxifen (150 mg/kg) to
-induce Cre-mediated recombination. We used a 6h time point because
-global changes in mRNA peak ∼5--9 h after experimental manipulation.
-After 72h to accumulate *ZsGreen* expression in "stress-responder"
-astrocytes, animals were transcardially perfused with a 50--100 ml of
-fixative containing 4% PFA in 0.1 M phosphate buffer (PB, pH 7.4), then
-brains were collected and immersion fixed in 4% PFA in PB (pH 7.4) for
-12--24h before being immersed into 30% sucrose for cryoprotection (48
-h). Brains were then cut on a cryostat as 50-μm-thick serial
-free-floating coronal sections. In contrast for the circadian activity
-analysis we used "*TRAP2*" model and 4OH-tamoxifen that allowed to
-collect more narrow time window of circadian cFos activation.
-
-# Tissue preparation and immunohistochemistry (WIP SECTION)
-
-After rinsing in 0.1 M PB, specimens were exposed to a blocking solution
-composed of 0.1 M PB, 10% normal donkey serum, 5% BSA and 0.3% TX-100
-for 3 h followed by 48 h incubation with select combinations of primary
-antibodies: rabbit anti-TH (1:500; Millipore AB152, lot 2593900,
-3199177), sheep anti-TH (1:1,000, Novus Biologicals, #NB300-110, lot
-ajo1217p), sheep anti-ONECUT2 (1:250; R&D Systems, AF6294, lot
-CDKS0116081), guinea pig anti-ONECUT3 (1:5,000)95, rabbit anti-VGLUT2
-(1:800; a gift from M. Watanabe)96, goat anti-GFP (1:1,000; Abcam,
-#ab6662, lot GR311622-15, GR311622-7), chicken anti-GFP (1:500, Aves
-Labs Inc., #GFP-1020, lot GFP697986), rabbit anti-SOX2 (1:500, Abcam,
-#ab97959, lot GR3244885-1), chicken anti-mCherry (1:1,000; EnCor
-Biotech, #CPCA-mCHERRY, lot 7670-4), mouse anti-MASH1 (1:100, BD
-Pharmingen, 556604, clone: 24B72D11.1), guinea pig anti-GFAP (1:500,
-Synaptic Systems, 173004, lot 2-15, 2-17), rabbit anti-phospho-histone
-H3 (1:500; Cell Signaling Technology, 9701, lot 7), chicken anti-NeuN
-(1:500, Merck Millipore, ABN91, lot 3132967), mouse anti-FLAG-tag
-(1:1,000; Sigma, F1804, lot SLBR7936V), mouse anti-HA-tag (1:600; Cell
-Signaling Technology, mAb2367, lot 1). Secondary antibodies were from
-Jackson ImmunoResearch, including Alexa Fluor 488-AffiniPure donkey
-anti-goat (705-545-147, lot 131669), Alexa Fluor 488 donkey anti-mouse
-(715-545-151, lot 127820), Alexa Fluor 488-AffiniPure donkey anti-guinea
-pig (706-545-148, lot 138058), Alexa Fluor 647-AffiniPure donkey
-anti-guinea pig (706-605-148, lot 135631), Alexa Fluor 647-AffiniPure
-donkey anti-rabbit (711-605-152, lot 127614), carbocyanine
-(Cy)2-AffiniPure donkey anti-rabbit (711-225-152, lot 139999),
-Cy3-AffiniPure donkey anti-chicken (703-165-155, lot 142225),
-Cy3-AffiniPure donkey anti-goat (705-165-147, lot 134527),
-Cy3-AffiniPure donkey anti-guinea pig (706-165-148, lot 134844),
-Cy3-AffiniPure donkey anti-mouse (715-165-150, lot 116881), and
-Cy3-AffiniPure donkey anti-rabbit (711-165-152, lot 141941) and applied
-at a dilution of 1:300 in 0.1 M PB supplemented with 2% BSA (20-22 °C, 2
-h). Nuclei were routinely counterstained with Hoechst 33,342 (1:10,000;
-Sigma). Tissues were photographed on a Zeiss LSM880 laser-scanning
-microscope. Images were acquired in the ZEN2010 software package.
-Multi-panel images were assembled in CorelDraw X7 (Corel Corp.).
-
-# Fluorescent in situ hybridization (HCR 3.0) (WIP SECTION)
-
-Staining was performed on fresh-frozen tissue sectioned at 16 μm
-following the HCR v3.0 protocol for 'generic sample on the slide'
-(Molecular Instruments)99. The pre-treatment of tissue sections included
-fixation with 4% PFA for 15 min, two washing steps with PBS and
-dehydration using an ascending EtOH gradient (25%, 50%, 75% and 100%,
-each step for 5 min with subsequent drying for 15 min). The tissue used
-for these experiments was obtained from 8-12 weeks old mice. The probes
-used (Apoe NM_009696.4; Gfap NM_001131020; Slit2 NM_001291227.2; Aldh1a1
-NM_001361503.1; Tafa1 NM_182808.3; Plcb1 NM_001145830.1; Sgcd
-NM_011891.5; Slc38a1 NM_001166456.1; Fos NM_010234.3; Gja1 NM_010288.3;
-Snap25 NM_011428.3; Olig1 NM_016968.4; Npy2r; Otp) were designed and
-purchased from Molecular Instruments.
-
-# Assessment of Arc-astrocytic mitochondria impact on High Fat Diet phenotype
-
-## **Animal care**
-
-All experimental procedures were performed in accordance with the Yale
-Animal Resources Center and Institutional Animal Care and Use Committee
-policies. Mice were housed in groups of 3--5 at 22 C°--24 C° using a
-12-h light/12-h dark cycle. Animals had *ad libitum* access to water and
-the prescribed diet at all times. Animals were fed a regular chow diet
-containing 57 % calories from carbohydrates, 34 % calories from protein,
-and 9 % calories from fat, or an HFD containing 35% calories from
-carbohydrates, 20% calories from protein, and 45 % protein from fat
-(Research Diets, US). All experiments were performed in adult male mice
-at the age of 6-25 weeks. Food intake and body weight were assessed
-weekly. Representative food intake shown in the figure was measured on
-the last week of HFD exposure.
-
-## **Stereotaxic virus injection**
-
-Bilateral virus injections were made into the ARC of anesthetized
-6/7-week-old male *mfn2^flox-flox^*mice placed into a stereotaxic
-apparatus (model 902; David Kopf instruments).  AAV8/GFAP-eGFP (for
-control mice) or AAV8/GFAP-GFp-Cre (for mfn2^GFAP^ mice) (Virus Vector
-Core, UNC, US) were applied into each hemisphere (300nl) (coordinates:
-bregma, anterior--posterior: −1.2 mm, dorsal--ventral: −5.8 mm,
-lateral: ±0.3 mm) by using an air pressure system (injection time
-5 min). After surgery, mice were allowed to recover for 10 days before
-exposure to HFD. Accurate virus injection into the ARC was verified by
-analyzing local GFP fluorescence. Mice with 'missed' or 'partial' hits
-were excluded. Specific AAV expression in ARC was signified by double
-fluorescence labeling for GFP and GFAP.
-
-## **Body composition**
-
-Lean and fat mass were analyzed with EchoMRI (EchoMRI LLC, US)
-[@varela2021]
-
-## **Electron Microscopy**
-
-Mice (at least 4 per group) were anesthetized and transcardially
-perfused with freshly prepared 4% PFA and 0.1% glutaraldehyde, as
-previously reported [@varelaEndothelialHIF1aEnables2017;
-@varelaHungerpromotingAgRPNeurons2021]. After post-fixation overnight,
-vibratome sections (50 μm) containing the ARC were immunostained with
-primary antibody anti-POMC (dilution 1:7500, H-029-30, Phoenix
-Pharmaceuticals,) or anti-GFAP (dilution 1:4500, Sigma). After overnight
-incubation at room temperature, sections were washed with PB, incubated
-with biotin-conjugated donkey anti-rabbit IgG or donkey anti-mouse IgG
-secondary antibody respectively (dilution 1:250, Jackson ImmunoResearch
-Laboratories) for 2 h, washed again, put in avidin--biotin complex (ABC;
-Vector Laboratories), and developed with 3,3-diaminobenzidine (DAB).
-Sections were then osmicated (15 min in 1% osmium tetroxide) and
-dehydrated in increasing ethanol concentrations. During the dehydration,
-1% uranyl acetate was added to the 70% ethanol to enhance
-ultrastructural membrane contrast. Flat embedding in Durcupan followed
-dehydration. Ultrathin sections were cut on a Leica ultra-microtome,
-collected on Formvar-coated single-slot grids, and analyzed with a
-Tecnai 12 Biotwin electron microscope (FEI) with an AMT XR-16 camera
-[@varelaEndothelialHIF1aEnables2017;
-@varelaHungerpromotingAgRPNeurons2021].
-
-## **Mitochondria quantification and glia coverage/synaptic inputs analyses**
-
-Hypothalamic sections containing POMC or GFAP immunoreactive cells with
-a visible nucleus were analyzed by electron microscopy. Mitochondrial
-cross-sectional area was calculated. For the glia coverage and the
-synaptic inputs, a blinded investigator scored the number of synapses
-and the percentage of glia per POMC cell in high-magnification images
-(\>4.800x) [@varela2021; @varelaHungerpromotingAgRPNeurons2021]. p ≤
-0.05 was considered statistically significant.
-
-# Pre-processing of single-cell RNA sequencing data
-
-## Downloading data
-
-Raw sequencing data files were obtained from the NCBI Gene Expression
-Onimbus mirror of European Bioinformatics Institute using IBM Aspera
-tool-kit (example command -
-`ascp -QT -l 800m -k 1 --overwrite=diff -P 33001 -i ~/asperaweb_id_dsa.openssh era-fasp@fasp.sra.ebi.ac.uk:/path/to/file/on/server .`)
-or directly from NCBI mirror using ncbi-toolkit based on BioProject ID
-(example command:
-`esearch -db sra -query PRJNA****** | efetch -format runinfo | cut -d ',' -f 1 | grep SRR | xargs -n 1 -P 20 prefetch --max-size u && esearch -db sra -query PRJNA****** | efetch -format runinfo | cut -d ',' -f 1 | grep SRR | xargs -n 1 -P 20 fasterq-dump -p -x --threads 10 --mem 20000M --outdir fastq --split-files --include-technical && pigz -p 20 fastq/SRR*.fastq`).
-If an original bam-file from 10X cellranger count pipeline was deposited
-it needs to be further converted to fastq (example command:
-`~/src/cellranger-7.1.0/bin/cellranger bamtofastq --nthreads=12 /data/PRJNA******/bam/SRR*******.bam /data/PRJNA******/fastq/SRR*******/`).
-Information regarding publicly available data deposition included in
-**ED Table 1**.
-
-## Deriving initial UMI-count matrices
-
-The Cell Ranger pipeline (v`r versions$cellranger`)
-[@zhengMassivelyParallelDigital2017] was used to perform sample
-demultiplexing, barcode processing and single-nuclei gene counting.
-Reads containing sequence information were aligned using the optimised
-mouse genome reference (v`r versions$cellranger_ref`) provided by Pool's
-lab based on the default Cell Ranger mm10 genome version 2020-A that was
-cleared from gene overlaps, poorly annotated exons and 3'-UTRs and
-intergenic fragments [@poolEnhancedRecoverySinglecell2022]. PCR
-duplicates were removed by selecting unique combinations of cell
-barcodes, unique molecular identifiers (UMIs) and gene ids with the
-final results being a gene expression matrix that was used for further
-analysis. We aligned reads using `--include-introns` quantification
-mode.
-
-## RNA Velocity analysis enabling count matices
-
-To obtain multiple count matrices with regard of read source (related to
-exon/introne genes structure) we build piscem index
-(v`r versions$piscem`) [@heUnderstandingEvaluatingAmbiguity2023] of the
-refernce genome for `spliceu` version of simpleaf quantification
-pipeline (v`r versions$simpleaf`) based on alevin-fry
-(v`r versions$alevin_fry`) [@heAlevinfryUnlocksRapid2022]. This approach
-allows high quality resolution of ambiguoty of the read source which is
-especially important in case of single nuclei RNA-seq
-[@heUnderstandingEvaluatingAmbiguity2023;
-@kuoQuantificationStatisticalModeling2022;
-@eldjarnhjorleifssonAccurateQuantificationSinglenucleus2022], which is
-strongly affect results of RNA Velocity estimates
-[@sonesonPreprocessingChoicesAffect2021;
-@gorinRNAVelocityUnraveled2022].
-
-# Preparation of individual single-cell RNA sequencing datasets for analysis 
-
-## Quality control
-
-### Droplet selection
-
-The droplet selection method of Cell Ranger is based on EmptyDrops
-method [@lunEmptyDropsDistinguishingCells2019] incorporated into
-cellranger count pipeline. Information regarding number of detected
-cells/nuclei included in Supplementary Table 1.
-
-### Ambient RNA removal
-
-Using those values as the expected number of cells, we applied a neural
-network-based approach called CellBender (`r versions$cellbender`)
-[@fleming2022]. To establish additional information regarding degree of
-regionally determined contamination and quality of particular samples,
-we set a false positive rate threshold at different levels (0.1, 0.01
-and 0.001) and set the neural network to learn over 150 epochs with a
-total numbers of droplets included based on knee plots (please see
-Online supplementary Cell Ranger reports). Thus, analysis described
-below were performed using all three resolutions and not corrected data
-variants. Information regarding size of set of droplets used in
-estimation is included in **ED Table 1**.
-
-### Doublets detection
-
-For each sample separately we quantified probability to be a doublet for
-every cell based on expected doublets-rate reference table provided by
-10X Genomics and number of cells/nuclei in samples
-[@wolockScrubletComputationalIdentification2019]
-(v`r versions$scrublet`) Information regarding expected doublet rate
-used in estimation is included in Supplementary Table 1. (also see
-`GetDoubletRate` in `function.R` and `scrublet_cb.py` files of code
-directory).
-
-### Further filtering
-
-Gene annotation information was added using the gprofiler2 package
-(v`r versions$gprofiler2`) [@reimandProfileraWebServer2016]; thus we
-filter cells based on high content of mitochondrial, ribosomal or
-hemoglobin proteins genes, specific thresholds were chosen individually
-for each dataset (please see Online GitHub Exploratory Analysis reports
-and params.json files); additionally pseudogenes and poorly annotated
-genes were also deleted from count matrix. Moreover, cells of low
-complexity were filtered out as ($\log_{10}Genes/\log_{10}UMI$).
-Therefore, cells were assigned cell cycle scores using the
-`CellCycleScoring` function in the Seurat package (v`r versions$Seurat`)
-[@satijaSpatialReconstructionSinglecell2015;
-@stuartIntegrativeSinglecellAnalysis2019]. Additionally, in case of
-correlation analysis of arcuate nucleus astrocytes (REF deng) we
-filtered out cells based on expression of 13 mitochondria-coded genes
-using more elaborated and strict approach to avoid bias caused by
-sequencing technical variability when we explored correlation with the
-mitofusin 2 (Mfn2). So we applied individual filtering models fitted for
-each sample of the dataset separately (REF packages splines, flexmix,
-miQC): 536-1_chow-diet, 536-3_chow-diet, 537-5_538-2_high-fat-diet -
-mixtureModel with posterior cutoff 0.95; 536-5_chow-diet - spline
-mixtureModel with posterior cutoff 0.7, 537-1_537-3_high-fat-diet -
-spline mixtureModel with posterior cutoff 0.95,
-536-2_537-4_high-fat-diet - spline mixtureModel with posterior cutoff
-0.999999.
-
-## Astrocytes selection
-
-Analysis described in next three sections were done twice were the first
-iteration explore all cell types and second iteration focuses on
-particular glial cell types: Astrocytes, Tanycytes, Ependymal cells and
-NG2-glia, oligodendrocytes precursor cells.
-
-### Gene selection
-
-We used the selection method in the Seurat package
-(v`r versions$Seurat`) [@satijaSpatialReconstructionSinglecell2015;
-@stuartIntegrativeSinglecellAnalysis2019], which uses a modern variance
-stabilising transformation statistical technic that utilises scaling to
-person residuals [@hafemeister2019]. That way, we selected 3000 highly
-variable genes per dataset and regressed out complexity and cell-cycle
-variability prior to the final scaling of filtered matrixes.
-
-### Graph-based and multi-level reconcile tree clustering
-
-We performed Leiden algorithm graph-based clustering. PCA was performed
-using the selected genes and the jackknife tested
-[@chungStatisticalSignificanceVariables2015] principal components (we
-tested the significance of feature for randomly picked 100 samples by 2%
-of data each over 1000 iterations; see `PCScore` function in
-`functions.R` script of code directory) were used to construct a shared
-nearest neighbour graph using the overlap between the `15` nearest
-neighbours of each cell. Leiden modularity optimisation [@traag2019] was
-used to partition this graph with an array of resolution parameters
-where 30 modularity events were sampled between `0.2` and `2.5`.
-Clustering tree visualisations [@zappiaClusteringTreesVisualization2018]
-were produced using the clustree package (v`r versions$clustree`)
-showing the resolution of previously identified clusters. By inspecting
-these resolutions reconcile tree produced by mrtree package
-(v`r versions$mrtree`) [@pengCellTypeHierarchy2021] and calculating
-adjusted multi-resolution Rand index chosen as maximum value if there is
-no higher modularity within `0.05` AMRI difference (see
-`SelectResolution` in `function.R` file of code directory).
-
-### Marker genes
-
-Marker genes for each cluster were identified using logreg test
-[@ntranos2019] implemented in Seurat framework (v`r versions$seurat`)
-[@stuartIntegrativeSinglecellAnalysis2019]. Genes were considered
-significant markers for a cluster if they had an FDR less than `0.001`.
-Identities were assigned to each cluster by comparing the detected genes
-to previously published markers and our own validation experiments; we
-assigned the astrocyte lablel to a cell only if it contained at least
-seven marker genes. The list of 22 marker genes that we used as
-inclusion critereas is available as **ED Table 2** (also see
-`class_cello.py` files of code repository).
-
-### Classification of cell types based on gene-scoring with publicly available database information
-
-Additionally, we further explore gene signatures using enrichment with
-Over Representation Analysis
-[@badia-i-mompelDecoupleREnsembleComputational2022]. For that we used
-canonical markers from PanglaoDB with particular focus on Astrocytes,
-Ependymocytes, Tanycytes and OPCs markers (also see `class_cello.py`
-file of code repository).
-
-### Filtering criterea for astrocytes
-
-As described above, we filtered out astrocytes with cell quality markers
-enlisted in the code repository as individual `params.json` files for
-each dataset. Regardless of the dataset and method of astrocytes
-seclection additionally, we filtered out cells using manually curated
-list of 59 marker genes for each major subtype of cells (glutamatergic,
-GABAergic and peptidergic neurons, oligodendrocytes on different
-developmental stages from oligodendrocyte precursor cells (OPCs) to
-mature myelinesing oligodendrocytes, pericytes, vascular muscle cells,
-macrophage and microglia immune cells, and most importantly more close
-on developmental trajectory -- tanycytes and ependymal cells).
-Therefore, any astrocyte to pass our filter might contain maximum two
-genes from the whole exclusion critera list as strict trade-off taking
-into account the effect of ambient RNA described above. Information
-regarding number of astrocytes included in analysis is included in **ED
-Table 1**. The list of Marker genes that we used as exclusion critereas
-is available as **ED Table 2** (also see `class_cello.py` file of code
-repository).
-
-## Prepare train and test data split to enable hyperparameters optimisation of supervised machine learning models by classification performance metrics
-
-As we had varible number of input cells in subregional datasets, we
-defined the probability of a cell to be in the training set as 90% or if
-it was smaller - the ratio of 1000 cells to the total number of cells in
-the dataset. We used this probability to randomly assign cells to the
-training set. We used this process to obtain more balanced training sets
-regardless of initial number of astrocytes. We used the same training
-sets for all models to ensure that the results are comparable. We used
-the remaining cells as the test set to enable evaluation of the model
-performance on unseen data. We used the same test sets for all models to
-ensure that the results are comparable. The code for this procedure is
-available in `class_cello.py` file of code repository.
-
-As result of previous steps we derived subsets of astrocytes from each
-sample of 12 individual subregional dataset splitted into train/test
-sets and four whole hypothalamus dataset (**ED Figure 4A**: Step 0).
-
-# Identification of astrocytic signatures and diversity description across subregions
-
-## RNA velocity analysis of individual datasets
-
-## Full conventional integration
-
-First, to compare astrocytes from different subregions of hypothalamus
-we performed integration using well-established anchor-based integration
-using Seurat package (v`r versions$Seurat`)
-[@satijaSpatialReconstructionSinglecell2015;
-@stuartIntegrativeSinglecellAnalysis2019]. We used both
-SCTransform-based and "normal" GLM-scaled versions of the default
-pipeline trying to explore heterogeneity of astrocytes across the
-hypothalamus with vary number of highly variable genes selected (from
-2500 to 7500 initial hvg param). Particular problem was caused by small
-fraction of variability shared across all analysed subregions (\~
-maximum 426 genes) which represented mostly commonly known general
-markers of astrocytes across CNS.
-
-## Iterative Paired integrations with shared astrocytes signature masking
-
-To answer the question if there is any level of subregional
-heterogeneity behind identified astrocyte types transitions between
-functional states, we decided to change the strategy and elaborated the
-approach where we diminished the shared signatures of astrocytes. To
-avoid observed obstackles with rapidly reduced number of anchor genes
-that allow integration of datasets, we performed pairwised integrations
-of each subregional dataset with each whole hypothalamus dataset using
-python implementation of Harmony algorithm (REF). Next to highlight
-subregional differences intead of functional states idenified above, we
-extracted anchor genes (subset of original highly variable features
-corrected for concatanated datasets to maximise explained variance as
-evaluated by optimised variance stabilising transform procedure (REF
-Kobak)) of earlier performed pairwise integrations resulting with 48
-sets of `2000` genes in total or 12 sets (REF Arc: deng, lutomska; LHA:
-mickelson2019; MnPO: poolEnhancedRecoverySinglecell2022; POA: moffit;
-PVN: lopez; SCN: wen, morrison; VMH: liu; VPH: mickelson2020; MBH: rupp)
-per whole hypothalamus reference (REF zeisel, romanov, kim, hajdorovic;
-also see `get_full_pair_mtx.py` file of the code repository and **ED
-Figure 3,75** to see example of PaCMAP embeddings of integrated datasets
-before ambient RNA removal; **ED Figure 4A**: Step 1).
-
-Thus, as we had genes enlisted in the order of descending variance on
-the same plane of the whole hypothalamus reference, we adapted the
-robust rank aggregation algorithm (REF) to identify broadly expressed
-genes of functional states in two steps: first, we derived scores per
-whole hypothalamus reference taking into account complete number of
-resulted genes with used version of the mouse genome (`45163` genes in
-initial matrixes; also see `get_shared_signature.R` file of the code
-repository for the first step; **ED Figure 4A**: Step 2), and second, we
-estimated robust rank aggregation score of four derived lists (see all
-lists in **ED Table 3**; also see `get_aggregated_shared_signature.R`
-file of the code repository for the second step; ; **ED Figure 4A**:
-Step 3).
-
-Consequently, we derived integrated manifolds between hajdorovic and 12
-subregional datasets again after removal of shared signature using
-`100`, `250` and `500` genes thresholds (we also removed redundunt
-correlated genes with absolute Pearson's correlation \> 0.5
-corresponding to each threshold (REF nancorrmp; **ED Figure 4A**: Steps
-4-5)) in order to understand impact of functional genes (see
-`get_substr_pair_mtx.py` file and particularly
-`get_top_abs_correlations()` and
-`remove_irrelevant_top_abs_correlations()` functions in the code
-repository; **ED Figure 4A**: Steps 6-7 and **ED Figure 9,75** to see
-PaCMAP embeddings of integrated datasets at `0,001`, `0,01` FDR levels
-and without (*nc*) ambient RNA removal). These steps were used to unmask
-potentially hidden spatial marks in astrocytes from different
-hypothalamic nuclei cleaning genes-axis of the expression matrices and
-their respective manifolds dimensionally reduced by the integration.
-
-Downstream analysis of astrocytes subregional heterogeneity was reported
-here using datasets after removal of ambient RNA at 0.001 FDR levels and
-removal of shared signature at 100 genes threshold with corresponding
-correlated genes as described above and using k=10 for nearest
-neighbours (NN) graphs constraciton (and ks=k+10=20 for for expanded
-mutual kNN-graph with path-connectivity model) as our limited testing
-(`FDR=[0.001, 0.01, "nc"]; signature_substruction=[100, 250, 500, "full"], neighbors_k=[5, 10, 25, 50], connectivity_mst=["full_tree", "min_tree"]`)
-demonstrated best performance with such parameters and we had to reduce
-complexity of the analysis (see Snakefile in the root of the main GitHub
-repository). To explore those parameters combinations, we used
-simplified approach: 1) we performed overclustering of train part of
-each integrated pair using clustering from leidenalg
-(v`r versions$leidenalg`; REF leiden and original paper), 2) we subset
-each of 12 matrixes to the same reference dataset (REF hajdarovic), and
-3) derived fuzzy simplical set using UMAP-based path-connectivity model
-(REF UMAP original and connectivity) then 4) we aggregated results
-(microclusters and graphs) using partitioning based graph abstruction
-(PAGA REF) 5) that PAGA graphs were utilised as layers of multiplexed
-graph to optimised multiplex partitions (REF leiden, multiplex science)
-and 6) we used those partitions to train support vector machine (SVM)
-classifier (SVC) and to project those partitions on test set astrocytes,
-7) finally, we embedded full reference dataset using derived labels for
-supervised densMAP (see `microclustering_limited_test.ipynb` file of the
-analysis repository; see example of unfiltered (FDR="nc",
-signature_substruction="full", k=10, ks=20, connectivity_mst="min_tree")
-data embedding **Figure 1 K, M**).
-
-# Classification of astrocytes subregion with *Astro Trap* approach
-
-To support performance of classifier model we used two steps of feature
-selection:
-
-## Filter genes that are allow to discriminate between subregions/nuclei
-
-We prefiltered features using the ensemble of methods to capture genes
-of known subregional origin (**ED Figure 4A**: Step 11). For that we
-used a union of gene sets selected by chi2 statistics, ANOVA F-value and
-mutual information score. We defined sets of features by those three
-different feature selection methods as it improves the accuracy and
-stability of the selected features, leading to better performance in
-machine learning models. We used `GridSearchCV` to optimise parameters
-of pipelines that consisted of three steps: scaling - `MinMaxScaler` for
-consistency (as negative values are not allowed for all statistics we
-calculated), reduce dimentionallity - `SelectKBest` taking input one of
-`chi2`, `f_classif` or `mutual_info_classif`, and classify - `SVC`
-estimator with scaled gamma and maximum number of iteration fixed to
-`1000`. The parameter grid included SVM fit strenght
-(`C_OPTIONS = [1, 10, 100, 1000]`) and number of features `K` to select
-with (`2000, 1000, 500, 250`) genes thresholds. We used
-`RepeatedStratifiedKFold(n_splits=10, n_repeats=10)` cross validation to
-select classifiers with the highest weighted F-measure scores. Finally,
-we extracted features from each `best_estimator` and merged them into
-one set of genes (results are available as **ED Table 4** ; **ED Figure
-4A**: Step 11). The union of features sets was used to filter input to
-the downstream pipeline.
-
-## Find the best support vector machine classifier model with *ad hoc* feature selection for the region-label assignment using Grid-Search groupped k-fold cross validation
-
-To build an effective classifier model that reconcile features of
-subregional origin regardless of functional states (that we captured by
-the shared signature) we used initially selected astrocytes from
-subregional datasets (**ED Figure 4A**: Step 0) and prefiltered genes
-set (**ED Figure 4A**: Step 11). However, to learn robust features that
-consistently represent this factor of regional heterogeneity we must
-recognise standalone functional roles of nuclei/areas of the
-hypothalamus. The astrocytic functional states occur across the whole
-hypothalamus and are promped by various environmental factors; thus we
-expect that they are not specific to any subregion in longterm and
-reflect continuous complex trajectory transitions. To resolve this issue
-we clustered this shared structure into tiny groups of cells that being
-examined separately; hence we suppose diminished intraregional roles
-versus allowed exploration of interregional importances of genes. After
-having reduced number of genes and meaningful groups for stratification
-we could apply more complex model for feature selection. Pipelines
-consisted from scaling - `RobustScaler`that smooth outliers, feature
-selection and classification by `SVC`. We implemented two types of
-feature selection: first is simplier interpretable `LogisticRegression`
-that utilised L1-regularisation to fit coefficients for multiclass
-problem as one versus rest (for the sake of computational performance in
-contrast to multinomial estimation); second is the more complex XGBoost
-classifier model. To fit these models we encoded region classes as
-sorted proportions of each class. To select best model we performed
-`GridSearchCV` with `StratifiedGroupKFold(n_splits=10)` cross validation
-on the training set scored by Matthews correlation coefficient (MCC) as
-subregion classes proportions were unbiased.
-
-### Deriving the microclusters of astrocytic subfunctional states
-
-Therefore, in order to further consolidate the signal we learned graph
-representations using Minimal Spanning Tree with path-connectivity model
-implementation of the UMAP algorithm (REF UMAP original and connectivity
-papers). First, we reduced 12 integration manifolds of training data
-(REF hajdorovic) using the UMAP algorithm (REF UMAP original) with
-following parameters: `n_components=6`, `n_neighbors=20`,
-`n_epochs=1000`, `metric="cosine"`, `init="spectral"`,
-`learning_rate=0.1`, `min_dist=1`, `spread=2`, `repulsion_strength=2.0`,
-`negative_sample_rate=10`, `angular_rp_forest=True`, `densmap=False`.
-Second, we used UMAP algorithm to derive the `10`-NN graph from this
-matrix in euclidean space with `pynndescent` optimisation. Third, we
-used `20`-NN graph and distances matrix to bulid `20`-mutual-NN graph
-using minimal tree path-connectivity model (see functions
-`min_spanning_tree()`, `create_connected_graph()`, `find_new_nn()`,
-`mutual_nn_nearest()` in
-`microclusters_to_groups_cv_feature_selection_svc.ipynb`; REF UMAP
-connectivity). Fourth, we derived fuzzy simplical set for the new graph
-using the UMAP algorithm (REF UMAP). Those graphs information were saved
-in anndata container being transformed `from_scipy_sparse_array` to
-iGraph, and through `igraph.Graph.get_adjacency_sparse()` to
-`adata.obsp["connectivities"]` object, also we derived required
-`adata.obsp["distances"]` using
-`get_sparse_matrix_from_indices_distances_umap()` function (see
-`microclusters_to_groups_cv_feature_selection_svc.ipynb` file in the
-main GitHub analysis repository; REF anndata, igraph, networkx; **ED
-Figure 4A**: Step 8). Next, we used Optimiser class from leidenalg
-package to explore the resolution profile of the Constant Pots Model
-clustering on the weighted graph at range from 0 to 2 till full
-convergence (REF leiden, optimiser and original paper). Thus we
-partitioned the weighetd graph using `CPMVertexPartition` function with
-resolution_parameter=0.0112 and applied optimise_partition function of
-optimiser on top till convergence (REF leiden, optimiser and original
-paper). The partitioning membership was saved as categorical vector to
-the `PRJNA779749_init.obs["subfunct_groups"]` (see **ED Figure 4A**:
-Step 9). Therefore, we trained 12 support vector machine classifiers
-(linear kernel, svm fit strenght - `C=100`) from sklearn package to fit
-those labels (`PRJNA779749_init.obs["subfunct_groups"]`) to the subsets
-of 12 integrated matrices; hence we projected learned groups labels to
-the corresponding subregional parts of training sets (**ED Figure 4A**:
-Step 10).
-
-### Optimisation of hyperparameters of a simple logit-SVM classifier model
-
-We trained `Pipeline` with
-`SelectFromModel(LogisticRegression(solver="saga", multi_class="ovr", penalty="l1", max_iter=10000, n_jobs=-1,), threshold=-np.inf)`
-feature selection and `SVC` estimator with scaled gamma and maximum
-number of iteration fixed to `10000`. The parameter grid included SVM
-fit strenght (`C_OPTIONS = [1, 10, 100, 200]`) and maximal number of
-features to select with
-`N_FEATURES_OPTIONS = [round(n_features / 3), round(n_features / 4), round(n_features / 8), round(n_features / 10), round(n_features / 20)]`
-(where `n_features` equals to number of genes in the union of
-prefiltering sets). Also, we extracted features from `best_estimator`
-(results are available as **ED Table 4**). Finally, we trained the best
-model on the whole training set and dumped it for further evaluation
-(**ED Figure 4A**: Step 12).
-
-### Optimisation of hyperparameters of the more complex XGBoost-SVM classifier model
-
-We trained `Pipeline` with
-`SelectFromModel(XGBClassifier(tree_method="gpu_hist"), threshold=-np.inf)`
-feature selection and `SVC` estimator with scaled gamma and maximum
-number of iteration fixed to `10000`. The parameter grid included SVM
-fit strenght (`C_OPTIONS = [1, 10, 100, 200]`); at the feature selection
-step we optimised such parameters of the estimator as
-`learning_rate": [0.1, 0.3, 0.5]`, boosting trees depth and number of
-rounds `max_depth: [3, 5, 7]`, `n_estimators": [100, 250, 500]`, as well
-as the maximal number of features to select with `N_FEATURES_OPTIONS`
-(see logit-SVC section). Also, we extracted features from
-`best_estimator` (results are available as **ED Table 4**). Finally, we
-trained the best model on the whole training set and dumped it for
-further evaluation (**ED Figure 4A**: Step 12).
-
-## Evaluation of the best classifier model on the test set and additional validations of whole hypothalamus predictions
-
-As the result of such optimisation we built two SVM-based classificaton
-pipelines:
-
-1.  `LogisticRegression` (logit)-based features selection with
-    L1-regularisation + `SVC`
-    1.  pick `1406` genes during feature selection stage (**ED Table
-        4**)
-    2.  performed with 0.4408352445523123 MCC and 0.6273951088822771
-        weighted F-measure on the evaluation set (during
-        cross-validataion mean test MCC score was 0.619153; see all
-        results **ED Table 5**)
-2.  XGBoost-based feature selection + `SVC`
-    1.  suggested `211` genes, `learning_rate=0.3`, boosting trees depth
-        `max_depth=3` and number of rounds `n_estimators=100` for the
-        feature selection and strong (`C=200`) SVM classifier (**ED
-        Table 4**)
-    2.  outperformed simplier logit-SVC model with 0.5776601427855099
-        MCC and 0.723413495875078 weighted F-measure on the evaluation
-        set (**Figure 2A; ED Figure 4A**; during cross-validataion mean
-        test MCC score was 0.870621; see all results **ED Table 5**)
-
-Next, these models were used to project learned subregional classes onto
-whole hypothalamus datasets (REF zeisel, romanov, kim, hajdarovic). For
-that, we used the original model selected directly from the whole set of
-all available genes from the full subregional datasets matrixes. Thus,
-the model should be refitted to the subset of genes available for
-prediction in a particular dataset resulting with four different models
-per pipeline.
-
-Therefore, we also come up with *ad hoc* approach that can safe time and
-interpretation resulting with a shared model across each predicted
-datasets. For that before applying AstroTrap approach, we selected
-subset genes that: 1) were expressed in more than `10` cells in each
-whole hypothalamus dataset and than 2) took intersection of these genes
-across all four datasets. This resulted with two best-models selected by
-cross-validation: 1) fit strenght `C=10` and `1378` genes (**ED Table
-4**) that were used for the logit-SVC model, which performed with
-0.714431 mean test MCC score, and 2) fit strenght `C=200`,
-`learning_rate=0.5`, boosting trees depth `max_depth=3` and number of
-rounds `n_estimators=100`, `207` genes (**ED Table 4**) for the
-XGBoost-SVC model, which performed with 0.769805 mean test MCC score.
-The results are available in **ED Table 5**. We used these models to
-predict subregional classes for evaluation set and in each whole
-hypothalamus dataset. On the evaluation set results of the *ad hoc*
-version models were 1) 0.5391718659990032 MCC and 0.70261086217399
-weighted F-measure for logit-SVC model, and 2) 0.5183861279482299 MCC
-and 0.6863289741984487 weighted F-measure for XGBoost-SVC model.
-
-Subregional classes predicted by direct version of *Astro Trap* (**ED
-Figure 4A**: Step 13) were used for further functional biological
-analysis.
-
-# Functional annotation and validation of astrocytic subregional heterogeneity
-
-## Gene-regulatory networks (regulons) analysis with SCENIC pipeline
-
-Like in our previous analysis using SCENIC, here we could confirm pilot
-observation of regulons-driven heterogeneity in astrocytes and magnified
-the analysis of the same dataset to astroglia assigned to different
-hypothalamic subregions (see **Figure 2 B, C**; also **ED Table 6**).
-For that we used normalised expression matrixes of astrocytic subsets
-from the whole hypothalamus reference datasets and applied SCENIC
-pipeline (REF SCENIC; `docker://aertslab/pyscenic:0.12.1`) to infer
-regulons and their activity scores. For aucell procedure we built
-regulons only using enriched motifs with a NES of 3.0 or higher; we took
-only directly annotated TFs or TF annotated for an orthologous gene into
-account; and we only kept regulons with at least 3 genes. We used aucell
-matrix to visualise dotplot of regulons activity and to build
-dendrogramm (using Wald clustering of regulons (REF)). We found that
-regulons are highly specific to the subregional classes of astrocytes
-(**Figure 2B; ED Figure 5**).
-
-## Ligand-receptor expression pairs between Latexin positive vs. negative astroglia with Arcuate nuclei neurons governing feeding behavior (WIP SECTION)
-
-To validate the assumption of the subregional specificity of Lxn+
-astocytes, we analysed selected astrocytes signalling data estimated
-using Liana-py and Rank Aggregation method (including CellPhoneDB,
-CellChat, ICELLNET, connectomeDB2020, and CellTalkDB). (Fig. 4E,F; ED
-Fig. 7A-E)
-
-# Sample sizes, statistics and reproducibility (WIP SECTION)
-
-1.  Differential gene expression analysis of full astrocytic integration
-    cluster analysis SCTransform corrected UMI-count matrices were
-    statistically tested to obtain DEGs using log-normalized values with
-    `pseudocount = 1` for 12 identified clusters as previously described
-    (REF Mayer, REF Hafemeister) using MAST test (REF Finak). Results of
-    the DGE tests are specified at **ED Table 3**.
-
-2.  Comparisons of models performance for hyperparameters optimisation
-    during groupped 10-fold cross-validation trained and evaluated using
-    GridSearchCV. Perfomance of models was evaluated using
-    `matthews_corrcoef` (MCC). The output of `GridSearchCV` does not
-    provide information on the certainty of the differences between the
-    models. To evaluate this, we need to conduct a statistical test on
-    MCC sesults. Several variance-corrected statistical tests have been
-    developed for these cases. We used the one proven to obtain the
-    highest replicability scores (which rate how similar the performance
-    of a model is when evaluating it on different random partitions of
-    the same dataset) while maintaining a low rate of false positives
-    and false negatives: the Nadeau and Bengio's corrected t-test
-    ([@nadeau1999]). We used implementations of Nadeau and Bengio's
-    corrected t-test under two different statistical frameworks:
-    frequentist and Bayesian. Therefore, approach assumed a corrected
-    right-tailed paired t-test to evaluate if the performance of the
-    first model is significantly better than that of the second model;
-    where, our null hypothesis was that the second model performs at
-    least as good as the first model. Moreover, we used Bayesian
-    estimation to calculate the probability that the first model is
-    better than the second. Bayesian estimation output a distribution
-    followed by the mean μ of the differences in the performance of two
-    models. To obtain the posterior distribution we need to define a
-    prior that models our beliefs of how the mean is distributed before
-    looking at the data, and multiply it by a likelihood function that
-    computes how likely our observed differences are, given the values
-    that the mean of differences could take. One way of defining our
-    posterior using a closed-form expression is to select a prior
-    conjugate to the likelihood function. Benavoli and colleagues
-    ([@benavoli2017]) show that when comparing the performance of two
-    classifiers we can model the prior as a Normal-Gamma distribution
-    (with both mean and variance unknown) conjugate to a normal
-    likelihood, to thus express the posterior as a normal distribution.
-    Marginalizing out the variance from this normal posterior, we can
-    define the posterior of the mean parameter as a Student's
-    t-distribution. Overall, using the Bayesian approach we computed the
-    probability that a model performs better, worse or practically
-    equivalent to another.
-
-3.  Differential gene expression analysis of projected subregional
-    classes of astroglia onto whole hypothalmus datasets and UMIs counts
-    matrices were statistically tested to obtain DEGs for eight
-    available subregional classes using MAST test (REF Finak). We used
-    the Logreg test (REF Ntranos) to define differential regulons
-    expression across cells labeled by projected subregional classes of
-    astroglia onto whole hypothalmus datasets. Finally, we applied
-    robust rank aggregation of differentially expressed genes across
-    different datasets to derive individual lists of markers for each of
-    nuclei (REF RRA); we targeted RRA on the p-value to determine
-    ***Specificity Score*** **and on the** log2 Fold change to determine
-    ***Magnitude Score*** (**ED Figure 4A**: Step 14; **Figure 2A-F**;
-    **ED Table 6**).
-
-4.  Data analysis with Bootstrap-coupled Estimation (DABEST) of
-    cell-to-cell interactions between $Lxn^{+}$ vs. $Lxn^{-}$ astrocytes
-    and neurons (multiple groups)
-
-5.  Circadian activity analysis estimated using Fos expression in the
-    SCN nucleus with TRAP2 model was analysed across neurons and
-    astrocytes (multiple groups) between two conditions (CT: ); sample
-    size was XXX animals per condition; two-tailed t-test with Welch's
-    correction was used for statistical analysis; bar plots whiskers
-    indicate standard error.
-
-6.  Acute stress condition analysis estimated using Fos expression in
-    the PVN nucleus with TRAP model was analysed in astrocytes (multiple
-    groups) compared to control; sample size was 7 animals per
-    condition; two-tailed t-test with Welch's correction was used for
-    statistical analysis; bar plots whiskers indicate standard error.
-
-7.  HFD condition analysed using electron microscopy measured
-    morphological parameters of astrocytes and immuno-histochemistry
-    imaging within the Arc nucleus and phenotypical parameters
-    monitoring with Mfn2-KO model compared to control; sample size was
-    XXX animals per condition; two-tailed t-test with Welch's correction
-    was used for statistical analysis; bar plots whiskers indicate
-    standard error.
-
-    # Other packages
-
-Visualisations and figures were primarily created using the ggplot2
-(v`r versions$ggplot2`), cowplot (v`r versions$cowplot`) [@R-cowplot],
-patchwork (v`r versions$patchwork`) and scCustomize
-(v`r versions$scCustomize`) packages using the viridis colour palettes
-(v`r versions$viridis`) for continuous data. UpSet plots
-[@conwayUpSetRPackageVisualization2017] were produced using the UpSetR
-package (v`r versions$UpSetR`) [@R-UpSetR] with help from the gridExtra
-package (v`r versions$gridExtra`) [@R-gridExtra]. Data manipulation was
-performed using other packages in the tidyverse
-(v`r versions$tidyverse`) [@R-tidyverse] particularly dplyr
-(v`r versions$dplyr`) [@R-dplyr], tidyr (v`r versions$dplyr`) [@R-tidyr]
-and purrr (v`r versions$purrr`) [@R-purrr]. The analysis project was
-managed using the Snakemake system (v `r versions$snakemake`)
-[@molderSustainableDataAnalysis2021] and the workflowr
-(v`r versions$workflowr`) [@R-workflowr] package which was also used to
-produce the publicly available website displaying the analysis code,
-results and output. Reproducible reports were produced using Quarto
-(v`r versions$quarto`), knitr (v`r versions$knitr`) [@R-knitr] and R
-Markdown (v`r versions$rmarkdown`) [@R-rmarkdown] and converted to HTML
-using Pandoc (v`r versions$pandoc`).
+**Mouse strains:** Mice were group housed (*n* = 3 -- 5) at 22 C° -- 24
+C° using a 12-h light/12-h dark cycle. Animals had *ad libitum* access
+to water and specified diet at all times. Postnatal animals were weaned
+on postnatal day (P)21. Mouse strains were commercially available, as
+follows: C57Bl/6J ('wild-type', RRID:IMSR_JAX:000664), Ai6
+(RRID:IMSR_JAX:007906), Ai14 (RRID:IMSR_JAX:007914), *Pomc*--*gfp*
+(RRID:IMSR_JAX:009593), *Mfn2*^f/f^ (RRID:IMSR_JAX:026525), TRAP1
+(RRID:IMSR_JAX:021882), TRAP2 (RRID:IMSR_JAX:030323). Experiments were
+not randomized, neither were the investigators blinded to the
+experimental variables and assignments.
+
+**Stress experiments in TRAP mice:** Experiments were performed as
+previously
+described[(Alpár *et al.*, 2018)](https://sciwheel.com/work/citation?ids=5747257&pre=&suf=&sa=0&dbf=0).
+Briefly, tamoxifen injection (150 mg/kg, *i.p.*) in TRAP1
+mice[(Alpár *et al.*, 2018)](https://sciwheel.com/work/citation?ids=5747257&pre=&suf=&sa=0&dbf=0)
+was followed by the injection of 4% PFA (in 50 μl physiological saline)
+in the right hindpaw 24h later. After a lag-time of 72 h to allow for
+ZsGreen expression in 'stress-responder' cells, mice were transcardially
+perfused as below.
+
+**Circadian activity of astrocytes *in vivo*:** TRAP2
+mice[(DeNardo *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6344071&pre=&suf=&sa=0&dbf=0)
+crossed with Ai14 reporter mice were injected with 4-OH-tamoxifen, which
+allowed for tissue collection in a narrow time window to assess *Fos*
+expression. 4-OH-tamoxifen was injected during the light (CT6) and dark
+(CT18) periods, with tissues collected 6h later.
+
+**Tissue collection and fixation**: Animals were transcardially perfused
+with 50--100 ml of a fixative composed of 4% paraformaldehyde (PFA) in
+0.1M phosphate buffer (PB; pH 7.4), the brains dissected out, and
+post-fixed in the same fixative overnight. Alternatively, animals were
+deeply anesthetized (5% isoflurane (AbbVie) in 1L/min air flow), their
+brains rapidly dissected, and immersion-fixed in 4% PFA in
+phosphate-buffered saline (PBS, 0.05M, pH 7.4) at 4 °C for 24 h. Tissues
+were then extensively washed in PB, cryoprotected by immersion in 30%
+sucrose in distilled water at 4 °C 24--48h, and processed as described
+below.
+
+**Tissue preparation and histochemistry:** Free-floating sections were
+cut in 1-in-6 series at 50 μm thickness on a cryostat microtome.
+Glass-mounted serial sections had a thickness of 16 μm. After rinsing in
+0.1M PB, specimens were exposed to a blocking solution composed of 0.1M
+PB, 10% normal donkey serum (NDS), 5% BSA, and 0.3% TX-100 for 3h. This
+was followed by incubation (for 48h) with select combinations of primary
+antibodies: goat anti-GFP (1:1,000; Abcam, #ab6662, RRID:AB_305635: lot
+GR311622-15, GR311622-7), chicken anti-GFP (1:500, Aves Labs, #GFP-1020,
+RRID:AB_10000240: lot GFP697986), chicken anti-mCherry (1:1,000; EnCor
+Biotechnology, #CPCA-mCherry, RRID:AB_2572308: lot 7670-4), guinea pig
+anti-GFAP (1:500; Synaptic Systems, #173 004, RRID:AB_10641162: lot
+2-15, 2-17), rabbit anti-LXN (1:400; Sigma-Aldrich, #HPA014179,
+RRID:AB_1853404), rabbit anti-S100b (1:4,000; Synaptic Systems, #287
+003, RRID:AB_2620024), mouse anti-NEUN (1:1,000; Millipore, #MAB377,
+RRID:AB_2298772), rabbit anti-AQP4 (1:4,000; Sigma-Aldrich, #A5971,
+RRID:AB_258270). After rinsing, tissue sections were exposed to
+cocktails of secondary antibodies (all from Jackson ImmunoResearch),
+including Alexa Fluor 488-AffiniPure donkey anti-goat (705-545-147, lot
+131669), Alexa Fluor 488 donkey anti-mouse (715-545-151, lot 127820),
+Alexa Fluor 488-AffiniPure donkey anti-guinea pig (706-545-148, lot
+138058), Alexa Fluor 647-AffiniPure donkey anti-guinea pig (706-605-148,
+lot 135631), Alexa Fluor 647-AffiniPure donkey anti-rabbit (711-605-152,
+lot 127614), carbocyanine (Cy)2-AffiniPure donkey anti-rabbit
+(711-225-152, lot 139999), Cy3-AffiniPure donkey anti-chicken
+(703-165-155, lot 142225), Cy3-AffiniPure donkey anti-goat (705-165-147,
+lot 134527), Cy3-AffiniPure donkey anti-guinea pig (706-165-148, lot
+134844), Cy3-AffiniPure donkey anti-mouse (715-165-150, lot 116881), and
+Cy3-AffiniPure donkey anti-rabbit (711-165-152, lot 141941), that were
+applied at a dilution of 1:300 in 0.1 MPB supplemented with 2% BSA
+(20-22 °C, 2h). Nuclei were routinely counterstained with Hoechst 33,342
+(1:10,000; Sigma). Tissues were coverslipped with entellan in toluene
+(Merck). Images were acquired in the ZEN2010 software package on a Zeiss
+LSM880 laser-scanning microscope equipped with appropriate excitation
+and emission filters for optimal signal separation.
+
+**Fluorescent *in situ* hybridization (HCR 3.0):** Multicolor stainings
+were performed on fresh-frozen tissues sectioned at 16 μm following the
+HCR v3.0 protocol for '*generic sample on the slide*' (Molecular
+Instruments). Pre-treatment of tissue sections included, sequentially,
+fixation with 4% PFA for 15 min, 2x washing steps with PBS, and
+dehydration in an ascending EtOH gradient (25%, 50%, 75%, and 100%, each
+step for 5 min with subsequent drying for 15 min). Tissues were obtained
+from 8-12 weeks-old wild-type mice. Hybridization probes (*Apoe:*
+NM_009696.4; *Gfap:* NM_001131020; *Slit2:* NM_001291227.2; *Aldh1a1:*
+NM_001361503.1; *Tafa1:* NM_182808.3; *Plcb1:* NM_001145830.1; *Sgcd*:
+NM_011891.5; *Slc38a1*: NM_001166456.1; *Fos:* NM_010234.3; *Gja1:*
+NM_010288.3; *Snap25:* NM_011428.3; *Olig1:* NM_016968.4; *Htra1*:
+NM_019564.3; *Lxn*: NM_016753; *Adcyap1r1*: NM_007407.4; *Npy1r*:
+NM_010934.4; *Trhr*: NM_013696.2; *Tacr1*: NM_009313.5; *Grpr*:
+NM_008177.3; *Hcrtr2*: NM_001364551.1; *Prokr2*: NM_144944.3; *Otp*:
+NM_011021.5; *Isl1*: NM_021459.4; *Tbx3*: CCDS 19614.1; *Nr4a1*: CCDS
+27848.1; *Foxg1*: NM_005249.5; *Pitx2*: NM_001042504.2) were purchased
+from Molecular Instruments.
+
+**Preparation, purification, and pharmacological probing of primary
+astrocytes:** Astrocytes were isolated from P6-P7 wild-type mice, which
+were anesthetized with 5% isoflurane (AbbVie, 1L/min flow rate),
+decapitated, their brains rapidly extracted and pooled in ice-cold
+Hanks′ Balanced Salt Solution (without Ca^2+^, Mg^2+^; Thermo Fisher).
+The meninges were peeled away with a fine forceps (Dumont No. 5; FST),
+and the hypothalamus was isolated by a curved-blade surgical scalpel.
+Previous
+protocols[(McCarthy and de Vellis, 1980)](https://sciwheel.com/work/citation?ids=472287&pre=&suf=&sa=0&dbf=0)
+were then adapted to prepare high-purity cultures. Tissues were
+transferred into astrocyte growth medium, composed of Dulbecco's
+Modified Eagle Medium (DMEM, high glucose, GlutaMAX™ supplement; Thermo
+Fisher), 10% fetal bovine serum (FBS, Gibco), and 1%
+penicillin/streptomycin (100 U/ml; Thermo Fisher), triturated, and
+centrifuged at 1,100 rpm for 5 min. After discarding the supernatant,
+tissues were digested in DMEM (with high glucose and GlutaMAX™; Thermo
+Fisher), 0.4% trypsin (Thermo Fisher) and 5% DNAse (Thermo Fisher) at 37
+^o^C for 5 min. After terminating the reaction with 2% BSA, tissues were
+triturated with a serological pipette 3-4 times. Single cell suspension
+was generated by repeated washes, trituration, and 3 rounds of
+centrifugation (1,100 rpm, 3 min, at 22-24 ^o^C). The resulting
+suspension was passed through a cell strainer (40 µm pore size, Fischer
+Scientific), washed, centrifuged, resuspended, and plated in astrocyte
+growth medium in T-75 flasks (10^6^ cells; VWR). Cells were cultured in
+astrocyte growth medium at in 5% CO~2~ atmosphere at 37 °C. Medium was
+partially (1/3) replaced every other day. At ³90% confluency, flasks
+were placed on an orbital shaker at 210 rpm at 37 °C overnight, thus
+separating neurons, microglia, and oligodendrocytes from adherent
+astrocytes. After discarding the supernatant, astrocytes were rinsed
+with Hanks' Balanced Salt Solution (HBSS (+); with Ca^2+^, Mg^2+^;
+Thermo Fisher), and detached from the flasks' surface with dissociation
+medium (0.25% trypsin; Thermo Fisher). Purified astrocytes were
+subcultured for 2-7 days, and then seeded (either for
+immunocytochemistry at 5 x 10^4^ cells/well in poly-D-lysine
+(Merck)-coated 24-well plates (VWR) containing 12-mm round coverslips
+(Carl Roth) or 3 x 10^5^ cells/well in 6-well plates (VWR) for
+biochemistry), and used for experiments. Cell pellets and supernatants
+were simultaneously processed when needed.
+
+The purity of astrocytes was controlled by immunocytochemistry. In
+brief, cells were washed 3x with ice-cold PBS (pH 7.4, Life
+Technologies) and fixed with 4% PFA (in 0.05M PBS; Sigma) at 22-24 ^o^C
+for 10-15 min, and permeabilized by using 0.2% Triton X-100 (Sigma), 10%
+normal donkey serum (NDS; Jackson ImmunoResearch), 5% BSA (Sigma) in
+0.05M PBS) at 22-24 ^o^C for 60 min. After rinsing, cells were stained
+by a mixture of antibodies, including rabbit anti-ALDH1L1 (1:4,000;
+Synaptic Systems, #278 102, RRID:AB_2884922; for astrocytes), guinea pig
+anti-GFAP (1:500; Synaptic Systems, #173 004, RRID:AB_10641162: lot
+2-15, 2-17; for astrocytes), goat anti-IBA1 (1:500; Abcam, #ab289874,
+RRID:AB_2942069; for microglia), rabbit anti-OLIG2 (1:200; Millipore,
+#AB9610, RRID:AB_570666; for oligodendrocytes), mouse anti-NeuN
+(1:1,000; Millipore, #MAB377, RRID:AB_2298772; for neurons) diluted in
+0.2% Triton X-100, 5% NDS, 2% BSA in 1X PBS at 4°C overnight. Controls
+were carried out under identical conditions except without primary
+antibodies. After repeated rinses in 0.05M PBS, the specimens were
+exposed to species-specific secondary antibodies (Alexa Fluor 488- or
+carbocyanine (Cy)2/3/5-tagged (all 1:300; Jackson ImmunoResearch)
+diluted in 0.05M PBS, 2% BSA and Hoechst 33,342 (1:10,000 (Sigma);
+nuclear counterstain) at 22-24 ^o^C for 2h. After another was in 0.05M
+PBS, coverslips were dipped in distilled water, mounted with glycerol
+(30 µL/coverslip), and then inspected by using a Zeiss LSM880
+laser-scanning microscope. Emission spectra for each dye were limited as
+follows: Cy2 (505--530 nm), Cy3 (560--610 nm), and Cy5 (650--720 nm).
+Images were acquired in the ZEN2010 software package. Each coverslip was
+tested at 5 independent (random) fields of view, with the means ± s.d.
+of the cell counts from at least 4 cultures processed to establish a
+'purity index' (that is the percentage of GFAP^+^ or ALDH1L1^+^
+cells/total cells). Cultures were only processed with purity ³95%.
+
+**Cell viability assay:** The viability of cells, plated at a density of
+25,000 cells/well in 24-well plates (VWR), was tested using the
+3-(4,5-dimethylthiazol-2-yl)-2,5-diphenyltetrazolium bromide (MTT)
+assay[(Mosmann, 1983)](https://sciwheel.com/work/citation?ids=69909&pre=&suf=&sa=0&dbf=0).
+In brief, growth media was replaced with 0.25 mL of MTT tetrazolium
+solution (1 mg/mL MTT tetrazolium (Abcam)), and exposed for 30 min at 37
+°C. Subsequently, the incubation medium was replaced by 0.25 mL
+dimethyl-sulfoxide (Sigma), and the absorbance of the lysates was
+measured spectrophotometrically at 570 nm. Data in this report are from
+n = 8 independent observations (**ED Fig. 14**).
+
+**Latexin release from astrocytes**: Confluent cultures of astrocytes
+(in 6-plate format) were starved in serum-free growth medium overnight.
+Subsequently, the medium was replaced with either HBSS (-), ATP (100 µM;
+Sigma), or HBSS (+) for 5 min. To determine if insulin alters latexin
+release, cultured astrocytes were exposed to 0.05 µM, 0.1 µM, 0.3 µM, or
+1 µM insulin (Sigma) that had been dissolved in serum-free growth medium
+for 30 min. Experiments were performed in triplicate. Subsequently, cell
+lysates, as well as protein fractions of the media were probed for
+latexin by Western blotting.
+
+**Quantitative Western blotting with total protein normalization:**
+Samples (cell lysate, medium, and cell fractions) were obtained as
+described above. Western blot analysis was carried out using an Amersham
+WB System (GE Healthcare, Little Chalfont, UK). Samples were labeled
+with carbocyanine (Cy)5 dye reagent (GE Healthcare; prediluted in
+ultrapure water (1:10); for total protein staining), reduced and boiled
+(at 95°C for 3 min) in sample buffer prior to loading onto Amersham WB
+13.5% gel cards (GE Healthcare, Little Chalfont, UK). Electrophoresis
+(600 V, 42 min) and protein transfer onto polyvinylidene-difluoride
+(PVDF) membranes (100 V, 30 min) were performed according to the
+manufacturer's instructions. After 1h of blocking in 3% BSA (Sigma) in
+standard Tris-buffered saline (TBS), membranes were incubated overnight
+at 4°C in primary antibody solutions against LXN (1:200: goat,
+ThermoFisher Scientific, #PA5-18676, RRID:AB_10980158). Antibody binding
+was detected by using species-specific (anti-goat) Amersham WB Cy3
+secondary antibody (1:1000 in 3% BSA in TBS; Amersham, GE Healthcare)
+for 1h at RT. Following several washing steps in standard TBS-Tween20
+(TBST) and finally in TBS, membranes were dried before scanning at auto
+excitation. Automated image analysis was performed with the Amersham WB
+evaluation software (v1.0, GE Healthcare, Little Chalfont, UK) with
+manual optimization if necessary. Target-specific immunoreactivities
+were normalized to total protein intensities and statistically analyzed.
+
+**Diet-induced obesity:** Control mice were fed a regular chow diet
+containing 57% of calories as carbohydrates, 34% of calories as protein,
+and 9% calories as a mixture of fatty acids. In contrast, a high-fat
+diet (HFD) contains 35% of its calories as carbohydrates, 20% calories
+as protein, and 45% calories as fatty acids (Research Diets). All
+experiments were performed in adult male mice during the period of
+P42-P170. Food intake and body weight were assessed weekly.
+Representative food intake shown was measured on the last week of HFD
+exposure.
+
+**Stereotaxic injection, viral particles:** Bilateral virus injections
+were made into the ARC of anesthetized 6/7-week-old male *Mfn2*^f/f^
+mice placed into a stereotaxic apparatus (model 902; David Kopf
+instruments). AAV8-*Gfap*-*Gfp* (for control mice) or
+AAV8-*Gfap-Gfp-Cre* (Virus Vector Core, UNC; to generate
+astrocyte-specific knock-down) were applied at a volume of
+300nl/hemisphere at coordinates (from bregma): anterior--posterior: −1.2
+mm, lateral: ±0.3 mm, dorsal--ventral: −5.8 mm by using an air pressure
+system (injection time: 5 min). After surgery, mice were allowed to
+recover for 10 days before any dietary manipulation. Accurate virus
+injection into the ARC was verified by analyzing local GFP fluorescence.
+Mice with 'missed' or 'partial' hits were excluded. Specific AAV
+expression in ARC was also signified by double fluorescence labeling for
+GFP and GFAP.
+
+**Body composition:** Lean and fat mass were analyzed with EchoMRI
+(EchoMRI
+LLC)[(Varela, Kim, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=15702019&pre=&suf=&sa=0&dbf=0).
+
+**Electron microscopy**: Mice (*n* ³ 4 per group) were anesthetized and
+transcardially perfused with freshly prepared 4% PFA and 0.1%
+glutaraldehyde as
+reported[(Varela, Kim, *et al.*, 2021; Varela, Stutz, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=15702019,11669570&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+After post-fixation overnight, vibratome sections (50 μm) containing the
+ARC were immunostained with rabbit anti-POMC (1:7,500, H-029-30, Phoenix
+Pharmaceuticals,) or mouse anti-GFAP (1:4,500, Sigma) primary
+antibodies. After overnight incubation at 22-24 ^o^C, sections were
+washed with 0.1M phosphate buffer (PB; pH7.4), incubated with either
+biotin-conjugated donkey anti-rabbit or donkey anti-mouse IgG secondary
+antibodies (1:250, Jackson ImmunoResearch) for 2h, washed again, placed
+in pre-formed avidin--biotin complex (Vector Laboratories), and
+developed with 3,3-diaminobenzidine and 0.01% H~2~O~2~. Sections were
+then osmicated (1% OsO~4~ for 15 min), and dehydrated in an ascending
+series of ethanol. During dehydration, 1% uranyl acetate was added to
+the 70% ethanol step to enhance ultrastructural membrane contrast. Flat
+embedding in Durcupan followed dehydration. Ultrathin sections were cut
+on a Leica ultra-microtome, collected on Formvar-coated single-slot
+grids, and analyzed with a Tecnai 12 Biotwin electron microscope (FEI)
+with an AMT XR-16
+camera[(Varela *et al.*, 2017; Varela, Stutz, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=11669570,11157238&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+
+**Quantification of mitochondria, glial coverage, and synaptic input:**
+Hypothalamic sections containing either POMC^+^ or GFAP^+^ cells with a
+visible nucleus were analyzed by electron microscopy. Mitochondrial
+cross-sectional area was calculated. For glia coverage and synaptic
+inputs, a blinded investigator scored the percentage of glia and the
+number of synapses per POMC^+^ neuron in high-magnification images
+(\>4.800x)[(Varela, Kim, *et al.*, 2021; Varela, Stutz, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=15702019,11669570&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
+
+**Statistics:** Experimental data were analyzed using GraphPad Prism
+8.0.2 (GraphPad). Changes in *Fos* expression in the SCN (circadian
+activity and TRAP2 mice at CT6, CT18; n = 3 male mice per condition, P =
+1) and PVN (TRAP mice after acute stress; *n* = 7 male mice per
+condition, P = 0,017) were analyzed across neurons and/or astrocytes
+(multiple groups, as applicable) with two-tailed *t*-test with Welch's
+correction. Morphological parameters of astrocytes and synapses within
+ARC, as well as phenotypic (metabolic) parameters in the *Mfn2*^f/f^
+mouse model under control conditions and HFD-induced obesity, were
+compared using two-tailed Student's *t*-test; the sample size was at
+least 4 animals per condition; experiments were performed in adult male
+mice at the age of 6-25 weeks. Data were expressed as means ± s.e.m.
+throughout, except in box-and-whisker plots that show medians ± s.e.m.
+Statistical significance was defined as \**p* \< 0.05; \*\**p* \< 0.01;
+\*\*\**p* \< 0.001. Statistical comparisons of classification models
+performance[(Nadeau and Bengio, 1999; Benavoli *et al.*, 2017)](https://sciwheel.com/work/citation?ids=15703153,15703155&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0),
+DABEST multiple groups comparisons of the magnitude and specificity
+rankings of ligand-receptor
+pairs[(Ho *et al.*, 2019; Jin *et al.*, 2021; Dimitrov *et al.*, 2022)](https://sciwheel.com/work/citation?ids=10691771,13133568,7093745&pre=&pre=&pre=&suf=&suf=&suf=&sa=0,0,0&dbf=0&dbf=0&dbf=0),
+and differential genes expression
+testing[(Finak *et al.*, 2015; Ntranos *et al.*, 2019)](https://sciwheel.com/work/citation?ids=6301874,2037639&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)
+were described in corresponded sections above.
 
 # Data availability
 
@@ -965,8 +1088,7 @@ upon reasonable request.
 
 # Code availability
 
-The code used is available at
-<https://doi.org/10.6084/m9.figshare.11867889>.
+The code used will be available from figshare.
 
 # Summary
 
@@ -979,6 +1101,434 @@ readr::write_lines(
   versions,
   here::here("output", DOCNAME, "package-versions.json")
 )
+
+knitr::kable(data.frame(
+  File = c(
+    get_download_link("package-versions.json", here::here("output", DOCNAME))
+  ),
+  Description = c(
+    "Packages and their versions used for this analysis"
+  )
+))
 ```
 
 # References
+
+[Affinati, A.H. *et al.* (2021) "Cross-species analysis defines the
+conservation of anatomically segregated VMH neuron populations.,"
+*eLife*, 10.
+doi:10.7554/eLife.69065.](https://sciwheel.com/work/bibliography/14086391)
+
+[Aibar, S. *et al.* (2017) "SCENIC: single-cell regulatory network
+inference and clustering.," *Nature Methods*, 14(11), pp. 1083--1086.
+doi:10.1038/nmeth.4463.](https://sciwheel.com/work/bibliography/4362786)
+
+[Alpár, A. *et al.* (2018) "Hypothalamic CNTF volume transmission shapes
+cortical noradrenergic excitability upon acute stress.," *The EMBO
+Journal*, 37(21).
+doi:10.15252/embj.2018100087.](https://sciwheel.com/work/bibliography/5747257)
+
+[Auguie, B. (2017) "gridExtra: Miscellaneous Functions for 'Grid'
+Graphics."](https://sciwheel.com/work/bibliography/15702043)
+
+[Badia-I-Mompel, P. *et al.* (2022) "decoupleR: ensemble of
+computational methods to infer biological activities from omics data.,"
+*Bioinformatics Advances*, 2(1), p. vbac016.
+doi:10.1093/bioadv/vbac016.](https://sciwheel.com/work/bibliography/12662452)
+
+[Benavoli, A. *et al.* (2017) "Time for a change: a tutorial for
+comparing multiple classifiers through Bayesian analysis.," *The Journal
+of Machine Learning Research*, 18(1), pp.
+2653--2688.](https://sciwheel.com/work/bibliography/15703155)
+
+[Blischak, J.D., Carbonetto, P. and Stephens, M. (2019) "Creating and
+sharing reproducible research code the workflowr way. [version 1; peer
+review: 3 approved]," *F1000Research*, 8, p. 1749.
+doi:10.12688/f1000research.20843.1.](https://sciwheel.com/work/bibliography/7634448)
+
+[Chang, C.-C. and Lin, C.-J. (2011) "LIBSVM: A library for support
+vector machines," *ACM transactions on intelligent systems and
+technology*, 2(3), pp. 1--27.
+doi:10.1145/1961189.1961199.](https://sciwheel.com/work/bibliography/1332635)
+
+[Chen, T. and Guestrin, C. (2016) "XGBoost: A Scalable Tree Boosting
+System," in *Proceedings of the 22nd ACM SIGKDD International Conference
+on Knowledge Discovery and Data Mining - KDD '16*. *22nd ACM SIGKDD
+International Conference*, New York, New York, USA: ACM Press, pp.
+785--794.
+doi:10.1145/2939672.2939785.](https://sciwheel.com/work/bibliography/2927024)
+
+[Chicco, D., Tötsch, N. and Jurman, G. (2021) "The Matthews correlation
+coefficient (MCC) is more reliable than balanced accuracy, bookmaker
+informedness, and markedness in two-class confusion matrix evaluation.,"
+*BioData mining*, 14(1), p. 13.
+doi:10.1186/s13040-021-00244-z.](https://sciwheel.com/work/bibliography/10754206)
+
+[Chung, N.C. and Storey, J.D. (2015) "Statistical significance of
+variables driving systematic variation in high-dimensional data.,"
+*Bioinformatics*, 31(4), pp. 545--554.
+doi:10.1093/bioinformatics/btu674.](https://sciwheel.com/work/bibliography/801002)
+
+[Conway, J.R., Lex, A. and Gehlenborg, N. (2017) "UpSetR: an R package
+for the visualization of intersecting sets and their properties.,"
+*Bioinformatics*, 33(18), pp. 2938--2940.
+doi:10.1093/bioinformatics/btx364.](https://sciwheel.com/work/bibliography/3885647)
+
+[Csardi, G. and Nepusz, T. (2006) "The igraph software package for
+complex network research.," *InterJournal, complex systems*, 1695(5),
+pp. 1--9.](https://sciwheel.com/work/bibliography/15703125)
+
+[Dalmia, A. and Sia, S. (2021) "Clustering with UMAP: Why and How
+Connectivity Matters," *arXiv* [Preprint].
+doi:10.48550/arxiv.2108.05525.](https://sciwheel.com/work/bibliography/15702021)
+
+[DeNardo, L.A. *et al.* (2019) "Temporal evolution of cortical ensembles
+promoting remote memory retrieval.," *Nature Neuroscience*, 22(3), pp.
+460--469.
+doi:10.1038/s41593-018-0318-7.](https://sciwheel.com/work/bibliography/6344071)
+
+[Deng, G. *et al.* (2020) "Single-Nucleus RNA Sequencing of the
+Hypothalamic Arcuate Nucleus of C57BL/6J Mice After Prolonged
+Diet-Induced Obesity.," *Hypertension*, 76(2), pp. 589--597.
+doi:10.1161/HYPERTENSIONAHA.120.15137.](https://sciwheel.com/work/bibliography/13444613)
+
+[Dimitrov, D. *et al.* (2022) "Comparison of methods and resources for
+cell-cell communication inference from single-cell RNA-Seq data.,"
+*Nature Communications*, 13(1), p. 3224.
+doi:10.1038/s41467-022-30755-0.](https://sciwheel.com/work/bibliography/13133568)
+
+[Efremova, M. *et al.* (2020) "CellPhoneDB: inferring cell-cell
+communication from combined expression of multi-subunit ligand-receptor
+complexes.," *Nature Protocols*, 15(4), pp. 1484--1506.
+doi:10.1038/s41596-020-0292-x.](https://sciwheel.com/work/bibliography/8312724)
+
+[Eldjárn Hjörleifsson, K. *et al.* (2022) "Accurate quantification of
+single-nucleus and single-cell RNA-seq transcripts," *BioRxiv*
+[Preprint].
+doi:10.1101/2022.12.02.518832.](https://sciwheel.com/work/bibliography/14034472)
+
+[Finak, G. *et al.* (2015) "MAST: a flexible statistical framework for
+assessing transcriptional changes and characterizing heterogeneity in
+single-cell RNA sequencing data.," *Genome Biology*, 16, p. 278.
+doi:10.1186/s13059-015-0844-5.](https://sciwheel.com/work/bibliography/2037639)
+
+[Fisher, R.A. (1992) "Statistical methods for research workers," in
+Kotz, S. and Johnson, N.L. (eds.) *Breakthroughs in Statistics*. New
+York: Springer (Springer series in statistics), pp. 66--70.
+doi:10.1007/978-1-4612-4380-9_6.](https://sciwheel.com/work/bibliography/6004145)
+
+[Fleming, S.J. *et al.* (2023) "Unsupervised removal of systematic
+background noise from droplet-based single-cell experiments using
+CellBender.," *Nature Methods*, 20(9), pp. 1323--1335.
+doi:10.1038/s41592-023-01943-7.](https://sciwheel.com/work/bibliography/15230165)
+
+[Gehlenborg, N. (2019) "UpSetR: A More Scalable Alternative to Venn and
+Euler Diagrams for Visualizing Intersecting
+Sets."](https://sciwheel.com/work/bibliography/15702063)
+
+[Gorin, G. *et al.* (2022) "RNA velocity unraveled.," *PLoS
+Computational Biology*, 18(9), p. e1010492.
+doi:10.1371/journal.pcbi.1010492.](https://sciwheel.com/work/bibliography/14086393)
+
+[Grün, B. and Leisch, F. (2008) "FlexMix Version 2: Finite Mixtures with
+Concomitant Variables and Varying and Constant Parameters," *Journal of
+Statistical Software*, 28(4).
+doi:10.18637/jss.v028.i04.](https://sciwheel.com/work/bibliography/6860577)
+
+[Guyon, I. *et al.* (2002) "Gene selectionfor cancer classification
+using support vector machines," *Springer Science and Business Media
+LLC* [Preprint].
+doi:10.1023/a:1012487302797.](https://sciwheel.com/work/bibliography/8752933)
+
+[Hafemeister, C. and Satija, R. (2019) "Normalization and variance
+stabilization of single-cell RNA-seq data using regularized negative
+binomial regression.," *Genome Biology*, 20(1), p. 296.
+doi:10.1186/s13059-019-1874-1.](https://sciwheel.com/work/bibliography/8000403)
+
+[Hagberg, A., Swart, P. and Chult, D.S. (2008) "Exploring network
+structure, dynamics, and function using NetworkX," *Exploring network
+structure, dynamics, and function using NetworkX*
+[Preprint].](https://sciwheel.com/work/bibliography/15703126)
+
+[Hajdarovic, K.H. *et al.* (2022) "Single-cell analysis of the aging
+female mouse hypothalamus.," *Nature Aging*, 2(7), pp. 662--678.
+doi:10.1038/s43587-022-00246-4.](https://sciwheel.com/work/bibliography/13354131)
+
+[Hao, Y. *et al.* (2021) "Integrated analysis of multimodal single-cell
+data.," *Cell*, 184(13), pp. 3573-3587.
+doi:10.1016/j.cell.2021.04.048.](https://sciwheel.com/work/bibliography/11129215)
+
+[Hastie, T.J. (2017) "Generalized Additive Models," in *Statistical
+models in S*. Routledge, pp. 249--307.
+doi:10.1201/9780203738535-7.](https://sciwheel.com/work/bibliography/10222079)
+
+[He, D., Soneson, C. and Patro, R. (2023) "Understanding and evaluating
+ambiguity in single-cell and single-nucleus RNA-sequencing.," *BioRxiv*
+[Preprint].
+doi:10.1101/2023.01.04.522742.](https://sciwheel.com/work/bibliography/15702020)
+
+[He, D. *et al.* (2022) "Alevin-fry unlocks rapid, accurate and
+memory-frugal quantification of single-cell RNA-seq data.," *Nature
+Methods*, 19(3), pp. 316--322.
+doi:10.1038/s41592-022-01408-3.](https://sciwheel.com/work/bibliography/12686545)
+
+[Hippen, A.A. *et al.* (2021) "miQC: An adaptive probabilistic framework
+for quality control of single-cell RNA-sequencing data.," *PLoS
+Computational Biology*, 17(8), p. e1009290.
+doi:10.1371/journal.pcbi.1009290.](https://sciwheel.com/work/bibliography/11924591)
+
+[Hou, R. *et al.* (2020) "Predicting cell-to-cell communication networks
+using NATMI.," *Nature Communications*, 11(1), p. 5011.
+doi:10.1038/s41467-020-18873-z.](https://sciwheel.com/work/bibliography/9778492)
+
+[Ho, J. *et al.* (2019) "Moving beyond P values: data analysis with
+estimation graphics.," *Nature Methods*, 16(7), pp. 565--566.
+doi:10.1038/s41592-019-0470-3.](https://sciwheel.com/work/bibliography/7093745)
+
+[Jin, S. *et al.* (2021) "Inference and analysis of cell-cell
+communication using CellChat.," *Nature Communications*, 12(1), p. 1088.
+doi:10.1038/s41467-021-21246-9.](https://sciwheel.com/work/bibliography/10691771)
+
+[Kim, D.W. *et al.* (2020) "The cellular and molecular landscape of
+hypothalamic patterning and differentiation from embryonic to late
+postnatal development.," *Nature Communications*, 11(1), p. 4360.
+doi:10.1038/s41467-020-18231-z.](https://sciwheel.com/work/bibliography/9562189)
+
+[Kolde, R. *et al.* (2012) "Robust rank aggregation for gene list
+integration and meta-analysis.," *Bioinformatics*, 28(4), pp. 573--580.
+doi:10.1093/bioinformatics/btr709.](https://sciwheel.com/work/bibliography/3315303)
+
+[Korsunsky, I. *et al.* (2019) "Fast, sensitive and accurate integration
+of single-cell data with Harmony.," *Nature Methods*, 16(12), pp.
+1289--1296.
+doi:10.1038/s41592-019-0619-0.](https://sciwheel.com/work/bibliography/7790202)
+
+[Kraskov, A., Stögbauer, H. and Grassberger, P. (2004) "Estimating
+mutual information.," *Physical Review. E, Statistical, Nonlinear, and
+Soft Matter Physics*, 69(6 Pt 2), p. 066138.
+doi:10.1103/PhysRevE.69.066138.](https://sciwheel.com/work/bibliography/996986)
+
+[Kuo, A., Hansen, K.D. and Hicks, S.C. (2022) "Quantification and
+statistical modeling of Chromium-based single-nucleus RNA-sequencing
+data," *BioRxiv* [Preprint].
+doi:10.1101/2022.05.20.492835.](https://sciwheel.com/work/bibliography/14168104)
+
+[Lause, J., Berens, P. and Kobak, D. (2021) "Analytic Pearson residuals
+for normalization of single-cell RNA-seq UMI data.," *Genome Biology*,
+22(1), p. 258.
+doi:10.1186/s13059-021-02451-7.](https://sciwheel.com/work/bibliography/11654484)
+
+[Liu, M. *et al.* (2022) "Make war not love: The neural substrate
+underlying a state-dependent switch in female social behavior.,"
+*Neuron*, 110(5), pp. 841-856.e6.
+doi:10.1016/j.neuron.2021.12.002.](https://sciwheel.com/work/bibliography/12223889)
+
+[Lopez, J.P. *et al.* (2021) "Single-cell molecular profiling of all
+three components of the HPA axis reveals adrenal ABCB1 as a regulator of
+stress adaptation.," *Science Advances*, 7(5).
+doi:10.1126/sciadv.abe4497.](https://sciwheel.com/work/bibliography/10366572)
+
+[Lun, A.T.L. *et al.* (2019) "EmptyDrops: distinguishing cells from
+empty droplets in droplet-based single-cell RNA sequencing data.,"
+*Genome Biology*, 20(1), p. 63.
+doi:10.1186/s13059-019-1662-y.](https://sciwheel.com/work/bibliography/6713331)
+
+[Lutomska, L.M. *et al.* (2022) "Diet triggers specific responses of
+hypothalamic astrocytes in time and region dependent manner.," *Glia*,
+70(11), pp. 2062--2078.
+doi:10.1002/glia.24237.](https://sciwheel.com/work/bibliography/13870369)
+
+[Mayer, C. *et al.* (2018) "Developmental diversification of cortical
+inhibitory interneurons.," *Nature*, 555(7697), pp. 457--462.
+doi:10.1038/nature25999.](https://sciwheel.com/work/bibliography/4927382)
+
+[McCarthy, K.D. and de Vellis, J. (1980) "Preparation of separate
+astroglial and oligodendroglial cell cultures from rat cerebral
+tissue.," *The Journal of Cell Biology*, 85(3), pp. 890--902.
+doi:10.1083/jcb.85.3.890.](https://sciwheel.com/work/bibliography/472287)
+
+[McInnes, L., Healy, J. and Melville, J. (2018) "UMAP: Uniform Manifold
+Approximation and Projection for Dimension Reduction," *arXiv:1802.03426
+[cs, stat]*
+[Preprint].](https://sciwheel.com/work/bibliography/10656679)
+
+[McInnes, L. *et al.* (2018) "UMAP: uniform manifold approximation and
+projection," *The Journal of Open Source Software*, 3(29), p. 861.
+doi:10.21105/joss.00861.](https://sciwheel.com/work/bibliography/5973004)
+
+[Mickelsen, L.E. *et al.* (2019) "Single-cell transcriptomic analysis of
+the lateral hypothalamic area reveals molecularly distinct populations
+of inhibitory and excitatory neurons.," *Nature Neuroscience*, 22(4),
+pp. 642--656.
+doi:10.1038/s41593-019-0349-8.](https://sciwheel.com/work/bibliography/6618529)
+
+[Mickelsen, L.E. *et al.* (2020) "Cellular taxonomy and spatial
+organization of the murine ventral posterior hypothalamus.," *eLife*, 9.
+doi:10.7554/eLife.58901.](https://sciwheel.com/work/bibliography/10643260)
+
+[Moffitt, J.R. *et al.* (2018) "Molecular, spatial, and functional
+single-cell profiling of the hypothalamic preoptic region.," *Science*,
+362(6416).
+doi:10.1126/science.aau5324.](https://sciwheel.com/work/bibliography/5984196)
+
+[Mölder, F. *et al.* (2021) "Sustainable data analysis with Snakemake,"
+*F1000Research*, 10, p. 33.
+doi:10.12688/f1000research.29032.1.](https://sciwheel.com/work/bibliography/11176542)
+
+[Morris, E.L. *et al.* (2021) "Single-cell transcriptomics of
+suprachiasmatic nuclei reveal a Prokineticin-driven circadian network.,"
+*The EMBO Journal*, 40(20), p. e108614.
+doi:10.15252/embj.2021108614.](https://sciwheel.com/work/bibliography/12875742)
+
+[Mosmann, T. (1983) "Rapid colorimetric assay for cellular growth and
+survival: application to proliferation and cytotoxicity assays.,"
+*Journal of Immunological Methods*, 65(1--2), pp. 55--63.
+doi:10.1016/0022-1759(83)90303-4.](https://sciwheel.com/work/bibliography/69909)
+
+[Mucha, P.J. *et al.* (2010) "Community structure in time-dependent,
+multiscale, and multiplex networks.," *Science*, 328(5980), pp.
+876--878.
+doi:10.1126/science.1184819.](https://sciwheel.com/work/bibliography/286189)
+
+[Murtagh, F. and Legendre, P. (2014) "Ward's Hierarchical Agglomerative
+Clustering Method: Which Algorithms Implement Ward's Criterion?,"
+*Journal of Classification*, 31(3), pp. 274--295.
+doi:10.1007/s00357-014-9161-z.](https://sciwheel.com/work/bibliography/1283402)
+
+[Nadeau, C. and Bengio, Y. (1999) "Inference for the generalization
+error," *Advances in neural information ...*
+[Preprint].](https://sciwheel.com/work/bibliography/15703153)
+
+[Narayan, A., Berger, B. and Cho, H. (2021) "Assessing single-cell
+transcriptomic variability through density-preserving data
+visualization.," *Nature Biotechnology*, 39(6), pp. 765--774.
+doi:10.1038/s41587-020-00801-7.](https://sciwheel.com/work/bibliography/10315021)
+
+[Noël, F. *et al.* (2021) "Dissection of intercellular communication
+using the transcriptome-based framework ICELLNET.," *Nature
+Communications*, 12(1), p. 1089.
+doi:10.1038/s41467-021-21244-x.](https://sciwheel.com/work/bibliography/10627195)
+
+[Ntranos, V. *et al.* (2019) "A discriminative learning approach to
+differential expression analysis for single-cell RNA-seq.," *Nature
+Methods*, 16(2), pp. 163--166.
+doi:10.1038/s41592-018-0303-9.](https://sciwheel.com/work/bibliography/6301874)
+
+[Pearson, K. (1900) "X.On the criterion that a given system of
+deviations from the probable in the case of a correlated system of
+variables is such that it can be reasonably supposed to have arisen from
+random sampling," *Philosophical Magazine Series 5*, 50(302), pp.
+157--175.
+doi:10.1080/14786440009463897.](https://sciwheel.com/work/bibliography/1133086)
+
+[Pedregosa, F. *et al.* (2011) "Scikit-learn: Machine Learning in
+Python," *Journal of Machine Learning Research*
+[Preprint].](https://sciwheel.com/work/bibliography/15703083)
+
+[Peng, M. *et al.* (2021) "Cell type hierarchy reconstruction via
+reconciliation of multi-resolution cluster tree.," *Nucleic Acids
+Research*, 49(16), p. e91.
+doi:10.1093/nar/gkab481.](https://sciwheel.com/work/bibliography/11190107)
+
+[Pool, A.-H. *et al.* (2022) "Enhanced recovery of single-cell
+RNA-sequencing reads for missing gene expression data," *BioRxiv*
+[Preprint].
+doi:10.1101/2022.04.26.489449.](https://sciwheel.com/work/bibliography/13008579)
+
+[Reimand, J. *et al.* (2016) "g:Profiler-a web server for functional
+interpretation of gene lists (2016 update).," *Nucleic Acids Research*,
+44(W1), pp. W83-9.
+doi:10.1093/nar/gkw199.](https://sciwheel.com/work/bibliography/2925076)
+
+[Romanov, R.A. *et al.* (2020) "Molecular design of hypothalamus
+development.," *Nature*, 582(7811), pp. 246--252.
+doi:10.1038/s41586-020-2266-0.](https://sciwheel.com/work/bibliography/8868400)
+
+[Satija, R. *et al.* (2015) "Spatial reconstruction of single-cell gene
+expression data.," *Nature Biotechnology*, 33(5), pp. 495--502.
+doi:10.1038/nbt.3192.](https://sciwheel.com/work/bibliography/112055)
+
+[Shao, X. *et al.* (2021) "CellTalkDB: a manually curated database of
+ligand-receptor interactions in humans and mice.," *Briefings in
+Bioinformatics*, 22(4).
+doi:10.1093/bib/bbaa269.](https://sciwheel.com/work/bibliography/10000904)
+
+[Soneson, C. *et al.* (2021) "Preprocessing choices affect RNA velocity
+results for droplet scRNA-seq data.," *PLoS Computational Biology*,
+17(1), p. e1008585.
+doi:10.1371/journal.pcbi.1008585.](https://sciwheel.com/work/bibliography/10290566)
+
+[Stuart, T. and Satija, R. (2019) "Integrative single-cell analysis.,"
+*Nature Reviews. Genetics*, 20(5), pp. 257--272.
+doi:10.1038/s41576-019-0093-7.](https://sciwheel.com/work/bibliography/6335278)
+
+[Traag, V.A., Waltman, L. and van Eck, N.J. (2019) "From Louvain to
+Leiden: guaranteeing well-connected communities.," *Scientific Reports*,
+9(1), p. 5233.
+doi:10.1038/s41598-019-41695-z.](https://sciwheel.com/work/bibliography/6947194)
+
+[Varela, L. *et al.* (2017) "Endothelial HIF-1α Enables Hypothalamic
+Glucose Uptake to Drive POMC Neurons.," *Diabetes*, 66(6), pp.
+1511--1520.
+doi:10.2337/db16-1106.](https://sciwheel.com/work/bibliography/11157238)
+
+[Varela, L., Kim, J.G., *et al.* (2021) "Astrocytic lipid metabolism
+determines susceptibility to diet-induced obesity.," *Science Advances*,
+7(50), p. eabj2814.
+doi:10.1126/sciadv.abj2814.](https://sciwheel.com/work/bibliography/15702019)
+
+[Varela, L., Stutz, B., *et al.* (2021) "Hunger-promoting AgRP neurons
+trigger an astrocyte-mediated feed-forward autoactivation loop in
+mice.," *The Journal of Clinical Investigation*, 131(10).
+doi:10.1172/JCI144239.](https://sciwheel.com/work/bibliography/11669570)
+
+[Virshup, I. *et al.* (2023) "The scverse project provides a
+computational ecosystem for single-cell omics data analysis.," *Nature
+Biotechnology*, 41(5), pp. 604--606.
+doi:10.1038/s41587-023-01733-8.](https://sciwheel.com/work/bibliography/14649766)
+
+[Wen, S. *et al.* (2020) "Spatiotemporal single-cell analysis of gene
+expression in the mouse suprachiasmatic nucleus.," *Nature
+Neuroscience*, 23(3), pp. 456--467.
+doi:10.1038/s41593-020-0586-x.](https://sciwheel.com/work/bibliography/8245521)
+
+[Wickham, H. *et al.* (2019) "Welcome to the tidyverse," *The Journal of
+Open Source Software*, 4(43), p. 1686.
+doi:10.21105/joss.01686.](https://sciwheel.com/work/bibliography/7839114)
+
+[Wilke, C.O. (2020) "cowplot: Streamlined Plot Theme and Plot
+Annotations for
+ggplot2."](https://sciwheel.com/work/bibliography/15702037)
+
+[Wolf, F.A. *et al.* (2019) "PAGA: graph abstraction reconciles
+clustering with trajectory inference through a topology preserving map
+of single cells.," *Genome Biology*, 20(1), p. 59.
+doi:10.1186/s13059-019-1663-x.](https://sciwheel.com/work/bibliography/6682262)
+
+[Wolock, S.L., Lopez, R. and Klein, A.M. (2019) "Scrublet: Computational
+Identification of Cell Doublets in Single-Cell Transcriptomic Data.,"
+*Cell Systems*, 8(4), pp. 281-291.e9.
+doi:10.1016/j.cels.2018.11.005.](https://sciwheel.com/work/bibliography/6776726)
+
+[Xie, Y., Allaire, J.J. and Grolemund, G. (2018) *R markdown: the
+definitive guide*. Chapman and Hall/CRC.
+doi:10.1201/9781138359444.](https://sciwheel.com/work/bibliography/6424500)
+
+[Xie, Y. (2014) "knitr: A Comprehensive Tool for Reproducible Research
+in R," in Stodden, V., Leisch, F., and Peng, R.D. (eds.) *Implementing
+Reproducible Computational Research*. Chapman and
+Hall/CRC.](https://sciwheel.com/work/bibliography/15702067)
+
+[Zappia, L. and Oshlack, A. (2018) "Clustering trees: a visualization
+for evaluating clusterings at multiple resolutions.," *GigaScience*,
+7(7), p. giy083.
+doi:10.1093/gigascience/giy083.](https://sciwheel.com/work/bibliography/5672028)
+
+[Zeisel, A. *et al.* (2018) "Molecular architecture of the mouse nervous
+system.," *Cell*, 174(4), pp. 999-1014.e22.
+doi:10.1016/j.cell.2018.06.021.](https://sciwheel.com/work/bibliography/5639332)
+
+[Zheng, G.X.Y. *et al.* (2017) "Massively parallel digital
+transcriptional profiling of single cells.," *Nature Communications*, 8,
+p. 14049.
+doi:10.1038/ncomms14049.](https://sciwheel.com/work/bibliography/3003288)

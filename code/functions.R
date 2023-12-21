@@ -14,7 +14,7 @@ get_download_link <- function(file, folder = NULL) {
   url <- gsub(":", "/", remote)
   url <- gsub("git@", "http://", url)
   url <- gsub(".git", "", url, fixed = TRUE)
-  url <- paste(url, "raw/master/output", sep = "/")
+  url <- paste(url, "raw/main/output", sep = "/")
 
   if (is.null(folder)) {
     url <- paste(url, file, sep = "/")

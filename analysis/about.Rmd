@@ -9,52 +9,368 @@ editor_options:
 
 # Molecularly stratified hypothalamic astrocytes are cellular foci for obesity
 
-This repository contains code and output of the analysis of single-nuclei/cells
-RNA sequencing data for the article [Tretiakov E et al., 2023][publication].
+This repository contains code and output of the analysis of
+single-nuclei/cells RNA sequencing data for the article [Tretiakov E et
+al., 2023](https://doi.org/ "Tretiakov E et al.,").
 
 Please see file `CITATION` in the root of your Git repo that contains
 the citation information.
 
-To see the results of the analysis please visit
-the [analysis website][website].
+To see the results of the analysis please visit the [analysis
+website](https://eugot.github.io/heteroAstrocytes/index.html "Analysis website").
 
 ## Purpose
 
-This research aimed to develop a novel computational approach, termed AstroTRAP, to uncover molecular heterogeneity among astrocytes in distinct anatomical regions of the mouse hypothalamus. Astrocytes are an important yet understudied class of glial cells that support neuronal function, but their diversity has been difficult to decipher using standard bioinformatic techniques designed for neurons. The hypothalamus was chosen as a model system due to its complex cytoarchitecture and involvement in many vital physiological processes. The researchers hypothesized that improving astrocyte classification would provide new insights into their specialized roles in modulating hypothalamic circuits and associated behaviors.
+This research aimed to develop a novel computational approach, termed
+AstroTRAP, to uncover molecular heterogeneity among astrocytes in
+distinct anatomical regions of the mouse hypothalamus. Astrocytes are an
+important yet understudied class of glial cells that support neuronal
+function, but their diversity has been difficult to decipher using
+standard bioinformatic techniques designed for neurons. The hypothalamus
+was chosen as a model system due to its complex cytoarchitecture and
+involvement in many vital physiological processes. The researchers
+hypothesized that improving astrocyte classification would provide new
+insights into their specialized roles in modulating hypothalamic
+circuits and associated behaviors.
 
 The study had three main goals:
 
-1. Generate a consolidated dataset of single-cell RNA sequencing profiles for astrocytes across all hypothalamic nuclei, applying rigorous quality control.
+1.  Generate a consolidated dataset of single-cell RNA sequencing
+    profiles for astrocytes across all hypothalamic nuclei, applying
+    rigorous quality control.
 
-2. Develop AstroTRAP, a semi-supervised machine learning pipeline tailored to uncover stable molecular signatures of astrocytes despite their dynamic gene expression patterns. 
+2.  Develop AstroTRAP, a semi-supervised machine learning pipeline
+    tailored to uncover stable molecular signatures of astrocytes
+    despite their dynamic gene expression patterns.
 
-3. Validate AstroTRAP's predictions of region-specific astrocyte subclasses by histological analysis and functional experiments on neuron-astrocyte interactions.
+3.  Validate AstroTRAP's predictions of region-specific astrocyte
+    subclasses by histological analysis and functional experiments on
+    neuron-astrocyte interactions.
 
-Overall, this work demonstrates the power of specialized computational tools to reveal biological complexity hidden within large-scale transcriptomic data. The astrocyte diversity uncovered has important implications for understanding hypothalamic development, homeostasis, and disease.
+Overall, this work demonstrates the power of specialized computational
+tools to reveal biological complexity hidden within large-scale
+transcriptomic data. The astrocyte diversity uncovered has important
+implications for understanding hypothalamic development, homeostasis,
+and disease.
 
-## Results  
+## Results
 
-The researchers assembled and processed published scRNA-seq data on over 73,000 astrocytes from multiple hypothalamic nuclei. Standard unsupervised clustering methods, including principal component analysis, RNA velocity analysis, and differential gene expression, failed to identify stable molecular signatures that could delineate distinct astrocyte subclasses. The cells were grouped primarily by dynamic functional states rather than anatomical localization.
+The researchers assembled and processed published scRNA-seq data on over
+73,000 astrocytes from multiple hypothalamic nuclei. Standard
+unsupervised clustering methods, including principal component analysis,
+RNA velocity analysis, and differential gene expression, failed to
+identify stable molecular signatures that could delineate distinct
+astrocyte subclasses. The cells were grouped primarily by dynamic
+functional states rather than anatomical localization.
 
-To overcome this hurdle, the team developed AstroTRAP, a semi-supervised feature selection pipeline tailored to astrocyte heterogeneity. The key features included:
+### Figure 1:
 
-- Iterative integration of regional datasets with whole hypothalamus references to subtract out variable functional markers
-- Use of original region-specific sample labels to guide selection of location-specific features with cross-validation to optimize model hyperparameters
-- The trained AstroTRAP model has the ability to stratify a heterogeneous mixture of hypothalamic astrocytes by predicting their anatomical origin region.
+![](assets/Tretiakov_et_al_Fig_1.jpg)
 
-Applying AstroTRAP to the curated astrocyte dataset uncovered distinct molecular profiles for cells in the paraventricular nucleus (PVN), arcuate nucleus/median eminence (ARC/ME), suprachiasmatic nucleus (SCN), ventromedial hypothalamus (VMH), ventroposterior hypothalamus (VPH), lateral hypothalamus (LH), preoptic area (POA), and median preoptic nucleus (MnPO). The signatures were enriched in transcription factors, cell surface receptors, and signaling components. 
+| **Figure 1. Cellular states of hypothalamic astrocytes revealed by single-cell RNA-seq.** (**a**) Schema to suggest that unsupervised learning approaches, commonly used to analyze single-cell RNA-seq data, recognize functional states in astrocytes. (**b,c**) Single-cell-resolved rPCA-integration of data on hypothalamic astrocytes collated from 18 datasets^[6,7,37,40--42,44--52,62,64,66](https://sciwheel.com/work/citation?ids=13870369,13444613,6618529,10643260,13008579,5984196,10366572,3117894,15702016,12875742,8245521,7133417,14086391,12223889,9562189,8868400,5639332,13886356&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&suf=&sa=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0&dbf=0)^, including feature plots for select genes (**c**). (**d,e**) RNA velocity revealed a limited number of terminal states and the corresponding marker genes for hypothalamic astrocytes. (**f**) Reconstruction of pseudotime cellular trajectories for arcuate astrocytes by *CellRank.* Data from control and high-fat diet-fed conditions^[37](https://sciwheel.com/work/citation?ids=13870369&pre=&suf=&sa=0&dbf=0)^ were shown. This approach distinguished subsets of cells with prominent gene expression changes (*blue*) *vs*. unchanged trajectories (*green*). Dimed colors label the 95% confidence interval. (**g-j**) *In situ* hybridization confirmed the expression of select markers in astrocytes (*Gja1* being a stable mark) in hypothalamic subregions. Other cell types were labeled by *Snap25* (neurons) and *Olig1* (oligodendrocytes) to show complementarity with *Gja1*. (**k**) UMAP plot, an outcome of semi-supervised representation learning, yielded higher group segregation with genes for receptors, signaling molecules, and ligands resolved in patterns amongst astrocytes yet without regional segregation. (**l**) *In situ* hybridization validated select markers from (k). *Solid arrows* point to *Gja1*^+^ astrocytes co-expressing the markers indicated. Conversely, *open arrows* denote the lack of co-existence. (**m**) Expression of genes encoding neuropeptide receptors in hypothalamic astrocytes. (**n**) Schema identifies the unresolved challenge of the spatial assignment of astrocytes that cannot succeed when using classical algorithms. *Scale bars* = 10 mm (**g-j,l**).
 
-Notably, AstroTRAP retained information on dynamic functional markers like GFAP and FOS, while extracting stable location-specific features. Spatial segregation of astrocyte subclasses was confirmed by histological analysis of selected marker genes. 
+To overcome this hurdle, the team developed AstroTRAP, a semi-supervised
+feature selection pipeline tailored to astrocyte heterogeneity. The key
+features included:
 
-As a functional case study, the researchers focused on arcuate nucleus astrocytes expressing insulin receptors and the neuropeptides-processing protease inhibitor latexin. Computational modeling predicted preferential latexin release from these cells would modulate processing of the satiety peptide POMC in local neurons. Experiments in mice verified that disrupting mitochondrion-shaping protein *Mfn2* specifically in arcuate astrocytes led to POMC neuron changes and increased food intake resulting in diet-induced obesity.
+-   Iterative integration of regional datasets with whole hypothalamus
+    references to subtract out variable functional markers
+-   Use of original region-specific sample labels to guide selection of
+    location-specific features with cross-validation to optimize model
+    hyperparameters
+-   The trained AstroTRAP model has the ability to stratify a
+    heterogeneous mixture of hypothalamic astrocytes by predicting their
+    anatomical origin region.
+
+### Figure 2:
+
+![](assets/Tretiakov_et_al_Fig_2.jpg)
+
+| **Figure 2. Implementation of 'AstroTRAP' for the spatial assignment of hypothalamic astrocytes.** (**a**) Supervised UMAPs for integrated nucleus-specific hypothalamic datasets (ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^, MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^, POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^, PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^, SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, and VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^) color-coded with their true labels (*left*), and as predicted by AstroTRAP (*right*). *Top*: Optimized outcome when using an *XGBoost*-based model with the highest reliability scores (MCC, F1). (**b,c**) Altered gene expression in astrocytes from the ARC (*left*)^[37](https://sciwheel.com/work/citation?ids=13870369&pre=&suf=&sa=0&dbf=0)^ and PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^ (*right*) upon exposure to high-fat diet (HFD) and chronic social defeat stress, respectively. Genes that had undergone significant changes (that is, inducible) were shown in (**b**). Unchanged gene sets (considered non-inducible) were marked in (**c**). (**d**) Hexagonal bin (hexbin) plots depicting genetic marks specific to hypothalamic subregions identified by AstroTRAP. UMAP space was partitioned by using the color codes from (**a**).
+
+Applying AstroTRAP to the curated astrocyte dataset uncovered distinct
+molecular profiles for cells in the paraventricular nucleus (PVN),
+arcuate nucleus/median eminence (ARC/ME), suprachiasmatic nucleus (SCN),
+ventromedial hypothalamus (VMH), ventroposterior hypothalamus (VPH),
+lateral hypothalamus (LH), preoptic area (POA), and median preoptic
+nucleus (MnPO). The signatures were enriched in transcription factors,
+cell surface receptors, and signaling components.
+
+### Figure 3:
+
+![](assets/Tretiakov_et_al_Fig_3.jpg)
+
+| **Figure 3. Implementation of 'AstroTRAP' for the regional assignment of genes and gene regulatory networks (GRNs).** (**a**) Spatial assignment of astrocytes extracted from ^[44](https://sciwheel.com/work/citation?ids=8868400&pre=&suf=&sa=0&dbf=0)^ to hypothalamic areas (color-coded as in (**b**)), as well as the analysis of GRNs using the SCENIC workflow. Transcription factors are highlighted as specific marks of regionality. (**b**) Schema of how to extract spatial information from unsorted datasets using AstroTRAP. (**c**) AstroTRAP-derived regional enrichment in hypothalamus datasets that lacked spatial information. Feature plots for *n* = 4 selected genes are shown. Based on data from 4 'whole' hypothalamus datasets^[7,43--45](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0)^, a consensus existed on their spatial assignments, which was also consistent with their gene expression data in the integrated dataset used to benchmark spatial information (*see*: **Fig. 2d**).
+
+Notably, AstroTRAP retained information on dynamic functional markers
+like GFAP and FOS, while extracting stable location-specific features.
+Spatial segregation of astrocyte subclasses was confirmed by
+histological analysis of selected marker genes.
+
+### Figure 4:
+
+![](assets/Tretiakov_et_al_Fig_4.jpg)
+
+| **Figure 4. Benchmarking canonical glial markers and inducible genes in the hypothalamus.** (**a**) Hexagonal bin plots for *Slc1a3, S100b, Aqp4, Gfap, and Fos*, superimposed on a supervised UMAP, shows area-specific gene enrichment. UMAP space was partitioned as in Fig. 2a. *Gfap* and *Fos*, being inducible genes, had unequal distribution across hypothalamic areas. (**b**) Lineage tracing of *Slc1a3*^+^ cells in the postnatal hypothalamus, with tamoxifen injected on P21. Although only ARC and VMH were shown, labeled cells morphologically resembling astrocytes were indiscriminately found in the hypothalamic nuclei. (**c**) S100b, AQP4, GGFAP (astrocyte markers), and NeuN were localized in ARC. (**d**) *In situ* hybridization for *Slit2*, another inducible gene in astrocytes, showed indiscriminate distribution of *Slit2^+^/Gja1*^+^ cells in hypothalamic areas under control conditions. (**e**) In TRAP2 mice induced with 4OH-tamoxifen, cFOS^+^/GFAP^+^ astrocytes concentrated in the SCN, and showed diurnal fluctuations. *Arrows* point to star-shaped protoplasmic astrocytes. Quantification is from *n* = 3 male mice per condition. (**f**) TRAP mice induced with tamoxifen and exposed to acute stress harbored significantly more *Fos*^+^astrocytes (*solid arrows*) that co-expressed glutamate-ammonia ligase (GLUL) and GFP in the PVN *vs*. controls. *Open arrows* indicate neuron-like cells. Quantification is from *n* = 7 male mice/condition, *p* = 0.017 of two-tailed *t*-test with Welch's correction. The PVN was demarcated by its higher cell density than surrounding areas. *Scale bars* = 50 mm (**b,c**), 40 mm (**e,f**), 10 mm (**d**).
+
+As a functional case study, the researchers focused on arcuate nucleus
+astrocytes expressing insulin receptors and the neuropeptides-processing
+protease inhibitor latexin. Computational modeling predicted
+preferential latexin release from these cells would modulate processing
+of the satiety peptide POMC in local neurons. Experiments in mice
+verified that disrupting mitochondrion-shaping protein *Mfn2*
+specifically in arcuate astrocytes led to POMC neuron changes and
+increased food intake resulting in diet-induced obesity.
+
+### Figure 5:
+
+![](assets/Tretiakov_et_al_Fig_5.jpg)
+
+| **Figure 5. Modes of communication between astrocytes and *Agrp*^+^ or *Pomc*^+^ neurons in ARC.** (**a**) Illustration of possible ligand-receptor interactions between astrocytes and neurons. (**b,c**) *CellChat* applied to single-cell RNA-seq data reconstructed ligand-receptor interactions between subgroups of astrocytes, subset by being either *Insr^+^* or *Insr*^-^, and *Pomc*^+^ *vs*. *Agrp*^+^ neurons. Interactions exceeding ± 15% were indicated. (**d**) Shema of possible metabolic interactions between astrocytes and neurons driven by differential enzyme expression. (**e**) Relative densities of *Ins*^+^, *Lxn*^+^ and *Ins*^+^/*Lxn*^+^ astrocytes (normalized) in *n* = 8 hypothalamic areas, based on single-cell RNA-seq data (ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^, MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^, POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^, PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^, SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^, and VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^). (**f**) Feature plot showing the expression of *Lxn* in astrocytes from all areas computed in (e). (**g**) *Left: In situ* hybridization of *Lxn* in VMH, ARC, PVN, SCN. *Gja1* and *Apoe* marked astrocytes. *Right*: Immunohistochemistry for LXN and GFAP in VMH and ARC. (**h**) The end-feet of LXN^+^/GFAP^+^ astrocytes preferentially enwrapped POMC^+^ neurons. (**i**) Computational comparison of potential interactions between *Lxn*^+^ astrocytes (residing in ARC or PVN) and POMC^+^ neurons. *Left*: Calculation by *Liana*. *Right*: Data from *CellChat*. Data were filtered for signaling pathways with ligands specific to *Lxn*^+^ astrocytes (all those also found in PVN were excluded) and receptors in POMC^+^ neurons. Local astrocytes in ARC had many more matches than those from PVN. Pathways that were specific to the ARC were labeled to the right. (**j**) Signaling interactions reconstructed with *Liana* between *Lxn*^+^ astrocytes and either *Pomc*^+^ or *Agrp*^+^ neurons in ARC. Sizes of the labels reflect the level of 'specificity' across the groups labeled. (**k**) Feature plots for *Ntn1* and *Efna5* for astrocytes in ARC. (**l**) Extracellular LXN released from astrocytes under control conditions and when stimulated by insulin *in vitro*. *Scale bars* = 100 mm (**g,h**), 10 mm (*high power micrographs*).
+
+### Figure 6:
+
+![](assets/Tretiakov_et_al_Fig_6.jpg)
+
+| **Figure 6. *Mfn2* expression and function in astrocytes implicated in the control of bodyweight.** (**a**) *CellChat*-based cell-cell interactions. *Left*: The number of putative interactions between *Lxn^+^* or *Lxn*^-^ astrocytes and neurons (*Pomc*^+^ or *Agrp*^+^) in control (normal chow) and after exposure to a high-fat hypercaloric diet (HFD)^[37](https://sciwheel.com/work/citation?ids=13870369&pre=&suf=&sa=0&dbf=0)^. *Right*: Reconstruction of efferent ('outbound') and afferent ('inbound') signaling patterns across the four cell groups. (**b**) Changes in gene expression for mitochondrial genes upon exposure to HFD. (**c**) Correlated expression for *Lxn*/*Mfn2*/*Gfap* in astrocytes. (**d**) Illustration of astrocyte contributions to the control of synaptic communication. (**e**) GFP^+^ astrocytes after viral transduction (AAV-*Gfap-Gfp-Cre*) of the ARC in *Mfn2*^f/f^ mice. (**f**) Representative ultrastructural details of mitochondria in astrocytes under control conditions and the virus-mediated ablation of *Mfn2*. (**g-h**) Quantitative electron microscopy of morphological parameters in control *vs*. site-directed astrocyte-specific *Mfn2* loss-of-function. (**i,j**) Metabolic parameters in control *vs*. *Mfn2*^f/f^::*Gfap*^Cre^ mice under normal-fed *vs*. HFD conditions; experiments were performed in adult male mice at the age of 6-25 weeks. Data were expressed as means ± s.e.m.; sample size was at least 4 animals per condition; two-tailed t-test with Welch's correction was used for statistical analysis: \*P \< 0.05, \*\*P \< 0.01 (**h-j**). *Scale bars* = 100 mm (**e**), 500 nm (**f**).
 
 ## Conclusions
 
-This study puts forth AstroTRAP as an effective computational strategy for dissecting molecular heterogeneity of dynamic cell populations from scRNA-seq data. It revealed that hypothalamic astrocytes have specialized, location-dependent transcriptional identities that likely coordinate their interactions with regional neuronal circuits. 
+This study puts forth AstroTRAP as an effective computational strategy
+for dissecting molecular heterogeneity of dynamic cell populations from
+scRNA-seq data. It revealed that hypothalamic astrocytes have
+specialized, location-dependent transcriptional identities that likely
+coordinate their interactions with regional neuronal circuits.
 
-The gene expression maps generated serve as an important reference resource for the field. The functional analyses demonstrate that astrocytes are not passive elements but active modulators of hypothalamic control over metabolism and other homeostatic programs with distinct agenda. More broadly, delineating astrocyte diversity across brain regions will provide crucial insight into their roles in development, neural coding, and disease susceptibility.
+The gene expression maps generated serve as an important reference
+resource for the field. The functional analyses demonstrate that
+astrocytes are not passive elements but active modulators of
+hypothalamic control over metabolism and other homeostatic programs with
+distinct agenda. More broadly, delineating astrocyte diversity across
+brain regions will provide crucial insight into their roles in
+development, neural coding, and disease susceptibility.
 
-By integrating cutting-edge bioinformatics with biological validation, this work significantly advances understanding of astrocyte biology and establishes a paradigm for unlocking complex cell populations masked within heterogeneous single-cell omics data.
+By integrating cutting-edge bioinformatics with biological validation,
+this work significantly advances understanding of astrocyte biology and
+establishes a paradigm for unlocking complex cell populations masked
+within heterogeneous single-cell omics data.
 
-[publication]: https://doi.org/ "Tretiakov E et al., "
-[website]: https://eugot.github.io/heteroAstrocytes/index.html "Analysis website"
+## **Extended Data Figures**
+
+![](assets/Tretiakov_ED_Fig_1.jpg) \| **ED Figure 1.** **Unsupervised
+learning on consolidated astrocyte datasets is limited to reveal
+cell-state changes** (**a**) UMAP embedding prior to integration of
+astrocyte datasets by reciprocal PCA to control for batch effects.
+(**b**) Density plots for the expression of genes of metabolic-state
+markers on UMAP embedding, after integration of astrocyte datasets by
+reciprocal PCA to control for batch effects. (**c**) Conventional
+clustering separates astrocytes by their cellular states as shown by RNA
+velocity on a 'whole' hypothalamus
+dataset^[43](https://sciwheel.com/work/citation?ids=13354131&pre=&suf=&sa=0&dbf=0)^.
+(**d-f**) RNA-velocity of an ARC dataset extracted from
+Ref^[37](https://sciwheel.com/work/citation?ids=13870369&pre=&suf=&sa=0&dbf=0)^.
+UMAP embedding visualized cellular state transitions. Grid arrows in
+(**d,e**) were colored by the confidence of dynamic cell states (**d**)
+and conditions (**e**). Gene trends aligned along two lineages (**f**).
+(**g,h**) UMAP embedding with cellular activation states similarly
+redistributed astrocytes in the PVN in response to chronic social
+defeat^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^.
+Color coding as in (**g,h**).
+
+![](assets/Tretiakov_ED_Fig_2.jpg) \| **ED Figure 2**. **Histochemical
+controls.** *In situ* hybridization in the hypothalamic areas indicated
+was used to validate select markers. *Solid arrows* point to *Gja1*^+^
+astrocytes co-expressing the markers tested. *Scale bars* = 20 mm.
+
+![](assets/Tretiakov_ED_Fig_3.jpg) \| **ED Figure 3. Data integration on
+reference datasets and its histochemical validation.** (**a**)Scatter
+plots of PaCMAP embeddings of paired integration performed by combining
+'whole'
+hypothalamus^[7,43--45](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0)^
+and region-specific datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^)
+highlighted consistent region-specific deviations of the intersection
+area. (**b**) *In situ* hybridization across hypothalamic areas
+validated *Npy1r* expression in astrocytes. Solid arrows pinpoint
+*Gja1*^+^ astrocytes co-expressing *Npy1r*. *Scale bars* = 20 mm.
+
+![](assets/Tretiakov_ED_Fig_4.jpg) \| **ED Figure 4. Block scheme of
+'AstroTRAP', a spatially-resolved supervised machine learning
+algorithm.**
+
+![](assets/Tretiakov_ED_Fig_5.jpg) \| **ED Figure 5. AstroTRAP for the
+regional assignment of astrocytes.** (**a**) Supervised *densMAP*
+embedding of integrated regional hypothalamic datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^)
+color-coded by anatomical domains (nuclei, *left*), and as predicted by
+s *logit*-based SVC model of AstroTRAP (*right*). The latter was
+cross-validated for MCC and *F*-measure performance metrics. (**b**)
+Area contours of the original regions labeled for supervised *densMAP*
+embedding of integrated regional hypothalamic datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^)
+classified by the *XGBoost*-based SVC model of AstroTRAP. (**c**) Hexbin
+plots of transcription factors on the supervised *densMAP* embedding of
+integrated regional hypothalamic datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^)
+that were classified by the *XGBoost*-based SVC model of AstroTRAP.
+
+![](assets/Tretiakov_ED_Fig_6.jpg) \| **ED Figure 6.** **Region-specific
+marker expression.** (**a**)Supervised *densMAP* embedding of integrated
+regional hypothalamic datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^)
+classified by the *XGBoost*-based SVC model of AstroTRAP, particularly
+for neuropeptide receptors. (**b-g**) *In situ* hybridization in
+hypothalamic areas validated select markers. *Solid arrows* point to
+*Gja1*^+^ astrocytes co-expressing the markers tested. *Scale bars* = 20
+mm.
+
+![](assets/Tretiakov_ED_Fig_7.jpg) \| **ED Figure 7. Subgroups of
+astrocytes in the VMH.** (**a**) Glial cells expressing *Tbx3* and
+*Grpr* aggregated into a condensed cluster in the VMH. In contrast, we
+found many *Gja1*^+^ cells co-expressing *Tbx3* and *Grpr* around and
+ventral from the 3^rd^ ventricle (see: **ED Fig. 6f,g**). (**b**)Zonal
+markers (e.g., *Col25a1*, *Col23a1*) confirmed that parts of the
+ventricular and subventricular areas situated proximal to the median
+eminence were sequenced. (**c**) Contamination by tanycytes and
+ependymocytes were filtered out before integrating datasets. The cells
+that passed the filtering criteria (*left* on the volcano plot) differed
+from ciliary cells (*right*: *Hydin, Kif6, Ccdc30/162/170*). (**d**)
+Feature plot showing that the cells that passed our filtering criteria
+have progenitor potential (*Hes1, Sox9/11*), and resemble glial
+progenitors described
+earlier^[101](https://sciwheel.com/work/citation?ids=3026465&pre=&suf=&sa=0&dbf=0)^.
+
+![](assets/Tretiakov_ED_Fig_8.jpg) \| **ED Figure 8.** **Feature plots
+of gene expression** for receptors (for neurotransmitters and
+modulators) and signaling components generated through supervised
+*densMAP* embedding of integrated regional hypothalamic datasets
+ (ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^),
+classified by the *XGBoost*-based SVC model of AstroTRAP.
+
+![](assets/Tretiakov_ED_Fig_9.jpg) \| **ED Figure 9. RNA-FISH to test
+the regional segregation of master transcription factors (TFs).**
+(**a-c**) *In situ* hybridization in the hypothalamic areas indicated
+validated the distribution of select TF markers. *Solid arrows* point to
+*Gja1*^+^ astrocytes co-expressing the markers tested. *Scale bars* = 20
+mm.
+
+![](assets/Tretiakov_ED_Fig_10.jpg) \| **ED Figure 10. Feature plots for
+transcription factors (TFs).** (**a**) Feature plot of *Otp* expression
+on supervised *densMAP* embedding of integrated subregional hypothalamic
+datasets
+(ARC^[37,40](https://sciwheel.com/work/citation?ids=13870369,13444613&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+LH^[51](https://sciwheel.com/work/citation?ids=6618529&pre=&suf=&sa=0&dbf=0)^,
+MnPO^[46](https://sciwheel.com/work/citation?ids=13008579&pre=&suf=&sa=0&dbf=0)^,
+POA^[52](https://sciwheel.com/work/citation?ids=5984196&pre=&suf=&sa=0&dbf=0)^,
+PVN^[47](https://sciwheel.com/work/citation?ids=10366572&pre=&suf=&sa=0&dbf=0)^,
+SCN^[48,49](https://sciwheel.com/work/citation?ids=12875742,8245521&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+VMH^[41,42](https://sciwheel.com/work/citation?ids=14086391,12223889&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0)^,
+and
+VPH^[50](https://sciwheel.com/work/citation?ids=10643260&pre=&suf=&sa=0&dbf=0)^),
+classified by the XGBoost-based SVC model of AstroTRAP. (**b**) Feature
+plots for *Otp* lack coverage on all four 'whole' hypothalamus
+datasets^[7,43--45](https://sciwheel.com/work/citation?ids=5639332,13354131,8868400,9562189&pre=&pre=&pre=&pre=&suf=&suf=&suf=&suf=&sa=0,0,0,0&dbf=0&dbf=0&dbf=0&dbf=0)^.
+(**c**) *In situ* hybridization in distinct hypothalamic nuclei
+validated the distribution of this TF predicated by AstroTRAP. *Solid
+arrows* indicated *Gja1*^+^ cells co-expressing *Otp* mRNA. *Scale bars*
+= 20 mm.
+
+![](assets/Tretiakov_ED_Fig_11.jpg) \| **ED Figure 11. *Insr* and *Lxn*
+in ARC**.Pie charts, which visualized the statistical reliability of a
+fit test, were used to show the proportionality between *Insr* and *Lxn*
+expression in astrocytes.
+
+![](assets/Tretiakov_ED_Fig_12.jpg) \| **ED Figure 12**.
+**Astrocyte-neuron communication in the ARC.** Signaling analysis from
+*Lxn*^+/-^ astrocytes -\> neurons in the ARC. *Top*: Gardner-Altman
+estimation of multi-group data *Bootstrap*-coupled Estimation
+(DABEST)^[88](https://sciwheel.com/work/citation?ids=7093745&pre=&suf=&sa=0&dbf=0)^
+of cell-cell interactions. *Bottom*: Dot-plots demonstrating the
+specificity and magnitude of ligand-receptor pairs quantified as
+aggregated values.
+
+![](assets/Tretiakov_ED_Fig_13.jpg) \| **ED Figure 13**. **Analysis of
+intercellular signaling from neurons -\> *Lxn*^+/-^ astrocytes.** *Top*:
+Gardner-Altman estimation of multi-group data *Bootstrap*-coupled
+Estimation
+(DABEST)^[88](https://sciwheel.com/work/citation?ids=7093745&pre=&suf=&sa=0&dbf=0)^
+of cell-cell interactions. *Bottom*: Dot-plots demonstrating the
+specificity and magnitude of ligand-receptor pairs quantified as
+aggregated values.
+
+![](assets/Tretiakov_ED_Fig_14.jpg) \| **ED Figure 14. Latexin (LXN)
+release from astrocytes is inhibited by insulin *in vitro*.** (**a**)
+Purified primary astrocytes after overnight starvation (*left*), or
+stimulation (30 min) with 0.05 µM (*middle*) or 1 µM insulin (*right*).
+(**b**) Assessment of cell viability (MTT assay) showed no detrimental
+effect of insulin on astrocyte survival *in vitro*. (**c-e**) Western
+analysis of culture media after stimulating hypothalamic astrocytes with
+ascending concentrations of insulin for 30 min, as indicated. Cell
+lysates were also compared to controls (**e**). Experiments were
+minimally performed in triplicates per condition. (**f-g**)
+Quantification of LXN level in the media and cell pellets of cultured
+astrocytes treated with insulin, relative to controls. Data were
+expressed as means ± s.e.m. *Abbreviations*: LI/HI: low/high insulin;
+Ctrl: control.
+
+![](assets/Tretiakov_ED_Fig_15.jpg) \| **ED Figure 15. *In vivo*
+experiments in *Mfn2*^f/f^ mice.** (**a**) Schematic drawing of the
+stereotaxic delivery of AAVs into the ARC. (**b**) Representative images
+from the hypothalamus of *Mfn2*^f/f^ mice injected with
+AAV8-*Gfap-Gfp-Cre* particles (*green*) in the ARC. Note that
+Immunosignal was restricted to the ARC. (**c**) Representative images
+from the hypothalamus of *Mfn2*^f/f^ mice injected with
+AAV8-*Gfap-Gfp-Cre* particles (*green*) in the ARC, and counterstained
+using an anti-GFAP antibody (*red*). Note the exclusive co-localization
+between GFP and GFAP. (**d**) Experimental timeline. *Mfn2*^f/f^ mice
+were inoculated at 6-7 weeks of age. After a recovery period of 10 days,
+mice were exposed to a high-fat hypercaloric diet (HFD). *Scale bars* =
+50 mm (**b**), 10 mm (**c**).
