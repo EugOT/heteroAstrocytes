@@ -11,7 +11,7 @@
 
 <meta name="author" content="Evgenii O. Tretiakov" />
 
-<meta name="date" content="2023-12-21" />
+<meta name="date" content="2023-12-22" />
 
 <title>Methods</title>
 
@@ -514,7 +514,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Methods</h1>
 <h4 class="author">Evgenii O. Tretiakov</h4>
-<h4 class="date">2023-12-21</h4>
+<h4 class="date">2023-12-22</h4>
 
 </div>
 
@@ -543,7 +543,7 @@ class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2023-12-21
+<strong>Last updated:</strong> 2023-12-22
 </p>
 <p>
 <strong>Checks:</strong> <span
@@ -674,15 +674,15 @@ project makes it easier to run your code on other machines.</p>
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomEugOTheteroAstrocytestreefdba1c33ae4386ce4a396f4257f1016ab859611dtargetblankfdba1c3a">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomEugOTheteroAstrocytestree656a78d1804ce52ca18047394c57ada43a61940dtargetblank656a78da">
 <span class="glyphicon glyphicon-ok text-success"
 aria-hidden="true"></span> <strong>Repository version:</strong>
-<a href="https://github.com/EugOT/heteroAstrocytes/tree/fdba1c33ae4386ce4a396f4257f1016ab859611d" target="_blank">fdba1c3</a>
+<a href="https://github.com/EugOT/heteroAstrocytes/tree/656a78d1804ce52ca18047394c57ada43a61940d" target="_blank">656a78d</a>
 </a>
 </p>
 </div>
 <div
-id="strongRepositoryversionstrongahrefhttpsgithubcomEugOTheteroAstrocytestreefdba1c33ae4386ce4a396f4257f1016ab859611dtargetblankfdba1c3a"
+id="strongRepositoryversionstrongahrefhttpsgithubcomEugOTheteroAstrocytestree656a78d1804ce52ca18047394c57ada43a61940dtargetblank656a78da"
 class="panel-collapse collapse">
 <div class="panel-body">
 <p>
@@ -692,7 +692,7 @@ reproducibility.
 </p>
 <p>
 The results in this page were generated with repository version
-<a href="https://github.com/EugOT/heteroAstrocytes/tree/fdba1c33ae4386ce4a396f4257f1016ab859611d" target="_blank">fdba1c3</a>.
+<a href="https://github.com/EugOT/heteroAstrocytes/tree/656a78d1804ce52ca18047394c57ada43a61940d" target="_blank">656a78d</a>.
 See the <em>Past versions</em> tab to see a history of the changes made
 to the R Markdown and HTML files.
 </p>
@@ -4418,7 +4418,41 @@ Message
 Rmd
 </td>
 <td>
-<a href="https://github.com/EugOT/heteroAstrocytes/blob/fdba1c33ae4386ce4a396f4257f1016ab859611d/analysis/methods.Rmd" target="_blank">fdba1c3</a>
+<a href="https://github.com/EugOT/heteroAstrocytes/blob/656a78d1804ce52ca18047394c57ada43a61940d/analysis/methods.Rmd" target="_blank">656a78d</a>
+</td>
+<td>
+Evgenii O. Tretiakov
+</td>
+<td>
+2023-12-22
+</td>
+<td>
+fix small typos
+</td>
+</tr>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/EugOT/heteroAstrocytes/blob/9e9b92971f66d2f42b51a327b33ac21023863555/analysis/methods.Rmd" target="_blank">9e9b929</a>
+</td>
+<td>
+Evgenii O. Tretiakov
+</td>
+<td>
+2023-12-21
+</td>
+<td>
+update methods to the manuscript and designed figures
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/EugOT/heteroAstrocytes/9e9b92971f66d2f42b51a327b33ac21023863555/docs/methods.html" target="_blank">9e9b929</a>
 </td>
 <td>
 Evgenii O. Tretiakov
@@ -4540,8 +4574,8 @@ source(here::here(&quot;code&quot;, &quot;functions.R&quot;))</code></pre>
 <p><strong>Downloading and preprocessing single-cell RNA-seq
 data:</strong> Raw sequencing data files were obtained from the NCBI
 Gene Expression Onimbus mirror of the European Bioinformatics Institute
-using the IBM Aspera tool-kit (example command: <em>- ascp -QT -l 800m
--k 1 --overwrite=diff -P 33001 -i ~/asperaweb_id_dsa.openssh
+using the IBM Aspera tool-kit (example command: <em>ascp -QT -l 800m -k
+1 --overwrite=diff -P 33001 -i ~/asperaweb_id_dsa.openssh
 era-fasp@fasp.sra.ebi.ac.uk:/path/to/file/on/server</em>) or directly
 from the NCBI mirror using the ncbi-toolkit based on the BioProject ID
 (example command: <em>esearch -db sra -query PRJNA****** | efetch
@@ -4863,7 +4897,7 @@ AstroTRAP</strong></u></p>
 <p><strong>Feature selection in 2 steps:</strong> We prefiltered
 features using methods to capture genes of known subregional origin
 (<strong>ED Fig. 4a/Step 11</strong>). To this end, we used a union of
-gene sets selected by  c<sup>2</sup> statistics<a
+gene sets selected by  χ<sup>2</sup> statistics<a
 href="https://sciwheel.com/work/citation?ids=1133086&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Pearson, 1900)</a>,
 ANOVA <em>F</em>-value<a
 href="https://sciwheel.com/work/citation?ids=6004145&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Fisher, 1992)</a>,
@@ -4875,12 +4909,12 @@ performance in machine learning models. We used <em>GridSearchCV</em> to
 optimize parameters of the pipelines that consisted of 3 steps:
 ‘scaling’: <em>MinMaxScaler</em> for consistency (as negative values
 were not allowed in our calculations), ‘reduce dimensionality’:
-<em>SelectKBest</em> taking input one of  c<sup>2</sup>
-(<em>f_classif</em> or <em>mutual_info_classif</em>), and ‘classify’:
-SVC estimator with scaled gamma and a maximum number of iterations fixed
-to 1,000. The parameter grid included SVM fit strength (<em>C_OPTIONS =
-[1, 10, 100, 1000]</em>), and a number of features (‘K’) to select with
-genes thresholds (2,000, 1,000, 500, 250)<a
+<em>SelectKBest</em> taking input one ‘classify’ (χ<sup>2</sup><em>,
+f_classif</em> or <em>mutual_info_classif</em>): SVC estimator with
+scaled gamma and a maximum number of iterations fixed to 1,000. The
+parameter grid included SVM fit strength (<em>C_OPTIONS = [1, 10, 100,
+1000]</em>), and a number of features (‘K’) to select with genes
+thresholds (2,000, 1,000, 500, 250)<a
 href="https://sciwheel.com/work/citation?ids=15703083&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Pedregosa <em>et al.</em>, 2011)</a>.
 Then, we used <em>RepeatedStratifiedKFold(n_splits=10,
 n_repeats=10)</em> cross-validation to select classifiers with the
@@ -5068,10 +5102,10 @@ href="https://sciwheel.com/work/citation?ids=4362786&amp;pre=&amp;suf=&amp;sa=0&
 (<a
 href="docker://aertslab/pyscenic:0.12.1"><em>docker://aertslab/pyscenic:0.12.1</em></a>).
 to infer GRNs and their activity scores. For the <em>aucell</em>
-procedure, we have built GRNs only using enriched motifs with a NES of ³
+procedure, we have built GRNs only using enriched motifs with a NES of ≥
 3.0. We then took only directly annotated transcription factors (TFs) or
 TF annotated for an orthologous gene into account and retained GRNs with
-³ 3 genes. We used the <em>aucell</em> matrix to visualize dotplots of
+≥ 3 genes. We used the <em>aucell</em> matrix to visualize dotplots of
 GRN activity, and to build a dendrogram by using Ward clustering<a
 href="https://sciwheel.com/work/citation?ids=1283402&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Murtagh and Legendre, 2014)</a>
 (<strong>Fig. 2B; ED Fig. 5</strong>).</p>
@@ -5200,8 +5234,8 @@ and <em>R Markdown</em> (v2.21)<a
 href="https://sciwheel.com/work/citation?ids=6424500&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Xie, Allaire and Grolemund, 2018)</a>,
 and converted to HTML using <em>Pandoc</em> (v2.19.2).</p>
 </div>
-<div id="in-vivoand-in-vitro-studies" class="section level1">
-<h1><u><strong><em>In vivo</em>and <em>in vitro</em>
+<div id="in-vivo-and-in-vitro-studies" class="section level1">
+<h1><u><strong><em>In vivo</em></strong> <strong>and <em>in vitro</em>
 studies:</strong></u></h1>
 <p><strong>Ethical approval of animal studies</strong>: Experiments on
 live animals conformed to the 2010/63/EU European Communities Council
@@ -5336,7 +5370,7 @@ size, Fischer Scientific), washed, centrifuged, resuspended, and plated
 in astrocyte growth medium in T-75 flasks (10<sup>6</sup> cells; VWR).
 Cells were cultured in astrocyte growth medium at in 5% CO<sub>2</sub>
 atmosphere at 37 °C. Medium was partially (1/3) replaced every other
-day. At ³90% confluency, flasks were placed on an orbital shaker at 210
+day. At ≥90% confluency, flasks were placed on an orbital shaker at 210
 rpm at 37 °C overnight, thus separating neurons, microglia, and
 oligodendrocytes from adherent astrocytes. After discarding the
 supernatant, astrocytes were rinsed with Hanks’ Balanced Salt Solution
@@ -5378,7 +5412,7 @@ ZEN2010 software package. Each coverslip was tested at 5 independent
 (random) fields of view, with the means ± s.d. of the cell counts from
 at least 4 cultures processed to establish a ‘purity index’ (that is the
 percentage of GFAP<sup>+</sup> or ALDH1L1<sup>+</sup> cells/total
-cells). Cultures were only processed with purity ³95%.</p>
+cells). Cultures were only processed with purity ≥95%.</p>
 <p><strong>Cell viability assay:</strong> The viability of cells, plated
 at a density of 25,000 cells/well in 24-well plates (VWR), was tested
 using the 3-(4,5-dimethylthiazol-2-yl)-2,5-diphenyltetrazolium bromide
@@ -5449,7 +5483,7 @@ GFP and GFAP.</p>
 <p><strong>Body composition:</strong> Lean and fat mass were analyzed
 with EchoMRI (EchoMRI LLC)<a
 href="https://sciwheel.com/work/citation?ids=15702019&amp;pre=&amp;suf=&amp;sa=0&amp;dbf=0">(Varela, Kim, <em>et al.</em>, 2021)</a>.</p>
-<p><strong>Electron microscopy</strong>: Mice (<em>n</em> ³ 4 per group)
+<p><strong>Electron microscopy</strong>: Mice (<em>n</em> ≥ 4 per group)
 were anesthetized and transcardially perfused with freshly prepared 4%
 PFA and 0.1% glutaraldehyde as reported<a
 href="https://sciwheel.com/work/citation?ids=15702019,11669570&amp;pre=&amp;pre=&amp;suf=&amp;suf=&amp;sa=0,0&amp;dbf=0&amp;dbf=0">(Varela, Kim, <em>et al.</em>, 2021; Varela, Stutz, <em>et al.</em>, 2021)</a>.

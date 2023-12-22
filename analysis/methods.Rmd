@@ -145,7 +145,7 @@ versions <- list(
 **Downloading and preprocessing single-cell RNA-seq data:** Raw
 sequencing data files were obtained from the NCBI Gene Expression
 Onimbus mirror of the European Bioinformatics Institute using the IBM
-Aspera tool-kit (example command: *- ascp -QT -l 800m -k 1
+Aspera tool-kit (example command: *ascp -QT -l 800m -k 1
 \--overwrite=diff -P 33001 -i \~/asperaweb_id_dsa.openssh
 era-fasp\@fasp.sra.ebi.ac.uk:/path/to/file/on/server*) or directly from
 the NCBI mirror using the ncbi-toolkit based on the BioProject ID
@@ -461,7 +461,7 @@ AstroTRAP**]{.underline}
 
 **Feature selection in 2 steps:** We prefiltered features using methods
 to capture genes of known subregional origin (**ED Fig. 4a/Step 11**).
-To this end, we used a union of gene sets selected by  c^2^
+To this end, we used a union of gene sets selected by  χ^2^
 statistics[(Pearson, 1900)](https://sciwheel.com/work/citation?ids=1133086&pre=&suf=&sa=0&dbf=0),
 ANOVA
 *F*-value[(Fisher, 1992)](https://sciwheel.com/work/citation?ids=6004145&pre=&suf=&sa=0&dbf=0),
@@ -473,11 +473,11 @@ performance in machine learning models. We used *GridSearchCV* to
 optimize parameters of the pipelines that consisted of 3 steps:
 'scaling': *MinMaxScaler* for consistency (as negative values were not
 allowed in our calculations), 'reduce dimensionality': *SelectKBest*
-taking input one of  c^2^ (*f_classif* or *mutual_info_classif*), and
-'classify': SVC estimator with scaled gamma and a maximum number of
-iterations fixed to 1,000. The parameter grid included SVM fit strength
-(*C_OPTIONS = [1, 10, 100, 1000]*), and a number of features ('K') to
-select with genes thresholds (2,000, 1,000, 500,
+taking input one 'classify' (χ^2^*, f_classif* or
+*mutual_info_classif*): SVC estimator with scaled gamma and a maximum
+number of iterations fixed to 1,000. The parameter grid included SVM fit
+strength (*C_OPTIONS = [1, 10, 100, 1000]*), and a number of features
+('K') to select with genes thresholds (2,000, 1,000, 500,
 250)[(Pedregosa *et al.*, 2011)](https://sciwheel.com/work/citation?ids=15703083&pre=&suf=&sa=0&dbf=0).
 Then, we used *RepeatedStratifiedKFold(n_splits=10, n_repeats=10)*
 cross-validation to select classifiers with the highest weighted
@@ -651,9 +651,9 @@ then applied the SCENIC
 pipeline[(Aibar *et al.*, 2017)](https://sciwheel.com/work/citation?ids=4362786&pre=&suf=&sa=0&dbf=0)
 ([*docker://aertslab/pyscenic:0.12.1*](docker://aertslab/pyscenic:0.12.1)).
 to infer GRNs and their activity scores. For the *aucell* procedure, we
-have built GRNs only using enriched motifs with a NES of ³ 3.0. We then
+have built GRNs only using enriched motifs with a NES of ≥ 3.0. We then
 took only directly annotated transcription factors (TFs) or TF annotated
-for an orthologous gene into account and retained GRNs with ³ 3 genes.
+for an orthologous gene into account and retained GRNs with ≥ 3 genes.
 We used the *aucell* matrix to visualize dotplots of GRN activity, and
 to build a dendrogram by using Ward
 clustering[(Murtagh and Legendre, 2014)](https://sciwheel.com/work/citation?ids=1283402&pre=&suf=&sa=0&dbf=0)
@@ -775,7 +775,7 @@ and *R Markdown*
 (v2.21)[(Xie, Allaire and Grolemund, 2018)](https://sciwheel.com/work/citation?ids=6424500&pre=&suf=&sa=0&dbf=0),
 and converted to HTML using *Pandoc* (v2.19.2).
 
-# [***In vivo*****and *in vitro* studies:**]{.underline}
+# [***In vivo*** **and *in vitro* studies:**]{.underline}
 
 **Ethical approval of animal studies**: Experiments on live animals
 conformed to the 2010/63/EU European Communities Council Directive and
@@ -906,7 +906,7 @@ suspension was passed through a cell strainer (40 µm pore size, Fischer
 Scientific), washed, centrifuged, resuspended, and plated in astrocyte
 growth medium in T-75 flasks (10^6^ cells; VWR). Cells were cultured in
 astrocyte growth medium at in 5% CO~2~ atmosphere at 37 °C. Medium was
-partially (1/3) replaced every other day. At ³90% confluency, flasks
+partially (1/3) replaced every other day. At ≥90% confluency, flasks
 were placed on an orbital shaker at 210 rpm at 37 °C overnight, thus
 separating neurons, microglia, and oligodendrocytes from adherent
 astrocytes. After discarding the supernatant, astrocytes were rinsed
@@ -948,7 +948,7 @@ Images were acquired in the ZEN2010 software package. Each coverslip was
 tested at 5 independent (random) fields of view, with the means ± s.d.
 of the cell counts from at least 4 cultures processed to establish a
 'purity index' (that is the percentage of GFAP^+^ or ALDH1L1^+^
-cells/total cells). Cultures were only processed with purity ³95%.
+cells/total cells). Cultures were only processed with purity ≥95%.
 
 **Cell viability assay:** The viability of cells, plated at a density of
 25,000 cells/well in 24-well plates (VWR), was tested using the
@@ -1023,7 +1023,7 @@ GFP and GFAP.
 (EchoMRI
 LLC)[(Varela, Kim, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=15702019&pre=&suf=&sa=0&dbf=0).
 
-**Electron microscopy**: Mice (*n* ³ 4 per group) were anesthetized and
+**Electron microscopy**: Mice (*n* ≥ 4 per group) were anesthetized and
 transcardially perfused with freshly prepared 4% PFA and 0.1%
 glutaraldehyde as
 reported[(Varela, Kim, *et al.*, 2021; Varela, Stutz, *et al.*, 2021)](https://sciwheel.com/work/citation?ids=15702019,11669570&pre=&pre=&suf=&suf=&sa=0,0&dbf=0&dbf=0).
